@@ -1,0 +1,759 @@
+{% load static %} <!-- 必须在最顶部加载静态标签 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="日本初のVR空間ASMR有料店舗♪🥽🎧♪ ヒーリングサロン『Veludo-ビロード-』の公式サイトです！ VRChat公認！">
+    <title>ASMR Salonビロード</title>
+    
+    <!-- Tailwind CSS (样式库) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts (字体加载) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- 引入 Cormorant Garamond (英文衬线) 和 Noto Serif JP (日文衬线) -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Noto+Serif+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome (图标库) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        // [字体配置说明]
+                        // 'english': 专门用于英文大标题，风格优雅
+                        // 'japanese': 用于正文，确保日文显示清晰
+                        // 'sans': 默认字体栈，优先日文，防止英文强制套用到日文上造成基线不齐
+                        english: ['"Cormorant Garamond"', 'serif'],
+                        japanese: ['"Noto Serif JP"', 'serif'],
+                        sans: ['"Noto Serif JP"', '"Cormorant Garamond"', 'serif'], 
+                    },
+                    colors: {
+                        // [配色表] 修改这里的颜色代码可全局替换
+                        'veludo-bg': '#F9F8F6',        // 页面背景米白
+                        'veludo-header': '#9c8c74',    // 装饰色块褐灰
+                        'veludo-accent-gold': '#E3C070', // 强调色金色 (文字/线条)
+                        'veludo-btn-dark': '#856C43',   // 按钮默认深金
+                        'veludo-btn-hover': '#B59663',  // 按钮悬停亮金
+                        'veludo-text': '#5a544b',       // 正文深灰
+                        'veludo-light': '#EFECE8',      // 浅色装饰块
+                    },
+                    boxShadow: {
+                        'glow': '0 0 20px rgba(227, 192, 112, 0.4)', // 金色发光阴影
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* =========================================
+           全局基础设置
+           ========================================= */
+        html { scroll-behavior: smooth; }
+        body { 
+            background-color: #F9F8F6; 
+            color: #5a544b; 
+            letter-spacing: 0.1em; 
+            /* 默认使用日文字体，确保阅读体验 */
+            font-family: "Noto Serif JP", serif; 
+        }
+
+        /* =========================================
+           Page Transition Overlay / 页面加载转场
+           ========================================= */
+        #page-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #a08977; /* 加载层背景色 */
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            /* visibility 和 opacity 同时变化实现淡出 */
+            transition: opacity 1s ease-out, visibility 1s ease-out;
+        }
+        
+        #page-loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .loader-logo {
+            width: 260px; 
+            height: auto;
+            animation: pulse-logo 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-logo {
+            0%, 100% { opacity: 0.6; transform: scale(0.98); }
+            50% { opacity: 1; transform: scale(1.02); }
+        }
+
+        /* =========================================
+           Header / 导航栏样式
+           ========================================= */
+        .site-navbar {
+            background-color: #a08977; /* 导航栏背景色 */
+            height: 5rem; /* [修改] 拉高高度 */
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            padding: 0 2rem; 
+            /* 如果以后要换背景图，取消下面注释并填入URL */
+            /* background-image: url('assets/img/header_bg.jpg'); background-size: cover; */
+        }
+
+        .navbar-container {
+            width: 100%;
+            max-width: 120rem; 
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+        }
+
+        /* 导航链接动画 */
+        .nav-link a {
+            position: relative;
+            padding-bottom: 4px;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        .nav-link a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background-color: #E3C070; /* 下划线颜色 */
+            transition: width 0.3s ease;
+        }
+        .nav-link a:hover {
+            color: #E3C070;
+        }
+        .nav-link a:hover::after {
+            width: 100%;
+        }
+
+        /* =========================================
+           Footer / 页脚样式
+           ========================================= */
+        .site-footer {
+            background-color: #a08977; 
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            text-align: center;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* =========================================
+           Scroll Indicator / 滚动指示器
+           ========================================= */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 20;
+            padding-bottom: 2rem;
+        }
+        
+        .scroll-text {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.65rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        .scroll-line {
+            width: 1px;
+            height: 100px; 
+            background-color: rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .scroll-line::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background-color: #E3C070; 
+            animation: scroll-drop 2s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+        }
+
+        @keyframes scroll-drop {
+            0% { transform: translateY(-100%); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(250%); opacity: 0; }
+        }
+
+        /* =========================================
+           Carousel / 轮播图无缝循环动画
+           ========================================= */
+        @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); } 
+        }
+        /* 轮播原理：
+           容器宽度自适应内容(max-content)。
+           内部包含两组完全一样的图片列表。
+           动画将整个列表向左移动 50% 的宽度（即一组图片的长度），然后瞬间重置到 0，
+           因为两组图片首尾相接，视觉上就是无缝循环。
+        */
+        .carousel-track {
+            display: flex;
+            width: max-content; 
+            animation: scroll 60s linear infinite; /* 调整时间控制速度 */
+        }
+        .carousel-track:hover {
+            animation-play-state: paused; 
+        }
+
+        /* =========================================
+           Buttons / 按钮交互
+           ========================================= */
+        .btn-gold-interactive {
+            background-color: #856C43; 
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-gold-interactive:hover {
+            background-color: #B59663; 
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(181, 150, 99, 0.6);
+        }
+        /* 按钮光效 */
+        .btn-gold-interactive::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent);
+            transform: skewX(-25deg);
+            transition: 0.5s;
+        }
+        .btn-gold-interactive:hover::after {
+            left: 150%;
+            transition: 0.7s ease-in-out;
+        }
+
+        /* =========================================
+           Animations / 滚动入场动画
+           ========================================= */
+        /* 通用淡入上浮 */
+        .fade-in-up {
+            animation: fadeInUp 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        @keyframes fadeInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 滚动时仅仅淡入上浮 */
+        .reveal-on-scroll {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-on-scroll.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* [新增] 从左侧滑入动画 (距离约1cm = 30-40px) */
+        .slide-in-left {
+            opacity: 0;
+            transform: translateX(-40px);
+            transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .slide-in-left.is-visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* [新增] 从右侧滑入动画 */
+        .slide-in-right {
+            opacity: 0;
+            transform: translateX(40px);
+            transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .slide-in-right.is-visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* 背景水印文字样式 */
+        .bg-watermark {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            position: absolute;
+            font-size: 12rem;
+            color: rgba(163, 146, 118, 0.08);
+            z-index: 0;
+            pointer-events: none;
+            white-space: nowrap;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .bg-watermark { font-size: 6rem; }
+        }
+    </style>
+</head>
+<body class="font-serif antialiased overflow-x-hidden">
+
+    <!-- 加载遮罩 -->
+    <div id="page-loader">
+        <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Loading Logo" class="loader-logo">
+    </div>
+
+    <!-- 导航栏 -->
+    <nav class="fixed w-full z-[100] site-navbar transition-all duration-300">
+        <div class="navbar-container">
+            <!-- 左侧 Logo -->
+            <div class="flex items-center gap-4 flex-shrink-0">
+                <a href="{% url 'index' %}">
+                    <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Veludo Logo" class="h-14 w-auto object-contain hover:opacity-80 transition-opacity">
+                </a>
+                <div class="hidden lg:block h-8 w-[1px] bg-white/20"></div>
+                <span class="hidden lg:block text-[15px] tracking-[0.2em] font-light uppercase opacity-90 text-white">ASMR Salon</span>
+            </div>
+            
+            <!-- 右侧 Menu + Login -->
+            <div class="hidden md:flex items-center gap-10">
+                <!-- [修改] 链接改为跳转到独立HTML文件 -->
+                <div class="flex space-x-8 nav-link text-white font-medium text-[15px] tracking-[0.25em]">
+                    <a href="{% url 'index' %}">HOME</a>
+                    <a href="{% url 'service' %}">SERVICE</a>
+                    <a href="{% url 'cast' %}">CAST</a>
+                    <a href="{% url 'access' %}">ACCESS</a>
+                </div>
+
+<!-- [修复] 登录状态逻辑升级 -->
+                {% if user.is_authenticated %}
+                    <!-- 已登录：显示用户 ID/Profile 入口 -->
+                    <div class="relative group">
+                        <!-- 用户名/ID 按钮 -->
+                        <a href="{% url 'profile' %}" class="flex items-center gap-3 px-4 py-2 border border-transparent hover:border-veludo-accent-gold/50 rounded-sm transition-all duration-300 group-hover:bg-white/5">
+                            <div class="flex flex-col items-end">
+                                <span class="text-[10px] text-veludo-accent-gold tracking-widest uppercase">Welcome</span>
+                                <span class="text-xs text-white font-english tracking-wider">{{ user.vrc_id|default:user.username }}</span>
+                            </div>
+                            <div class="w-8 h-8 rounded-full bg-veludo-accent-gold text-veludo-header flex items-center justify-center border border-white/20">
+                                <i class="fa-regular fa-user"></i>
+                            </div>
+                        </a>
+
+                        <!-- 下拉菜单 (Hover 显示) -->
+                        <div class="absolute right-0 top-full mt-2 w-48 bg-[#9c8c74] shadow-xl rounded-sm overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50">
+                            <a href="{% url 'profile' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
+                                <i class="fa-solid fa-id-card mr-2"></i> MY PAGE
+                            </a>
+                            <a href="{% url 'my_bookings' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
+                                <i class="fa-solid fa-calendar-check mr-2"></i> MY RESERVATIONS
+                            </a>
+                            <a href="{% url 'logout' %}" class="block px-4 py-3 text-xs text-red-200 hover:bg-red-900/20 tracking-widest">
+                                <i class="fa-solid fa-arrow-right-from-bracket mr-2"></i> LOGOUT
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- 未登录 -->
+                    <a href="{% url 'login' %}" class="group flex items-center gap-2 border border-white/40 px-6 py-2.5 text-[10px] tracking-widest text-white hover:border-veludo-accent-gold hover:bg-veludo-accent-gold hover:text-white transition-all duration-300 rounded-sm">
+                        <i class="fa-regular fa-user group-hover:scale-110 transition-transform"></i> 
+                        <span>LOGIN</span>
+                    </a>
+                {% endif %}
+            </div>
+
+            <!-- 手机端菜单按钮 -->
+            <div class="flex items-center gap-6 md:hidden text-white">
+                <a href="login.html" class="text-xs hover:text-veludo-accent-gold"><i class="fa-regular fa-user"></i></a>
+                <button class="text-xl hover:text-veludo-accent-gold transition-colors">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section (首屏) -->
+    <header class="relative w-full h-[100vh] flex items-center justify-center overflow-hidden bg-[#CFC8BC]">
+        <img src="../static/images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg" class="absolute w-full h-full object-cover opacity-100 mix-blend-multiply" alt="Hero">
+        <div class="absolute inset-0 bg-black/15"></div>
+        
+        <div class="relative z-10 text-center text-white fade-in-up pb-10">
+            <div class="mb-6 flex justify-center">
+                 <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Relaxation" class="h-24 md:h-32 w-auto object-contain drop-shadow-lg">
+            </div>
+            
+            <div class="w-20 h-[2px] bg-veludo-accent-gold/80 mx-auto mb-6 shadow-[0_0_10px_rgba(227,192,112,0.5)]"></div>
+            <p class="text-sm md:text-lg tracking-[0.9em] font-light drop-shadow-sm text-veludo-light font-japanese">究極の癒しを、あなたに</p>
+            <p class="mt-4 text-[15px] tracking-[0.2em] opacity-90 text-veludo-accent-gold font-medium font-japanese">日本初のVR空間ASMR有料店舗</p>
+        </div>
+
+        <div class="scroll-indicator">
+            <span class="scroll-text">Scroll</span>
+            <div class="scroll-line"></div>
+        </div>
+
+        <div class="absolute bottom-12 right-6 md:right-16 md:bottom-20 z-20">
+            <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event)" class="block btn-gold-interactive text-white px-10 py-5 text-sm md:text-base tracking-[0.3em] shadow-2xl border border-white/20">
+                RESERVATION
+                <i class="fa-solid fa-angle-right ml-2 text-xs"></i>
+            </a>
+        </div>
+    </header>
+
+    <!-- 1. Introduction Section (简介) -->
+    <section id="introduction" class="relative py-24 md:py-40 bg-veludo-bg overflow-hidden">
+        <div class="bg-watermark top-20 right-[-10%] opacity-30 text-veludo-light">Concept</div>
+
+        <div class="max-w-4xl mx-auto px-6 relative z-10">
+            <div class="text-center mb-16 reveal-on-scroll">
+                <h2 class="text-2xl md:text-3xl text-gray-800 tracking-[0.2em] font-medium mb-6 font-japanese">
+                    究極のリラックス体験をご自宅で
+                </h2>
+                <div class="flex justify-center mb-6">
+                    <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="ASMR Salon Veludo" class="h-10 w-auto object-contain">
+                </div>
+                <div class="w-12 h-[2px] bg-veludo-accent-gold mx-auto mt-6"></div>
+            </div>
+
+            <div class="space-y-8 text-sm md:text-base leading-[2.4] text-[#5a544b] font-light text-justify reveal-on-scroll font-japanese">
+                <p>ASMR Salon Veludo-ビロード-では、VRChatを舞台にASMRとVRが融合した、新たな癒しの体験を提供しています。</p>
+                <p>美容院や床屋、耳かきを彷彿とさせる音のギミックを中心に据え、薄暗い中に漂う高級感あるワールドが、心地よいリラックスの空間を約束します。</p>
+                <p>徹底的にこだわった音質とエフェクトが、お客様に臨場感溢れるASMRを届け、熟練のスタッフが、様々な音の出るオブジェクトを駆使し お一人お一人に合わせたASMRを提供します。</p>
+                <p>この斬新な癒しの手法は、ASMRとVRを融合させた新しい次元の体験です。<br>革新的な癒し、ASMRのプロフェッショナル、そしてVR技術の最先端。</p>
+                <p class="text-center font-medium mt-8 text-veludo-header">当店でしか味わえないASMRとVRの新しい形をぜひお楽しみください。</p>
+            </div>
+
+            <!-- YouTube Video -->
+            <div class="mt-16 relative w-full aspect-video bg-black shadow-2xl reveal-on-scroll">
+                <iframe width="850" height="520" src="https://www.youtube.com/embed/-kdaGEUIBSM?si=Ndc34WEUFG4vLhch" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+            </div>
+
+            <!-- X (Twitter) Link -->
+            <div class="mt-12 text-center reveal-on-scroll">
+                <a href="https://x.com/vrasmr_veludo" class="inline-flex items-center gap-4 bg-black text-white px-10 py-4 text-xs tracking-[0.2em] hover:bg-[#333] hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 shadow-lg group">
+                    <i class="fa-brands fa-x-twitter text-lg group-hover:text-veludo-accent-gold transition-colors"></i>
+                    最新情報はこちらから
+                </a>
+            </div>
+
+             <!-- Cast Carousel -->
+             <div class="mt-24 w-full reveal-on-scroll">
+                <p class="text-center text-veludo-accent-gold text-xs tracking-[0.3em] mb-10 uppercase font-bold">Our Casts</p>
+                <div class="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden mask-linear-fade">
+                    <div class="carousel-track flex gap-6 px-6">
+                        <!-- 第一组图片 (Set 1) -->
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/Rin 3tai4①番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/しらとり 3tai4②番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/たかなし楓 3tai4③.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/2tail3tai4①.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/pass 3tai4.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/天藤ミント 3tai4①.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/てんしN3tai4 ③番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/ましろ 3tai4新③番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
+                            </div>
+                        </div>
+
+                        <!-- 第二组图片 (Set 2 - 完全复制 Set 1 以实现无缝循环) -->
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/Rin 3tai4①番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/しらとり 3tai4②番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/たかなし楓 3tai4③.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/2tail3tai4①.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/pass 3tai4.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/天藤ミント 3tai4①.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/てんしN3tai4 ③番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
+                            </div>
+                        </div>
+                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
+                            <img src="../static/images/cast/ましろ 3tai4新③番号.png" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
+                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-8">
+                    <a href="{% url 'cast' %}" class="text-[10px] text-veludo-accent-gold border-b border-veludo-accent-gold pb-1 hover:text-veludo-text transition-colors tracking-widest">VIEW ALL CASTS -></a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. What is ASMR Section -->
+    <section class="relative py-24 bg-[#EFECE8] border-y border-[#CFC8BC]/50">
+        <div class="bg-watermark -bottom-10 -left-10 opacity-50 text-white">About ASMR</div>
+        <div class="max-w-5xl mx-auto px-6 relative z-10 flex flex-col md:flex-row items-center gap-16">
+            <!-- [新增] 使用 slide-in-left 动画 -->
+            <div class="w-full md:w-1/2 slide-in-left reveal-on-scroll">
+                <div class="relative p-4 border border-veludo-header/30">
+                    <img src="../static/images/Home/s-1350x2400_v-frms_webp_b678f0dd-2f12-4707-9711-bfa90315cdec.png" class="w-full h-auto hover:grayscale-0 transition-all duration-700 shadow-lg" alt="ASMR Concept">
+                </div>
+            </div>
+            <div class="w-full md:w-1/2 reveal-on-scroll">
+                <div class="mb-8">
+                    <h2 class="text-2xl text-gray-800 tracking-[0.2em] font-medium border-l-2 border-veludo-accent-gold pl-6 font-japanese">
+                        ASMRとは
+                    </h2>
+                </div>
+                <div class="space-y-6 text-sm leading-[2.2] text-[#5a544b] font-light font-japanese">
+                    <p>
+                        <span class="font-medium text-veludo-header">ASMR（Autonomous Sensory Meridian Response）</span>は、リラックスや快感をもたらす心地よい音を指します。
+                    </p>
+                    <p>特定の音（例: シャワーの音、シャンプーの音）がトリガーとなり 心に気持ちよい感覚が生まれます。</p>
+                    <p>多くの人がASMRを通じてストレス軽減やリフレッシュを感じています。</p>
+                    <p>当サロンでは、VR空間上で様々なASMR体験を提供し、心地よいひとときをお楽しみいただけます。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Service Section -->
+    <section id="service" class="relative py-24 md:py-40">
+        <div class="bg-watermark top-10 left-4 opacity-60">Service</div>
+        <div class="max-w-6xl mx-auto px-6 relative z-10">
+            <div class="flex flex-col md:flex-row items-center gap-12 md:gap-24">
+                <div class="w-full md:w-5/12 pt-12 md:pt-0 order-2 md:order-1 reveal-on-scroll">
+                    <h2 class="text-3xl text-gray-800 mb-10 tracking-[0.2em] font-medium border-l-2 border-veludo-accent-gold pl-6 font-japanese">
+                        サービスについて
+                    </h2>
+                    <div class="space-y-8 text-sm md:text-base leading-[2.4] text-[#5a544b] font-light text-justify font-japanese">
+                        <p>VRASMRのプロがお客様にASMRを使ったリラックス体験を提供いたします。</p>
+                        <p>VRの世界に慣れていない方も、ご来店からお帰りまでマンツーマンでサポートいたします。</p>
+                        <p>ご自宅で気軽にできる新しいVR体験を是非体感していってください。</p>
+                    </div>
+                    <a href="{% url 'service' %}" class="inline-block mt-12 btn-gold-interactive text-white px-10 py-3.5 text-xs tracking-[0.3em] shadow-xl">
+                        詳しくはこちら
+                    </a>
+                </div>
+                <!-- [新增] 使用 slide-in-right 动画 -->
+                <div class="w-full md:w-7/12 relative order-1 md:order-2 slide-in-right reveal-on-scroll">
+                    <div class="absolute -bottom-8 -right-8 w-3/4 h-full bg-veludo-header z-0"></div>
+                    <div class="relative z-10 shadow-2xl">
+                        <img src="../static/images/Home/s-1920x1080_v-frms_webp_db9a8c50-a860-4fed-ae3a-f3a9e8c65a2f.jpg" 
+                             alt="Service VR Image" 
+                             class="w-full h-auto object-cover aspect-video grayscale-[20%] hover:grayscale-0 transition-all duration-700">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- YouTube Block -->
+    <section class="relative py-24 bg-black overflow-hidden group">
+        <img src="../static/images/All/s-1920x1080_v-frms_webp_7f12b316-64f9-4f0a-8cd7-31feec5ace29.png" class="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-30 transition-opacity duration-700" alt="Background">
+        <div class="relative z-10 max-w-4xl mx-auto px-6 text-center flex flex-col items-center reveal-on-scroll">
+            <div class="mb-8">
+                <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Veludo" class="h-20 w-auto object-contain drop-shadow-lg">
+            </div>
+            <p class="text-white text-sm md:text-base tracking-[0.2em] font-light mb-10 drop-shadow-md font-japanese">
+                サービス内容を動画でご確認いただける
+            </p>
+            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" class="inline-block btn-gold-interactive text-white px-12 py-4 text-xs md:text-sm tracking-[0.3em] shadow-[0_0_20px_rgba(200,164,100,0.4)] border border-white/20">
+                YouTubeチャンネルはこちらから
+            </a>
+        </div>
+    </section>
+
+    <!-- Access Section -->
+    <section id="access" class="py-32 bg-[#F7F4F0] border-t border-[#EFECE8]">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="bg-white p-12 md:p-20 shadow-xl relative overflow-hidden reveal-on-scroll">
+                <div class="absolute top-0 left-0 w-full h-1 bg-veludo-header"></div>
+                <div class="text-center mb-12">
+                    <h2 class="font-english italic text-6xl text-veludo-header mb-4 font-bold">Access</h2>
+                    <p class="text-[10px] tracking-[0.5em] text-gray-400 uppercase">Information</p>
+                </div>
+                <div class="space-y-10 text-center">
+                    <div>
+                        <h4 class="text-veludo-accent-gold text-xs tracking-[0.5em] mb-4 uppercase font-bold font-japanese">店舗情報</h4>
+                        <p class="text-sm leading-loose text-[#5a544b] font-japanese">
+                            VRChat内ワールド "ASMR Salon Veludo"<br>
+                            <span class="text-[12px] text-gray-400 mt-2 block">VRChat公認</span>
+                        </p>
+                    </div>
+                    <div class="flex flex-col items-center gap-6 mt-8">
+                        <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event)" class="w-64 btn-gold-interactive text-white py-4 text-xs tracking-[0.4em] shadow-lg">
+                            RESERVATION
+                        </a>
+                        <div class="flex gap-8 text-lg text-veludo-header/60">
+                            <a href="https://x.com/vrasmr_veludo" class="hover:text-veludo-accent-gold"><i class="fa-brands fa-twitter"></i></a>
+                            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" class="hover:text-veludo-accent-gold"><i class="fa-brands fa-youtube"></i></a>
+                            <a href="https://discord.gg/5MwQHAzjSu" class="hover:text-veludo-accent-gold"><i class="fa-brands fa-discord"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="max-w-2xl mx-auto px-6 flex flex-col items-center">
+            <div class="mb-10 flex justify-center">
+                <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Veludo Logo" class="h-12 w-auto object-contain">
+            </div>
+            
+            <div class="text-[12px] md:text-xs leading-loose opacity-80 font-light mb-12 space-y-4 font-japanese text-white text-center">
+                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br>VRChat公認の商用利用店舗です。</p>
+                <p class="text-[11px] text-white/60">
+                    ©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant<br>
+                    ©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ<br>
+                    ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri<br>
+                    Lys　Mister Pink　Nanaha　Ornament Corpse　PetiDoll　snowlight0102　Today cloth<br>
+                    VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん
+                </p>
+            </div>
+            <div class="text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        function handleReservationClick(event) {
+            // 1. 获取 Django 传过来的登录状态 (字符串 "true" 或 "false")
+            const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}";
+            
+            // 2. 如果未登录
+            if (isAuthenticated === 'false') {
+                event.preventDefault(); // 阻止 <a> 标签的默认跳转
+                
+                // 3. 弹出确认框 (也可以换成好看的 Modal)
+                if(confirm("ご予約にはログイン（または会員登録）が必要です。\nログインページへ移動しますか？")) {
+                    // 4. 跳转到登录页，并携带 ?next 参数
+                    // 这样登录成功后，Django 会自动跳回预约页
+                    window.location.href = "{% url 'login' %}?next={% url 'booking_page' %}";
+                }
+            }
+            // 如果已登录 (isAuthenticated === 'true')，则不做干预，让 <a> 标签正常跳转
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            // 页面加载转场控制
+            const pageLoader = document.getElementById('page-loader');
+            
+            // 确保动画至少展示 1 秒 (视觉体验)
+            setTimeout(() => {
+                if (pageLoader) {
+                    pageLoader.classList.add('hidden');
+                }
+            }, 1000);
+
+            // Scroll Reveal Intersection Observer
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                        // observer.unobserve(entry.target); // 保持监听，让动画在每次进入时触发，或者取消注释只触发一次
+                    }
+                });
+            }, observerOptions);
+            
+            // 监听所有带动画类的元素
+            const elements = document.querySelectorAll('.reveal-on-scroll, .slide-in-left, .slide-in-right');
+            elements.forEach(el => observer.observe(el));
+        });
+    </script>
+</body>
+</html>

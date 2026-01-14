@@ -1,0 +1,218 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>My Page | ASMR Salon Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'veludo-accent-gold': '#d4af37', 
+                        'veludo-dark-bg': '#1a1a1a',
+                        'veludo-panel': '#2d2d2d',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        .glass-panel {
+            background: rgba(45, 45, 45, 0.85); 
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        /* 强制覆盖 Django 默认 input 样式 */
+        .input-field {
+            width: 100%; 
+            background: rgba(0,0,0,0.2) !important; 
+            border: 1px solid #444 !important; 
+            color: white !important; 
+            padding: 8px 12px !important; 
+            margin-bottom: 5px;
+            font-family: sans-serif;
+            border-radius: 2px;
+        }
+        .input-field:focus { border-color: #d4af37 !important; outline: none; }
+        
+        /* 文件上传按钮美化 */
+        input[type="file"]::file-selector-button {
+            background-color: #444;
+            color: #d4af37;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            margin-right: 15px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background-color: #d4af37;
+            color: #000;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-fixed bg-cover bg-center flex items-center justify-center py-20"
+      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+
+    <div class="relative z-10 w-full max-w-5xl mx-auto px-6">
+        
+        <div class="flex justify-between items-center mb-8">
+            <a href="{% url 'index' %}" class="text-white/60 hover:text-white transition-colors text-xs tracking-widest flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> BACK TO HOME
+            </a>
+        </div>
+
+        <div class="glass-panel p-8 md:p-12 rounded-sm grid grid-cols-1 md:grid-cols-12 gap-12">
+            
+            <div class="md:col-span-4 border-b md:border-b-0 md:border-r border-white/10 pb-8 md:pb-0 md:pr-8 text-center">
+                <div class="w-32 h-32 rounded-full bg-[#333] mx-auto mb-6 flex items-center justify-center text-4xl text-white border-4 border-veludo-accent-gold/20 shadow-xl overflow-hidden relative group">
+                    {% if user.avatar %}
+                        <img src="{{ user.avatar.url }}" class="w-full h-full object-cover">
+                    {% elif cast_profile and cast_profile.avatar %}
+                        <img src="{{ cast_profile.avatar.url }}" class="w-full h-full object-cover">
+                    {% else %}
+                        <i class="fa-regular fa-user text-white/50"></i>
+                    {% endif %}
+                </div>
+                
+                <h2 class="text-2xl font-serif text-white mb-2">
+                    {% if user.vrc_id %}
+                        {{ user.vrc_id }}
+                    {% else %}
+                        {{ user.username }}
+                    {% endif %}
+                </h2>
+                <p class="text-xs text-veludo-accent-gold mb-8 tracking-widest uppercase">
+                    {% if is_admin %} Administrator {% elif is_cast %} Cast Member {% else %} Member {% endif %}
+                </p>
+
+                <div class="space-y-4">
+                    {% if is_cast %}
+                        <a href="{% url 'schedule' %}" class="block w-full bg-veludo-accent-gold text-black py-3 text-xs font-bold tracking-widest hover:bg-white transition-colors text-center">
+                            <i class="fa-regular fa-calendar-check mr-2"></i> SCHEDULE
+                        </a>
+                    {% endif %}
+                    
+                    {% if is_admin %}
+                    <a href="{% url 'admin_dashboard' %}" target="_blank" class="block w-full bg-red-900/40 text-red-200 border border-red-500/30 py-3 text-xs tracking-widest hover:bg-red-900/60 transition-colors text-center">
+                        <i class="fa-solid fa-screwdriver-wrench mr-2"></i> ADMIN PANEL
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-8 pt-8 border-t border-white/10">
+                     <a href="{% url 'logout' %}" class="text-xs text-white/40 hover:text-white transition-colors">LOGOUT</a>
+                </div>
+            </div>
+
+            <div class="md:col-span-8">
+                <h3 class="text-xl font-serif text-white border-b border-white/10 pb-4 mb-6 flex justify-between items-end">
+                    <span>Edit Profile</span>
+                    <span class="text-xs text-gray-500 font-sans tracking-wide">基本情報の変更</span>
+                </h3>
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    {% if form.errors %}
+                        <div class="mb-6 p-3 bg-red-900/20 border border-red-500/30 text-red-300 text-xs rounded-sm">
+                            <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 保存できませんでした:</p>
+                            <ul class="list-disc pl-5">
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                    <li>{{ field.label }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
+                                {{ form.vrc_id.label }} <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.vrc_id }}
+                            <span class="text-[10px] text-gray-500">*VRChat上の表示名(予約の時に必要になります)</span>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
+                                {{ form.email.label }}
+                            </label>
+                            {{ form.email }}
+                            <span class="text-[10px] text-gray-500">※任意</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
+                                <i class="fa-brands fa-discord mr-1"></i> {{ form.discord_id.label }}
+                            </label>
+                            {{ form.discord_id }}
+                            <span class="text-[10px] text-gray-500">※自動連携（変更不可）</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
+                                <i class="fa-brands fa-x-twitter mr-1"></i> {{ form.twitter_id.label }}
+                            </label>
+                            {{ form.twitter_id }}
+                            <span class="text-[10px] text-gray-500">※任意</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-8 p-4 bg-white/5 border border-white/10 rounded-sm">
+                        <label class="block text-xs text-gray-400 mb-3 uppercase tracking-wider">Profile Avatar</label>
+                        {{ form.avatar }}
+                        <p class="mt-2 text-[10px] text-gray-500">推奨サイズ: 500x500px, Max 2MB. (JPG/PNG)</p>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="bg-white/10 hover:bg-veludo-accent-gold hover:text-black text-white px-10 py-3 text-xs tracking-widest transition-all border border-white/20 font-bold">
+                            SAVE CHANGES
+                        </button>
+                    </div>
+
+                    {% if is_cast %}
+                    <div class="mt-8 pt-8 border-t border-white/10">
+                        <h3 class="text-lg text-veludo-gold mb-4 font-english italic">Course Settings</h3>
+                        <div class="flex gap-6">
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                {{ form.allow_30_min }}
+                                <span class="text-sm text-gray-300">30 Mins</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                {{ form.allow_60_min }}
+                                <span class="text-sm text-gray-300">60 Mins</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                {{ form.allow_120_min }}
+                                <span class="text-sm text-gray-300">120 Mins</span>
+                            </label>
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+
+                {% if messages %}
+                <div class="mt-6 p-4 bg-green-900/30 border border-green-500/30 text-green-300 text-xs tracking-wide">
+                    {% for message in messages %}
+                        <i class="fa-solid fa-check-circle mr-2"></i> {{ message }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

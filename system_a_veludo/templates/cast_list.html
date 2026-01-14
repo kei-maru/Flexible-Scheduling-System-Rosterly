@@ -1,0 +1,301 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cast List | Veludo</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        english: ['"Cormorant Garamond"', 'serif'],
+                        japanese: ['"Noto Serif JP"', 'serif'],
+                    },
+                    colors: {
+                        'veludo-bg': '#F9F8F6',
+                        'veludo-header': '#9c8c74',
+                        'veludo-accent-gold': '#E3C070',
+                        'paper-bg': '#f5f0e6',
+                        'paper-text': '#5d5555',
+                        'btn-brown': '#a8947d',
+                        'dark-tea': '#4a3b32',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F9F8F6; font-family: "Noto Serif JP", serif; color: #5a544b; }
+        
+        /* Navbar Styles */
+        .site-navbar {
+            background-color: rgba(160, 137, 119, 0.95); /* #a08977 with opacity */
+            backdrop-filter: blur(5px);
+            height: 5rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .nav-link a { position: relative; padding-bottom: 4px; text-decoration: none; transition: color 0.3s ease; }
+        .nav-link a::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 1px; background-color: #E3C070; transition: width 0.3s ease; }
+        .nav-link a:hover { color: #E3C070; }
+        .nav-link a:hover::after { width: 100%; }
+
+        /* Carousel Styles */
+        .carousel-slide {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; transition: opacity 1s ease-in-out; z-index: 1;
+        }
+        .carousel-slide.active { opacity: 1; z-index: 10; }
+        
+        /* Animations */
+        .fade-in-up { animation: fadeInUp 1s ease-out forwards; opacity: 0; transform: translateY(20px); }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        
+        .reveal-on-scroll { opacity: 0; transition: opacity 1s, transform 1s; transform: translateY(20px); }
+        .reveal-on-scroll.is-visible { opacity: 1; transform: translateY(0); }
+
+        /* Mobile Menu */
+        #mobile-menu {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            max-height: 0; opacity: 0; overflow: hidden;
+        }
+        #mobile-menu.open { max-height: 400px; opacity: 1; }
+        
+        /* Footer */
+        .site-footer {
+            background-color: #a08977; padding-top: 3rem; padding-bottom: 3rem;
+            text-align: center; color: white; display: flex; flex-direction: column; align-items: center;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+
+    <nav class="fixed w-full z-[100] site-navbar transition-all duration-300">
+        <div class="w-full max-w-[120rem] mx-auto px-6 h-full flex justify-between items-center">
+            <div class="flex items-center gap-4 flex-shrink-0">
+                <a href="{% url 'index' %}">
+                    <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-14 w-auto object-contain hover:opacity-80 transition-opacity">
+                </a>
+                <div class="hidden lg:block h-8 w-[1px] bg-white/20"></div>
+                <span class="hidden lg:block text-[15px] tracking-[0.2em] font-light uppercase opacity-90 text-white">ASMR Salon</span>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-10">
+                <div class="flex space-x-8 nav-link text-white font-medium text-[15px] tracking-[0.25em]">
+                    <a href="{% url 'index' %}">HOME</a>
+                    <a href="{% url 'service' %}">SERVICE</a>
+                    <a href="{% url 'cast' %}" class="text-veludo-accent-gold">CAST</a>
+                    <a href="{% url 'access' %}">ACCESS</a>
+                </div>
+
+                {% if user.is_authenticated %}
+                    <div class="relative group">
+                        <a href="{% url 'profile' %}" class="flex items-center gap-3 px-4 py-2 border border-transparent hover:border-veludo-accent-gold/50 rounded-sm transition-all duration-300 group-hover:bg-white/5">
+                            <div class="flex flex-col items-end">
+                                <span class="text-[10px] text-veludo-accent-gold tracking-widest uppercase">Welcome</span>
+                                <span class="text-xs text-white font-english tracking-wider">{{ user.vrc_id|default:user.username }}</span>
+                            </div>
+                            <div class="w-8 h-8 rounded-full bg-veludo-accent-gold text-veludo-header flex items-center justify-center border border-white/20">
+                                <i class="fa-regular fa-user"></i>
+                            </div>
+                        </a>
+                        <div class="absolute right-0 top-full mt-2 w-48 bg-[#9c8c74] shadow-xl rounded-sm overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50">
+                            <a href="{% url 'profile' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
+                                <i class="fa-solid fa-id-card mr-2"></i> MY PAGE
+                            </a>
+                            <a href="{% url 'my_bookings' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
+                                <i class="fa-solid fa-calendar-check mr-2"></i> RESERVATIONS
+                            </a>
+                            <a href="{% url 'logout' %}" class="block px-4 py-3 text-xs text-red-200 hover:bg-red-900/20 tracking-widest">
+                                <i class="fa-solid fa-arrow-right-from-bracket mr-2"></i> LOGOUT
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <a href="{% url 'login' %}" class="group flex items-center gap-2 border border-white/40 px-6 py-2.5 text-[10px] tracking-widest text-white hover:border-veludo-accent-gold hover:bg-veludo-accent-gold hover:text-white transition-all duration-300 rounded-sm">
+                        <i class="fa-regular fa-user group-hover:scale-110 transition-transform"></i> 
+                        <span>LOGIN</span>
+                    </a>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-6 md:hidden text-white">
+                <a href="{% url 'login' %}" class="text-xs hover:text-veludo-accent-gold"><i class="fa-regular fa-user"></i></a>
+                <button id="mobile-menu-btn" class="text-xl hover:text-veludo-accent-gold transition-colors">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="mobile-menu" class="md:hidden bg-veludo-header border-t border-white/10 text-white">
+            <div class="flex flex-col px-6 py-4 space-y-4 tracking-widest text-sm">
+                <a href="{% url 'index' %}" class="hover:text-veludo-accent-gold">HOME</a>
+                <a href="{% url 'service' %}" class="hover:text-veludo-accent-gold">SERVICE</a>
+                <a href="{% url 'cast' %}" class="text-veludo-accent-gold">CAST</a>
+                <a href="{% url 'access' %}" class="hover:text-veludo-accent-gold">ACCESS</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="pt-32 pb-16 bg-veludo-bg text-center fade-in-up">
+        <h1 class="font-english italic text-6xl md:text-7xl text-veludo-header mb-4">Cast List</h1>
+        <p class="text-sm md:text-base text-[#5a544b] tracking-[0.1em] font-light font-japanese">
+            VRASMRのプロである多彩なキャストをご紹介します。
+        </p>
+        <div class="w-12 h-[1px] bg-veludo-accent-gold mx-auto mt-8"></div>
+    </div>
+
+    <main class="max-w-[120rem] mx-auto px-6 pb-32">
+        {% if casts %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+                
+                {% for cast in casts %}
+                <div class="cast-card bg-paper-bg shadow-xl overflow-hidden relative border border-white/50 group hover:-translate-y-2 transition-transform duration-500 fade-in-up flex flex-col" style="animation-delay: {{ forloop.counter0|add:1 }}00ms;">
+                    
+                    <div class="relative w-full aspect-[4/3] bg-gray-900 overflow-hidden carousel-container flex-shrink-0">
+                        {% if cast.medias.all %}
+                            {% for media in cast.medias.all %}
+                                {% if media.image_file %}
+                                    <div class="carousel-slide {% if forloop.first %}active{% endif %}">
+                                        <div class="absolute inset-0 z-0 overflow-hidden">
+                                            <img src="{{ media.image_file.url }}" class="w-full h-full object-cover blur-xl scale-110 brightness-75 opacity-80">
+                                        </div>
+                                        <div class="relative z-10 w-full h-full flex items-center justify-center p-4">
+                                            <img src="{{ media.image_file.url }}" class="h-full w-auto object-contain drop-shadow-2xl">
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <div class="carousel-slide active flex items-center justify-center bg-gray-200">
+                                {% if cast.avatar %}
+                                    <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover">
+                                {% else %}
+                                    <i class="fa-regular fa-user text-4xl text-gray-400"></i>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        
+                        {% if cast.youtube_url %}
+                            <div class="absolute top-3 right-3 z-20 bg-black/60 text-white px-2 py-1 rounded text-xs backdrop-blur-sm">
+                                <i class="fa-brands fa-youtube text-red-500 mr-1"></i> Video
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="p-6 text-left flex flex-col items-start relative bg-[#fcfaf7] flex-grow">
+    
+                        <div class="absolute -top-8 left-6 w-16 h-16 rounded-full border-4 border-paper-bg overflow-hidden shadow-md z-20 bg-gray-200">
+                            {% if cast.avatar %}
+                                <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover">
+                            {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-gray-400"><i class="fa-solid fa-user"></i></div>
+                            {% endif %}
+                        </div>
+
+                        <h2 class="text-3xl font-english text-veludo-header mt-10 mb-3 font-bold tracking-wide">
+                            {{ cast.name }}
+                        </h2>
+
+                        <div class="flex flex-wrap justify-start gap-2 mb-5">
+                            {% for tag in cast.tags %}
+                                <span class="text-xs border border-[#a8947d] text-[#a8947d] px-3 py-1 rounded-sm">
+                                    {{ tag }}
+                                </span>
+                            {% empty %}
+                                <span class="text-xs text-gray-300">--</span>
+                            {% endfor %}
+                        </div>
+
+                        <div class="text-sm text-[#5d5555] leading-relaxed mb-8 whitespace-pre-wrap flex-grow font-japanese">{{ cast.intro|default:"紹介文がありません。" }}</div>
+
+                        <div class="space-y-3 mt-auto w-full">
+                            <a href="{% url 'booking_page' %}?cast_id={{ cast.id }}" class="block w-full bg-veludo-header text-white py-3 text-sm tracking-[0.2em] hover:bg-veludo-accent-gold transition-colors text-center">
+                                RESERVATION
+                            </a>
+                            {% if cast.youtube_url %}
+                                <a href="{{ cast.youtube_url }}" target="_blank" class="block w-full border border-veludo-header text-veludo-header py-3 text-sm tracking-[0.2em] hover:bg-veludo-header hover:text-white transition-colors text-center">
+                                    <i class="fa-brands fa-youtube mr-2"></i>WATCH VIDEO
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+            </div>
+        {% else %}
+            <div class="text-center py-20 text-gray-400">
+                <p class="tracking-widest">現在、表示できるキャストはいません。</p>
+            </div>
+        {% endif %}
+    </main>
+
+    <footer class="site-footer reveal-on-scroll">
+        <div class="max-w-2xl mx-auto px-6 flex flex-col items-center">
+            <div class="mb-10 flex justify-center">
+                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-12 w-auto object-contain">
+            </div>
+            
+            <div class="text-[12px] md:text-xs leading-loose opacity-80 font-light mb-12 space-y-4 font-japanese text-white text-center">
+                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br>VRChat公認の商用利用店舗です。</p>
+                <p class="text-[11px] text-white/60">
+                    ©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant<br>
+                    ©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ<br>
+                    ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri<br>
+                    Lys　Mister Pink　Nanaha　Ornament Corpse　PetiDoll　snowlight0102　Today cloth<br>
+                    VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん
+                </p>
+            </div>
+            <div class="text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile Menu Toggle
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            if(mobileMenuBtn && mobileMenu) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    mobileMenu.classList.toggle('open');
+                });
+            }
+
+            // Scroll Animation Observer (for footer fade-in)
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                    }
+                });
+            });
+            const revealElements = document.querySelectorAll('.reveal-on-scroll');
+            revealElements.forEach(el => observer.observe(el));
+
+            // Carousel Logic
+            const castCards = document.querySelectorAll('.cast-card');
+            castCards.forEach((card) => {
+                const slides = card.querySelectorAll('.carousel-slide');
+                if (slides.length <= 1) return;
+                let currentSlide = 0;
+                const intervalTime = Math.floor(Math.random() * 3000) + 3000;
+                setInterval(() => {
+                    slides[currentSlide].classList.remove('active');
+                    currentSlide = (currentSlide + 1) % slides.length;
+                    slides[currentSlide].classList.add('active');
+                }, intervalTime);
+            });
+        });
+    </script>
+</body>
+</html>

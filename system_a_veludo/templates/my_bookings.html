@@ -1,0 +1,311 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>My Reservations | Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { 'veludo-gold': '#d4af37', 'veludo-bg': '#1a1a1a' },
+                    fontFamily: { serif: ['"Noto Serif JP"', 'serif'], english: ['"Cormorant Garamond"', 'serif'] }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-black text-white font-serif bg-fixed bg-cover" 
+      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm fixed"></div>
+
+    <div class="relative z-10 max-w-4xl mx-auto px-6 py-12">
+        <div class="flex justify-between items-end mb-12 border-b border-white/10 pb-6">
+            <div>
+                <a href="{% url 'index' %}" class="text-xs text-gray-500 hover:text-veludo-gold mb-4 block"><i class="fa-solid fa-arrow-left mr-2"></i> HOME</a>
+                <h1 class="text-4xl font-english text-veludo-gold italic">My Reservations</h1>
+                <p class="text-xs text-gray-400 mt-2 tracking-widest uppercase">ご予約履歴一覧</p>
+            </div>
+            <div class="text-right">
+                <div class="text-sm text-gray-300">{{ user.vrc_id|default:user.username }} 様</div>
+                <div class="text-xs text-gray-500">{{ user.email }}</div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            {% if bookings %}
+                {% for booking in bookings %}
+                <div onclick="showDetail(this)" 
+                     data-id="{{ booking.id }}"
+                     data-cast="{{ booking.resource_name }}"
+                     data-start-date="{{ booking.start|date:'Y/m/d (D)' }}"
+                     data-time-range="{{ booking.start|date:'H:i' }} - {{ booking.end|date:'H:i' }}"
+                     data-status="{{ booking.status }}"
+                     data-start-iso="{{ booking.start|date:'c' }}" 
+                     class="bg-white/5 border border-white/10 p-6 rounded-sm hover:border-veludo-gold/50 hover:bg-white/10 transition-all cursor-pointer group relative overflow-hidden">
+                    
+                    <div class="absolute top-0 left-0 w-1 h-full bg-veludo-gold opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                    
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div class="flex items-start gap-4">
+                            <div class="text-center bg-black/30 p-3 rounded min-w-[80px] border border-white/5 group-hover:border-veludo-gold/30 transition-colors">
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest">DATE</div>
+                                <div class="text-xl font-english text-white">{{ booking.start|date:"M d" }}</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-english text-veludo-gold">
+                                    {{ booking.start|date:"H:i" }} <span class="text-sm text-gray-500">~ {{ booking.end|date:"H:i" }}</span>
+                                </div>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="bg-white/10 px-2 py-0.5 rounded text-[10px] text-gray-300 border border-white/10">
+                                        {% if is_cast %}GUEST{% else %}CAST{% endif %}
+                                    </span>
+                                    <span class="text-sm font-bold tracking-wider">{{ booking.resource_name }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col items-end gap-2">
+                            <span class="px-3 py-1 text-[10px] tracking-widest rounded
+                                {% if booking.status == 'COMPLETED' %}
+                                    border border-veludo-gold/30 text-veludo-gold bg-veludo-gold/10
+                                {% else %}
+                                    border border-green-500/30 text-green-400 bg-green-500/10
+                                {% endif %}">
+                                {{ booking.status }}
+                            </span>
+                            <div class="text-[10px] text-gray-600 font-mono">ID: {{ booking.id|slice:":8" }}...</div>
+                            <div class="text-[10px] text-veludo-gold mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                Click for Details <i class="fa-solid fa-angle-right ml-1"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-20 bg-white/5 rounded border border-white/10 border-dashed">
+                    <i class="fa-regular fa-calendar-xmark text-4xl text-gray-600 mb-4"></i>
+                    <p class="text-gray-400">予約履歴がありません</p>
+                    <a href="{% url 'booking_page' %}" class="inline-block mt-6 text-veludo-gold border-b border-veludo-gold pb-1 text-xs tracking-widest hover:text-white hover:border-white transition-all">
+                        予約ページへ移動 ->
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="detail-modal" class="fixed inset-0 bg-black/90 hidden flex items-center justify-center z-50 backdrop-blur-sm transition-opacity duration-300 opacity-0">
+        <div class="bg-[#151515] w-full max-w-md border border-veludo-gold/30 shadow-2xl relative transform scale-95 transition-transform duration-300" id="modal-content">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white z-10">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div class="bg-white/5 p-6 border-b border-white/10 text-center">
+                <h3 class="text-xl font-english text-veludo-gold italic">Reservation Details</h3>
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">ご予約詳細</p>
+            </div>
+
+            <div class="p-8 space-y-6">
+                <div class="text-center mb-6">
+                     <span class="px-3 py-1 text-[10px] tracking-widest border border-green-500/30 text-green-400 bg-green-500/10 rounded" id="modal-status">
+                        CONFIRMED
+                    </span>
+                    <p class="text-[10px] text-gray-600 mt-2 font-mono" id="modal-id">ID: --</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-black/40 p-3 rounded border border-white/5">
+                        <div class="text-[10px] text-gray-500 uppercase" id="modal-label-role">CAST</div>
+                        <div class="text-lg font-bold text-white mt-1" id="modal-cast">--</div>
+                    </div>
+                    <div class="bg-black/40 p-3 rounded border border-white/5">
+                        <div class="text-[10px] text-gray-500 uppercase">DATE</div>
+                        <div class="text-lg font-bold text-white mt-1" id="modal-date">--</div>
+                    </div>
+                </div>
+
+                <div class="bg-black/40 p-4 rounded border border-white/5 flex items-center justify-between">
+                    <div class="text-[10px] text-gray-500 uppercase">TIME</div>
+                    <div class="text-xl font-english text-veludo-gold" id="modal-time">-- : --</div>
+                </div>
+
+                <div class="text-[10px] text-gray-500 text-center leading-relaxed">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    <span id="cancel-note">キャンセルは予約時間の24時間前まで可能です。</span>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-white/10 bg-white/5 flex gap-4">
+                <button id="btn-cancel" onclick="cancelBooking()" class="hidden flex-1 py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/30 text-xs tracking-widest transition-colors">
+                    CANCEL
+                </button>
+                
+                <button id="btn-complete" onclick="completeBooking()" class="hidden flex-1 py-3 bg-veludo-gold/20 hover:bg-veludo-gold/40 text-veludo-gold border border-veludo-gold/30 text-xs tracking-widest transition-colors">
+                    COMPLETE WORK
+                </button>
+
+                <button onclick="closeModal()" class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs tracking-widest transition-colors">
+                    CLOSE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBookingId = null;
+
+        // 获取当前用户是否为 Cast
+        const IS_CAST = "{{ is_cast|yesno:'true,false' }}" === "true";
+        console.log("Current User Role Check - Is Cast:", IS_CAST);
+
+        function showDetail(element) {
+            // 1. 获取数据
+            const id = element.dataset.id;
+            const cast = element.dataset.cast;
+            const date = element.dataset.startDate;
+            const time = element.dataset.timeRange;
+            const status = element.dataset.status;
+            const startIso = element.dataset.startIso;
+
+            currentBookingId = id;
+
+            // 2. 填充 Modal
+            document.getElementById('modal-id').innerText = 'ID: ' + id;
+            document.getElementById('modal-cast').innerText = cast;
+            document.getElementById('modal-date').innerText = date;
+            document.getElementById('modal-time').innerText = time;
+            document.getElementById('modal-status').innerText = status;
+
+            // [修正 4] Modalのラベルを動的に変更
+            document.getElementById('modal-label-role').innerText = IS_CAST ? 'GUEST' : 'CAST';
+
+            // 3. 计算按钮显示逻辑
+            const btnCancel = document.getElementById('btn-cancel');
+            const btnComplete = document.getElementById('btn-complete'); 
+            const note = document.getElementById('cancel-note');
+            
+            // 重置状态：先隐藏所有按钮，清空提示
+            btnCancel.classList.add('hidden');
+            btnComplete.classList.add('hidden');
+            note.innerHTML = "";
+
+            if (status === 'COMPLETED') {
+                // 如果已经是完成状态
+                document.getElementById('modal-status').innerText = "COMPLETED";
+                document.getElementById('modal-status').className = "px-3 py-1 text-[10px] tracking-widest border border-blue-500/30 text-blue-400 bg-blue-500/10 rounded";
+                note.innerText = "この案件は完了しています。(Service Completed)";
+            }
+            else if (IS_CAST) {
+                // --- Cast 的视角 ---
+                
+                // 只有在 CONFIRMED 状态下才显示“完成”按钮
+                if (status === 'CONFIRMED') {
+                    btnComplete.classList.remove('hidden');
+                    note.innerHTML = `<span class="text-veludo-gold">業務が終了したら「COMPLETE WORK」を押してください。<br>報酬が確定します。</span>`;
+                } else {
+                    note.innerHTML = "ステータス変更はできません。";
+                }
+            } 
+            else {
+                // --- 客人 (Customer) 的视角 ---
+                if (startIso) {
+                    const startTime = new Date(startIso);
+                    const now = new Date();
+                    const diffHours = (startTime - now) / (1000 * 60 * 60);
+
+                    // 2小时前可取消
+                    if (diffHours >= 2) {
+                        btnCancel.classList.remove('hidden');
+                        note.innerText = "キャンセルは左下のボタンから行えます。(開始2時間前まで)";
+                    } else {
+                        note.innerHTML = "予約まで2時間を切っているため、<br>キャンセルはDiscordまたはDMにてご連絡ください。";
+                    }
+                }
+            }
+
+            // 4. 显示动画
+            const modal = document.getElementById('detail-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('detail-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        // 取消逻辑
+        function cancelBooking() {
+            if (IS_CAST) {
+                alert("エラー：キャストアカウントでは予約をキャンセルできません。");
+                return;
+            }
+
+            if(!confirm('本当にキャンセルしますか？\n(Are you sure you want to cancel?)')) return;
+
+            fetch(`/accounts/api/booking/cancel/${currentBookingId}/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(res => {
+                if(res.ok) {
+                    alert('予約をキャンセルしました。');
+                    window.location.reload();
+                } else if (res.status === 403) {
+                    alert('権限がありません。キャストはキャンセルできません。');
+                } else {
+                    res.json().then(data => {
+                          alert('キャンセルに失敗しました: ' + (data.error || '不明なエラー'));
+                    }).catch(() => {
+                          alert('キャンセルに失敗しました。(2時間以内の可能性があります)');
+                    });
+                }
+            });
+        }
+
+        // 完成工作逻辑
+        function completeBooking() {
+            if (!confirm('業務完了報告を送信しますか？\n(Report service as completed?)')) return;
+
+            fetch(`/accounts/api/booking/complete/${currentBookingId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(res => {
+                if(res.ok) {
+                    alert('お疲れ様でした！業務完了を報告しました。\n(Status updated to COMPLETED)');
+                    window.location.reload();
+                } else {
+                    alert('エラーが発生しました。もう一度お試しください。');
+                }
+            });
+        }
+
+        document.getElementById('detail-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>

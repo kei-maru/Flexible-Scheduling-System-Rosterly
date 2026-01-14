@@ -1,0 +1,599 @@
+# accounts/views.py
+
+from django.contrib.auth import logout, login
+# [关键修复] 添加 get_user_model
+from django.contrib.auth import get_user_model 
+from django.contrib.auth.views import LoginView
+from django.shortcuts import redirect, render, get_object_or_404
+from django.urls import reverse_lazy
+from django.views.generic import TemplateView, CreateView, UpdateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ObjectDoesNotExist
+from django.utils.dateparse import parse_datetime
+from django import forms
+from django.contrib import messages
+import requests
+import json
+import pytz
+import traceback
+from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.contrib.auth.decorators import login_required, user_passes_test
+from datetime import datetime, timedelta
+from django.utils import timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# DRF 引用
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+
+# 本地模块引用
+from .forms import VeludoLoginForm, VeludoRegisterForm, ProfileEditForm
+from .forms import UserRoleForm, CastCMSForm
+from utils.saas_client import SaaSClient
+from casts.models import CastProfile, CastMedia
+from .forms import CastProfileForm, CastMediaFormSet
+
+# [关键修复] 获取 User 模型并赋值给全局变量
+User = get_user_model()
+
+SYSTEM_B_ROOT = "http://127.0.0.1:8001" 
+SYSTEM_B_API_KEY = "veludo_secret_key_123"
+
+# --- 1. 登录视图 ---
+class CustomLoginView(LoginView):
+    template_name = 'login.html'
+    authentication_form = VeludoLoginForm
+    redirect_authenticated_user = True
+    
+    def get_success_url(self):
+        return reverse_lazy('index')
+
+# --- 2. 登出视图 ---
+def logout_view(request):
+    logout(request)
+    return redirect('index')
+
+# --- 3. 注册视图 ---
+class RegisterView(CreateView):
+    template_name = 'register.html'
+    form_class = VeludoRegisterForm
+    success_url = reverse_lazy('index')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        login(self.request, self.object)
+        return response
+
+# --- 4. 个人中心视图 ---
+class ProfileView(LoginRequiredMixin, UpdateView):
+    template_name = 'profile.html'
+    form_class = ProfileEditForm
+    success_url = reverse_lazy('profile')
+
+    def get_object(self):
+        return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # [修正] user.vrc_id が空っぽなら警告を出す
+        if not user.vrc_id:
+             messages.warning(self.request, "登録を完了するために、VRCHAT IDを入力してください。")
+
+        context['is_cast'] = getattr(user, 'is_cast', False) 
+        context['is_admin'] = user.is_staff or user.is_superuser
+        
+        if context['is_cast']:
+            try:
+                context['cast_profile'] = user.cast_profile
+            except ObjectDoesNotExist:
+                context['cast_profile'] = None
+                
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, "プロフィールを更新しました。")
+        return super().form_valid(form)
+
+# --- 5. 排班页面容器视图 (Cast后台用) ---
+class ScheduleView(LoginRequiredMixin, TemplateView):
+    template_name = 'schedule.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_cast'] = getattr(self.request.user, 'is_cast', False)
+        return context
+
+# --- 6. 排班数据 API (已重构 - 纯代理) ---
+class AvailabilityAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_my_remote_id(self, user):
+        if hasattr(user, 'cast_profile') and user.cast_profile.saas_resource_id:
+            return user.cast_profile.saas_resource_id
+        return None
+
+    def get(self, request):
+        target_resource_id = request.query_params.get('resource_id')
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+
+        if not target_resource_id:
+            return Response([])
+
+        # [新增] 权限判断：当前用户是否是该资源的主人？
+        is_owner = False
+        if getattr(request.user, 'is_cast', False):
+            try:
+                # 比较当前登录用户的 SaaS ID 和请求查询的 ID
+                my_remote_id = request.user.cast_profile.saas_resource_id
+                # 注意：ID 可能是 UUID 或 字符串，转成字符串比较最安全
+                if str(my_remote_id) == str(target_resource_id):
+                    is_owner = True
+            except:
+                pass
+
+        client = SaaSClient()
+        try:
+            # 这里的 mode='calendar_admin' 告诉 System B 返回切割好的时间块 + 预约块
+            # System B 不知道 System A 的用户是谁，所以它把所有数据都发回来
+            events = client.get_calendar_events(target_resource_id, start, end)
+            
+            formatted_events = []
+            for e in events:
+                # System B 返回的 type: 'booking' 或 'availability'
+                is_booked = (e.get('type') == 'booking')
+
+                # [核心逻辑] 如果是已预约的块，且当前用户不是主人 -> 隐藏！
+                if is_booked and not is_owner:
+                    continue 
+
+                formatted_events.append({
+                    'id': e['id'],
+                    'title': e.get('title', 'Available'),
+                    'start': e['start'],
+                    'end': e['end'],
+                    'is_booked': is_booked,
+                    # 只有 Cast 本人能看到红色/预定状态，客人看到的都是绿色 Available
+                    'backgroundColor': 'rgba(139, 0, 0, 0.5)' if is_booked else 'rgba(20, 184, 166, 0.2)',
+                    'borderColor': '#ff4444' if is_booked else '#d4af37',
+                    'className': 'cursor-pointer hover:opacity-80',
+                    'extendedProps': {'is_booked': is_booked},
+                    'editable': not is_booked # 只有未预约的可以拖拽修改
+                })
+            
+            return Response(formatted_events)
+
+        except Exception as e:
+            print(f"SaaS Error: {e}")
+            return Response([])
+
+    def post(self, request):
+        """
+        创建排班 (自动支持 单次 和 周期，透传给 System B)
+        """
+        user = request.user
+        if not getattr(user, 'is_cast', False):
+             return Response({'error': 'Not a cast'}, status=status.HTTP_403_FORBIDDEN)
+             
+        remote_id = self._get_my_remote_id(user)
+        if not remote_id:
+            return Response({'error': 'Cast ID not synced'}, status=400)
+
+        # 构造 Payload
+        payload = request.data.copy()
+        payload['resource_id'] = remote_id # 强制覆盖为当前用户 ID
+        
+        client = SaaSClient()
+        try:
+            url = f"{client.api_base_url}/availability/"
+            resp = requests.post(url, headers=client.headers, json=payload, timeout=10)
+            
+            if resp.status_code == 201:
+                return Response(resp.json(), status=201)
+            else:
+                try: err = resp.json()
+                except: err = resp.text
+                return Response(err, status=resp.status_code)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+    def delete(self, request, pk=None):
+        if not getattr(request.user, 'is_cast', False):
+             return Response({'error': 'Not a cast'}, status=403)
+
+        if not pk: pk = request.data.get('id') or request.query_params.get('id')
+        if not pk: return Response({'error': 'Missing ID'}, status=400)
+
+        client = SaaSClient()
+        if client.delete_availability(pk):
+            return Response(status=204)
+        return Response({'error': 'Failed to delete'}, status=500)
+
+# --- 7. 预约页面视图 ---
+class BookingPageView(LoginRequiredMixin, TemplateView):
+    template_name = 'booking.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from casts.models import CastProfile
+        context['casts'] = CastProfile.objects.filter(is_active=True)
+        return context
+
+# --- 8. 预约提交 API ---
+class BookingActionAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        user = request.user
+        if not user.vrc_id: return Response({'error': 'VRCID Missing'}, status=400)
+        
+        # 24小时校验
+        start_str = request.data.get('start')
+        if start_str:
+            booking_start = parse_datetime(start_str)
+            if timezone.is_naive(booking_start): booking_start = timezone.make_aware(booking_start)
+            if booking_start < timezone.now() + timedelta(hours=24):
+                return Response({'error': 'Must book 24h in advance'}, status=400)
+
+        client = SaaSClient()
+        try:
+            result = client.create_booking(
+                resource_id=request.data.get('resource_id'),
+                resource_name=request.data.get('resource_name'),
+                email=user.email,
+                name=user.vrc_id,
+                start=request.data.get('start'),
+                end=request.data.get('end')
+            )
+            if result: return Response(result, status=201)
+            else: return Response({'error': 'SaaS Booking Failed'}, status=500)
+        except Exception as e: return Response({'error': str(e)}, status=500)
+
+class CastSearchAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        print("\n========== DEBUG: CastSearchAPI START ==========")
+        start_str = request.GET.get('start') 
+        duration = int(request.GET.get('duration', 60))
+        
+        if not start_str:
+            return Response({'error': 'Start time is required'}, status=400)
+
+        try:
+            # 1. Parse Request Time
+            search_start = parse_datetime(start_str)
+            if search_start is None: raise ValueError("Invalid format")
+            
+            # [CRITICAL FIX] Ensure JST timezone for REQUEST
+            jst = pytz.timezone('Asia/Tokyo')
+            if timezone.is_naive(search_start):
+                # Use localize to prevent +09:19 LMT issue
+                search_start = jst.localize(search_start)
+                
+            search_end = search_start + timedelta(minutes=duration)
+            
+            print(f"1. Request Range: {search_start} ~ {search_end} ({duration}min)")
+        except Exception as e:
+            print(f"ERROR Parsing Date: {e}")
+            return Response({'error': 'Invalid date format'}, status=400)
+
+        active_casts = CastProfile.objects.filter(is_active=True).exclude(saas_resource_id__isnull=True).exclude(saas_resource_id='')
+        available_casts = []
+        client = SaaSClient()
+
+        def check_cast(cast):
+            # Duration Check
+            if duration == 30 and not cast.allow_30_min: return None
+            if duration == 60 and not cast.allow_60_min: return None
+            if duration == 120 and not cast.allow_120_min: return None
+
+            try:
+                # 2. Call System B
+                valid_slots = client.check_availability(cast.saas_resource_id, search_start, search_end)
+                
+                for slot in valid_slots:
+                    s = parse_datetime(slot['start'])
+                    e = parse_datetime(slot['end'])
+                    
+                    # [CRITICAL FIX] Ensure JST timezone for RESPONSE (System B slots)
+                    # Previously it might default to UTC or Server Time, causing mismatch
+                    if timezone.is_naive(s): s = s.replace(tzinfo=jst) # Or use make_aware(s, jst)
+                    if timezone.is_naive(e): e = e.replace(tzinfo=jst)
+                    
+                    # 3. Matching Logic
+                    if s <= search_start and e >= search_end:
+                        return cast 
+            except Exception as e:
+                print(f"Error checking {cast.name}: {e}")
+            return None
+
+        print(f"2. Concurrently checking {active_casts.count()} casts...")
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_cast = {executor.submit(check_cast, cast): cast for cast in active_casts}
+            
+            for future in as_completed(future_to_cast):
+                try:
+                    result_cast = future.result()
+                    if result_cast:
+                        # [BUG FIX] Rank Handling
+                        rank_val = getattr(result_cast, 'rank', 'REGULAR')
+                        
+                        available_casts.append({
+                            'id': result_cast.id,
+                            'name': result_cast.name,
+                            'avatar_url': result_cast.avatar.url if result_cast.avatar else None,
+                            'rank': rank_val, 
+                            'saas_id': result_cast.saas_resource_id
+                        })
+                except Exception as exc:
+                    print(f'Exception: {exc}')
+
+        print(f"========== DEBUG END: Found {len(available_casts)} casts ==========\n")
+        return Response({'casts': available_casts})
+
+class MyBookingsPageView(LoginRequiredMixin, TemplateView):
+    template_name = 'my_bookings.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        is_cast = getattr(user, 'is_cast', False)
+        context['is_cast'] = is_cast
+        
+        client = SaaSClient()
+        bookings = []
+
+        print(f"\n========== DEBUG START: User {user.username} ==========")
+
+        if is_cast:
+            # --- Cast 视角 (查看 Guest) ---
+            try:
+                profile = CastProfile.objects.get(user=user)
+                if profile.saas_resource_id:
+                    raw_bookings = client.get_my_bookings(resource_id=profile.saas_resource_id)
+                    
+                    for b in raw_bookings:
+                        guest_email = b.get('email')
+                        display_name = b.get('customer_name') # SaaS 原始名字
+                        
+                        print(f"处理订单: {b.get('id')} | 原始Guest名: {display_name} | Email: {guest_email}")
+
+                        if guest_email:
+                            try:
+                                guest_user = User.objects.get(email=guest_email)
+                                if guest_user.vrc_id:
+                                    print(f"  -> 找到本地用户，VRCID为: {guest_user.vrc_id}")
+                                    display_name = guest_user.vrc_id
+                                else:
+                                    print(f"  -> 找到本地用户，但没有 VRCID，使用 Username: {guest_user.username}")
+                                    display_name = guest_user.username
+                            except User.DoesNotExist:
+                                print("  -> 本地数据库没找到这个 Email 的用户")
+
+                        b['resource_name'] = display_name 
+                        
+                        if b.get('start'): b['start'] = parse_datetime(b['start'])
+                        if b.get('end'): b['end'] = parse_datetime(b['end'])
+                        bookings.append(b)
+                else:
+                    print("DEBUG: Cast 没有绑定 SaaS ID")
+            except CastProfile.DoesNotExist:
+                print("DEBUG: Cast 账号没有 Profile")
+
+        else:
+            # =================================================
+            # Guest 视角 (这是你需要修复的部分)
+            # =================================================
+            print(f"DEBUG: Guest查询 - Email: {user.email}")
+            raw_bookings = client.get_my_bookings(email=user.email)
+            
+            for b in raw_bookings:
+                r_id = b.get('resource_id')
+                cast_display_name = b.get('resource_name') # SaaS 返回的原始 Cast 名 (例如: yukimikei)
+                
+                print(f"处理订单: {b.get('id')} | 原始Cast名: {cast_display_name} | ResourceID: {r_id}")
+
+                target_cast_user = None
+
+                # 策略 1: 尝试通过 SaaS ID 查找
+                if r_id:
+                    try:
+                        cast_profile = CastProfile.objects.get(saas_resource_id=r_id)
+                        target_cast_user = cast_profile.user
+                    except CastProfile.DoesNotExist:
+                        pass
+                
+                # 策略 2: [新增] 如果没 ID，尝试直接通过 Username 查找
+                # 前提：SaaS 里的 resource_name 存的是 System A 的 username
+                if not target_cast_user and cast_display_name:
+                    try:
+                        target_cast_user = User.objects.get(username=cast_display_name)
+                        print(f"  -> 通过用户名 '{cast_display_name}' 找到了本地用户")
+                    except User.DoesNotExist:
+                        print(f"  -> 本地找不到用户名为 '{cast_display_name}' 的用户")
+
+                # 如果找到了对应的 Cast 用户，就尝试拿他的 VRCID
+                if target_cast_user:
+                    if target_cast_user.vrc_id:
+                        print(f"  -> 替换显示名称: {cast_display_name} -> {target_cast_user.vrc_id}")
+                        cast_display_name = target_cast_user.vrc_id
+                    else:
+                        print("  -> 该 Cast 没有设置 VRCID，保持原名")
+
+                b['resource_name'] = cast_display_name
+
+                if b.get('start'): b['start'] = parse_datetime(b['start'])
+                if b.get('end'): b['end'] = parse_datetime(b['end'])
+                bookings.append(b)
+
+        context['bookings'] = bookings
+        return context
+
+class BookingCancelAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        if getattr(request.user, 'is_cast', False):
+            print(f"SECURITY: Cast用户 {request.user.username} 尝试删除预约 {pk} 被拦截")
+            return Response({'error': 'Permission Denied: Cast cannot cancel bookings.'}, status=403)
+
+        client = SaaSClient()
+        success = client.cancel_booking(pk) 
+        if success:
+            return Response(status=204)
+        return Response(status=400)
+
+@login_required
+def availability_proxy(request):
+    print("----- System A Proxy Start -----")
+    print(f"DEBUG:收到请求: {request.method} {request.path}")
+    
+    url = f"{SYSTEM_B_ROOT}/api/v1/integration/availability/"
+    headers = {
+        "X-Tenant-Key": SYSTEM_B_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    try:
+        if request.method == 'GET':
+            print("DEBUG: 正在转发 GET 请求...")
+            params = request.GET.dict()
+            response = requests.get(url, params=params, headers=headers, timeout=5)
+            
+        elif request.method == 'POST':
+            print("DEBUG: 正在处理 POST 请求...")
+            try:
+                raw_body = request.body.decode('utf-8')
+                print(f"DEBUG: 原始 Request Body: {raw_body}")
+                payload = json.loads(raw_body)
+                print(f"DEBUG: 解析后的 Payload: {payload}")
+                print("DEBUG: 正在向 System B 发送 POST...")
+                response = requests.post(url, json=payload, headers=headers, timeout=5)
+            except json.JSONDecodeError as e:
+                print(f"ERROR: System A JSON 解析失败: {e}")
+                return JsonResponse({'error': 'Invalid JSON format from Frontend'}, status=400)
+
+        elif request.method == 'DELETE':
+            print("DEBUG: 正在转发 DELETE 请求...")
+            payload = json.loads(request.body)
+            response = requests.delete(url, json=payload, headers=headers, timeout=5)
+            
+        else:
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+        print(f"DEBUG: System B 响应状态码: {response.status_code}")
+        print(f"DEBUG: System B 响应内容: {response.text}")
+
+        if response.status_code == 204:
+            return JsonResponse({}, status=204)
+
+        try:
+            return JsonResponse(response.json(), status=response.status_code, safe=False)
+        except:
+            return JsonResponse({'error': 'System B returned invalid data', 'details': response.text[:200]}, status=502)
+
+    except requests.exceptions.RequestException as e:
+        print(f"CRITICAL ERROR: 连接 System B 失败: {e}")
+        traceback.print_exc()
+        return JsonResponse({'error': f'Failed to connect to SaaS: {str(e)}'}, status=503)
+    except Exception as e:
+        print(f"CRITICAL ERROR: System A 内部未知错误: {e}")
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+class BookingCompleteAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not getattr(request.user, 'is_cast', False):
+             return Response({'error': 'Permission denied'}, status=403)
+
+        client = SaaSClient()
+        success = client.complete_booking(pk)
+        
+        if success:
+            return Response({'status': 'success'}, status=200)
+        return Response({'error': 'Failed to update status'}, status=500)
+
+
+# ==========================================
+# 管理员面板视图 (Admin Dashboard)
+# ==========================================
+
+# accounts/views.py
+
+@login_required
+@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+def admin_dashboard(request):
+    # 1. 处理 AJAX 拖拽排序请求 (保持不变)
+    if request.method == 'POST' and request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        try:
+            data = json.loads(request.body)
+            if data.get('action') == 'update_sort_order':
+                ordered_ids = data.get('order', [])
+                for index, cast_id in enumerate(ordered_ids):
+                    CastProfile.objects.filter(id=cast_id).update(display_order=index)
+                return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    # 2. 常规页面数据获取
+    # 这里获取了所有用户，包含了 vrc_id 字段
+    users = User.objects.all().order_by('-date_joined')
+    casts = CastProfile.objects.all().select_related('user').order_by('display_order', 'id')
+
+    role_form = UserRoleForm()
+    cms_form = CastCMSForm()
+
+    if request.method == 'POST':
+        # --- 情况 A: 修改用户权限 ---
+        if 'update_role' in request.POST:
+            form = UserRoleForm(request.POST)
+            if form.is_valid():
+                # [修正] 表单通常提交的是用户的 ID (主键)，字段名通常是 user_id
+                target_user_id = form.cleaned_data.get('user_id') 
+                target_user = get_object_or_404(User, id=target_user_id)
+                
+                is_cast = form.cleaned_data['is_cast']
+                is_staff = form.cleaned_data['is_staff']
+                
+                target_user.is_staff = is_staff
+                target_user.is_cast = is_cast
+                
+                if is_cast:
+                    # [核心修改] 创建 CastProfile 时，优先使用 VRCID 作为名字
+                    # 如果用户没填 VRCID，才退回到 username
+                    display_name = target_user.vrc_id if target_user.vrc_id else target_user.username
+                    
+                    CastProfile.objects.get_or_create(
+                        user=target_user, 
+                        defaults={'name': display_name}
+                    )
+                
+                target_user.save()
+                return redirect('admin_dashboard')
+
+        # --- 情况 B: 修改 Cast 内容 ---
+        elif 'update_cms' in request.POST:
+            cast_id = request.POST.get('cast_id')
+            target_cast = get_object_or_404(CastProfile, id=cast_id)
+            form = CastCMSForm(request.POST, request.FILES, instance=target_cast)
+            if form.is_valid():
+                form.save()
+                return redirect('admin_dashboard')
+
+    context = {
+        'users': users,
+        'casts': casts,
+        'role_form': role_form,
+        'cms_form': cms_form,
+    }
+    return render(request, 'admin_dashboard.html', context)

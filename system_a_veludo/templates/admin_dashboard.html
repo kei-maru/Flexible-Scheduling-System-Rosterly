@@ -1,0 +1,375 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard | Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'veludo-gold': '#d4af37', 
+                        'veludo-bg': '#1a1a1a',
+                        'veludo-surface': '#2d2d2d',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        .glass-panel {
+            background: rgba(35, 35, 35, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .tab-btn.active { border-bottom: 2px solid #d4af37; color: #d4af37; }
+        .hidden-section { display: none; }
+        .admin-table th { font-family: "Cormorant Garamond", serif; letter-spacing: 1px; color: #888; font-weight: 400; }
+        .admin-table td { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 1rem 0.5rem; }
+        .admin-table tr:last-child td { border-bottom: none; }
+        .cast-item.selected { border-color: #d4af37; background-color: rgba(212, 175, 55, 0.1); }
+        select option { background-color: #2d2d2d; color: white; }
+    </style>
+</head>
+<body class="min-h-screen bg-fixed bg-cover bg-center" style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+
+    <div class="relative z-10 w-full max-w-7xl mx-auto px-6 py-10">
+        
+        <div class="flex justify-between items-end mb-10 border-b border-white/10 pb-6">
+            <div>
+                <a href="{% url 'index' %}" class="text-xs text-gray-500 hover:text-veludo-gold mb-2 block tracking-widest">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> EXIT TO SITE
+                </a>
+                <h1 class="text-4xl font-english text-veludo-gold italic">Admin Dashboard</h1>
+                <p class="text-xs text-gray-400 mt-2 tracking-[0.2em] uppercase">System Administration & Content Management</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden md:block">
+                    <div class="text-sm text-gray-300">Logged in as</div>
+                    <div class="text-lg font-english text-white">{{ user.username }}</div>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-veludo-gold/20 flex items-center justify-center border border-veludo-gold">
+                    <i class="fa-solid fa-screwdriver-wrench text-veludo-gold"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-8 mb-8 border-b border-white/5">
+            <button onclick="switchTab('users')" id="tab-users" class="tab-btn active pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-white">
+                <i class="fa-solid fa-users mr-2"></i> Users & Roles
+            </button>
+            <button onclick="switchTab('content')" id="tab-content" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
+                <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Cast CMS
+            </button>
+            <button onclick="switchTab('analytics')" id="tab-analytics" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
+                <i class="fa-solid fa-chart-line mr-2"></i> Analytics
+            </button>
+        </div>
+
+        <div id="section-users" class="glass-panel p-8 rounded-sm animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-english italic text-white">User Directory</h3>
+                <div class="flex gap-4">
+                    <select id="roleFilter" onchange="filterUsers()" class="bg-black/30 border border-white/10 rounded-full px-4 py-2 text-xs text-white focus:border-veludo-gold outline-none cursor-pointer">
+                        <option value="all">All Roles</option>
+                        <option value="cast">Casts Only</option>
+                        <option value="admin">Admins Only</option>
+                        <option value="member">Members Only</option>
+                    </select>
+                    <div class="relative">
+                        <input type="text" id="userSearch" onkeyup="filterUsers()" placeholder="Search user..." class="bg-black/30 border border-white/10 rounded-full px-4 py-2 text-xs text-white focus:border-veludo-gold outline-none w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-gray-500 text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left admin-table">
+                    <thead>
+                        <tr>
+                            <th class="pb-4">USER</th>
+                            <th class="pb-4">EMAIL</th>
+                            <th class="pb-4">ROLES</th>
+                            <th class="pb-4">JOINED</th>
+                            <th class="pb-4 text-right">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm text-gray-300" id="userTableBody">
+                        {% for u in users %}
+                        <tr class="hover:bg-white/5 transition-colors user-row" 
+                            data-role="{% if u.is_staff %}admin{% elif u.is_cast %}cast{% else %}member{% endif %}"
+                            data-name="{{ u.username|lower }} {{ u.vrc_id|default:''|lower }}">
+                            
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-gray-700 overflow-hidden shrink-0">
+                                        {% if u.cast_profile and u.cast_profile.avatar %}
+                                            <img src="{{ u.cast_profile.avatar.url }}" class="w-full h-full object-cover">
+                                        {% else %}
+                                            <div class="w-full h-full flex items-center justify-center text-gray-500"><i class="fa-solid fa-user text-xs"></i></div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="flex flex-col">
+                                        <span class="font-bold text-white text-sm">
+                                            {{ u.vrc_id|default:u.username }}
+                                        </span>
+                                        
+                                        <span class="text-[10px] text-gray-500 tracking-wide">
+                                            @{{ u.username }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td class="text-gray-400">{{ u.email }}</td>
+
+                            <td>
+                                <div class="flex gap-2">
+                                    {% if u.is_staff %} <span class="px-2 py-1 bg-red-900/40 text-red-300 border border-red-500/30 text-[10px] uppercase rounded">Admin</span> {% endif %}
+                                    {% if u.is_cast %} <span class="px-2 py-1 bg-veludo-gold/20 text-veludo-gold border border-veludo-gold/30 text-[10px] uppercase rounded">Cast</span> {% endif %}
+                                    {% if not u.is_staff and not u.is_cast %} <span class="px-2 py-1 bg-gray-700/40 text-gray-400 border border-gray-600/30 text-[10px] uppercase rounded">Member</span> {% endif %}
+                                </div>
+                            </td>
+
+                            <td class="text-gray-500 text-xs">{{ u.date_joined|date:"Y/m/d" }}</td>
+                            <td class="text-right">
+                                <button onclick="openRoleModal('{{ u.id }}', '{{ u.username }}', '{{ u.is_cast|yesno:'true,false' }}', '{{ u.is_staff|yesno:'true,false' }}')" class="text-xs text-gray-400 hover:text-white border border-white/20 px-3 py-1 hover:bg-white/10 transition-colors">Edit Role</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="section-content" class="hidden-section">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <div class="lg:col-span-1 glass-panel p-6 rounded-sm h-[600px] overflow-y-auto flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-english italic text-white">Active Casts</h3>
+                        <span class="text-[10px] text-gray-500 uppercase tracking-wider">Drag to Reorder</span>
+                    </div>
+
+                    <div id="cast-sortable-list" class="space-y-3 flex-grow">
+                        {% for cast in casts %}
+                        <div data-id="{{ cast.id }}" 
+                            onclick="selectCast(this, '{{ cast.user.vrc_id|default:cast.user.username }}', '{{ cast.intro|escapejs }}', '{% if cast.avatar %}{{ cast.avatar.url }}{% endif %}', '{% url 'edit_cast_profile' cast.user.id %}')"
+                            class="cast-item flex items-center gap-3 p-3 border border-white/5 hover:border-veludo-gold/50 bg-black/20 cursor-pointer transition-all group relative">
+                            
+                            <div class="drag-handle cursor-move px-2 text-gray-600 hover:text-white" onclick="event.stopPropagation()">
+                                <i class="fa-solid fa-grip-vertical"></i>
+                            </div>
+
+                            <div class="w-10 h-10 bg-gray-800 overflow-hidden shrink-0 rounded-full select-none pointer-events-none">
+                                {% if cast.avatar %}
+                                <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                                {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-gray-600">
+                                    <i class="fa-solid fa-user"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="overflow-hidden flex-grow select-none">
+                                <div class="text-veludo-gold font-bold font-english truncate text-sm">
+                                    {{ cast.user.vrc_id|default:cast.user.username }}
+                                </div>
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest truncate">
+                                    @{{ cast.user.username }}
+                                </div>
+                            </div>
+                            
+                            <div class="ml-auto text-gray-600 group-hover:text-white z-20">
+                                <a href="{% url 'edit_cast_profile' cast.user.id %}" class="block p-2 hover:text-veludo-gold transition-colors" title="Edit Profile">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="p-4 border border-dashed border-white/10 text-center text-gray-500 text-xs mt-4">
+                        To add a new Cast, grant "Cast" permission in the "Users" tab.
+                    </div>
+                </div>
+                <div class="lg:col-span-2 glass-panel p-8 rounded-sm relative overflow-hidden flex flex-col items-center justify-center">
+                    <div class="absolute top-0 right-0 p-4 opacity-10">
+                        <i class="fa-solid fa-wand-magic-sparkles text-9xl"></i>
+                    </div>
+                    
+                    <h3 class="text-xl font-english italic text-white mb-2">Profile Editor</h3>
+                    <p class="text-sm text-gray-400 mb-8 text-center">
+                        Select a cast from the left list to enable the editor. <br>
+                        Admin can modify all profiles.
+                    </p>
+
+                    <div class="border border-white/10 bg-black/40 p-6 max-w-md w-full mx-auto relative z-10">
+                        <div class="aspect-[3/4] bg-gray-800 mb-4 relative flex items-center justify-center text-gray-600 overflow-hidden">
+                            <img id="preview-avatar" src="" class="w-full h-full object-cover hidden">
+                            <span id="preview-placeholder" class="text-xs">SELECT CAST</span>
+                        </div>
+                        <h4 id="preview-name" class="text-2xl font-english text-veludo-gold italic text-center">--</h4>
+                        <p class="text-center text-[10px] text-gray-400 uppercase tracking-widest mb-4">PREVIEW</p>
+                        <p id="preview-intro" class="text-xs text-gray-300 leading-relaxed text-center line-clamp-3 whitespace-pre-wrap">
+                            Select a cast to preview...
+                        </p>
+                    </div>
+                    
+                    <div class="text-center mt-8 z-10">
+                        <a id="preview-edit-btn" href="#" class="inline-block bg-gray-600 text-gray-400 px-8 py-3 text-xs font-bold tracking-widest cursor-not-allowed transition-colors pointer-events-none">
+                            OPEN EDITOR
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-analytics" class="hidden-section">
+            <div class="glass-panel p-12 rounded-sm text-center min-h-[400px] flex flex-col items-center justify-center">
+                <i class="fa-solid fa-chart-pie text-6xl text-white/10 mb-6 animate-pulse"></i>
+                <h3 class="text-3xl font-english text-white italic mb-2">Analytics Dashboard</h3>
+                <p class="text-veludo-gold text-xs tracking-[0.3em] uppercase mb-8">Coming Soon in Phase 2</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="role-modal" class="fixed inset-0 bg-black/90 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-[#2d2d2d] border border-white/10 p-8 max-w-sm w-full shadow-2xl relative">
+            <button onclick="closeRoleModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl text-white font-english italic mb-6">Edit User Permissions</h3>
+            <p class="text-sm text-gray-400 mb-6">Target: <span id="modal-username" class="text-veludo-gold font-bold"></span></p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="update_role" value="true">
+                {{ role_form.user_id }}
+                <div class="space-y-4 mb-8">
+                    <div class="flex items-center justify-between p-3 border border-white/5 hover:border-veludo-gold/50 bg-veludo-gold/5 transition-colors">
+                        <label class="text-sm text-veludo-gold flex items-center gap-2 cursor-pointer w-full"><i class="fa-solid fa-star"></i> Cast Member</label>
+                        {{ role_form.is_cast }}
+                    </div>
+                    <div class="flex items-center justify-between p-3 border border-white/5 hover:border-red-500/50 bg-red-900/10 transition-colors">
+                        <label class="text-sm text-red-300 flex items-center gap-2 cursor-pointer w-full"><i class="fa-solid fa-shield-halved"></i> Administrator</label>
+                        {{ role_form.is_staff }}
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-white text-black py-3 text-xs font-bold tracking-widest hover:bg-veludo-gold transition-colors">SAVE PERMISSIONS</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Tab Logic
+        function switchTab(tabName) {
+            ['users', 'content', 'analytics'].forEach(t => {
+                document.getElementById('section-' + t).classList.add('hidden-section');
+                document.getElementById('tab-' + t).classList.remove('active', 'text-white');
+                document.getElementById('tab-' + t).classList.add('text-gray-500');
+            });
+            document.getElementById('section-' + tabName).classList.remove('hidden-section');
+            const activeTab = document.getElementById('tab-' + tabName);
+            activeTab.classList.add('active', 'text-white');
+            activeTab.classList.remove('text-gray-500');
+        }
+
+        // User Filter Logic
+        function filterUsers() {
+            const filterVal = document.getElementById('roleFilter').value;
+            const searchVal = document.getElementById('userSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('.user-row');
+            rows.forEach(row => {
+                const role = row.getAttribute('data-role');
+                const name = row.getAttribute('data-name');
+                let roleMatch = (filterVal === 'all') || (role === filterVal);
+                let searchMatch = name.includes(searchVal);
+                row.style.display = (roleMatch && searchMatch) ? '' : 'none';
+            });
+        }
+
+        // Cast Selection Logic
+        function selectCast(element, name, intro, avatarUrl, editUrl) {
+            document.querySelectorAll('.cast-item').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            document.getElementById('preview-name').innerText = name;
+            // 使用 trim() 去除可能的首尾空格
+            const cleanIntro = (intro || "No introduction set.").trim();
+            document.getElementById('preview-intro').innerText = cleanIntro.length > 100 ? cleanIntro.substring(0, 100) + '...' : cleanIntro;
+            
+            const imgEl = document.getElementById('preview-avatar');
+            const placeholderEl = document.getElementById('preview-placeholder');
+            if (avatarUrl) {
+                imgEl.src = avatarUrl;
+                imgEl.classList.remove('hidden');
+                placeholderEl.classList.add('hidden');
+            } else {
+                imgEl.classList.add('hidden');
+                placeholderEl.classList.remove('hidden');
+            }
+            const editBtn = document.getElementById('preview-edit-btn');
+            editBtn.href = editUrl;
+            editBtn.classList.remove('bg-gray-600', 'text-gray-400', 'cursor-not-allowed', 'pointer-events-none');
+            editBtn.classList.add('bg-veludo-gold', 'text-black', 'hover:bg-white');
+        }
+
+        // Role Modal Logic
+        function openRoleModal(userId, username, isCast, isStaff) {
+            document.getElementById('id_user_id').value = userId; 
+            document.getElementById('modal-username').innerText = username;
+            document.getElementById('id_is_cast').checked = (isCast === 'true');
+            document.getElementById('id_is_staff').checked = (isStaff === 'true');
+            document.getElementById('role-modal').classList.remove('hidden');
+            document.getElementById('role-modal').classList.add('flex');
+        }
+        function closeRoleModal() {
+            document.getElementById('role-modal').classList.add('hidden');
+            document.getElementById('role-modal').classList.remove('flex');
+        }
+
+        // Sortable Logic (Drag & Drop)
+        document.addEventListener('DOMContentLoaded', function() {
+            const el = document.getElementById('cast-sortable-list');
+            Sortable.create(el, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'bg-veludo-gold/20',
+                onEnd: function (evt) {
+                    const itemEls = el.querySelectorAll('[data-id]');
+                    const newOrderIds = Array.from(itemEls).map(item => item.getAttribute('data-id'));
+                    updateOrder(newOrderIds);
+                }
+            });
+
+            function updateOrder(ids) {
+                fetch("{% url 'admin_dashboard' %}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": "{{ csrf_token }}",
+                        "Content-Type": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    },
+                    body: JSON.stringify({
+                        action: 'update_sort_order',
+                        order: ids
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status !== 'success') {
+                        alert('Error updating order');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        });
+    </script>
+</body>
+</html>

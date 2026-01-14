@@ -1,0 +1,90 @@
+{% load static %}
+{% load socialaccount %}<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | ASMR Salon Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Noto+Serif+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Serif JP"', '"Cormorant Garamond"', 'serif'],
+                        english: ['"Cormorant Garamond"', 'serif'],
+                    },
+                    colors: {
+                        'veludo-accent-gold': '#d4af37', 
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { 
+            background-color: #1a1a1a; 
+            color: #e5e5e5; 
+            letter-spacing: 0.1em; 
+            font-family: "Noto Serif JP", serif; 
+        }
+        .bg-layer {
+            background-image: url("{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}");
+            background-size: cover;
+            background-position: center;
+            filter: blur(10px) brightness(0.4);
+            transform: scale(1.1);
+        }
+        .login-card {
+            background: rgba(35, 35, 35, 0.75);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body class="h-screen w-full overflow-hidden flex items-center justify-center relative">
+
+    <div class="absolute inset-0 bg-layer z-0"></div>
+
+    <div class="relative z-10 w-full max-w-sm login-card p-10 rounded-sm">
+        
+        <div class="text-center mb-10">
+            <a href="{% url 'index' %}" class="inline-block hover:opacity-80 transition-opacity">
+                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo" class="h-16 w-auto object-contain mx-auto filter brightness-0 invert"> 
+            </a>
+            <p class="mt-4 text-[10px] tracking-[0.3em] uppercase text-gray-400 font-light">Members Entrance</p>
+        </div>
+
+        <div class="text-center mb-8 px-2">
+            <p class="text-xs leading-relaxed text-gray-300">
+                セキュリティ強化のため、ログインは<br>
+                <span class="font-bold text-white">Discordアカウントのみ</span>となっております。<br>
+                <span class="text-[10px] text-gray-500 mt-2 block">パスワードの管理や入力は不要です。</span>
+            </p>
+        </div>
+
+        <form action="{% provider_login_url 'discord' %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer">
+                <i class="fa-brands fa-discord text-xl"></i>
+                <span class="text-sm font-bold tracking-widest uppercase font-english">Login with Discord</span>
+                
+                <div class="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-12"></div>
+            </button>
+        </form>
+
+        <div class="mt-12 text-center">
+            <a href="{% url 'index' %}" class="text-white/30 text-[10px] tracking-[0.3em] hover:text-white transition-colors flex items-center justify-center gap-2 group">
+                <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition-transform"></i> BACK TO HOME
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

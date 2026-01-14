@@ -1,0 +1,109 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | ASMR Salon Veludo</title>
+    <!-- 复用 Login 的 CSS 和 JS，保持一致性 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 这里的 Script 和 Style 与 login.html 完全一致，为了简洁我省略了部分重复样式 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Serif JP"', 'serif'],
+                        english: ['"Cormorant Garamond"', 'serif'],
+                    },
+                    colors: { 'veludo-accent-gold': '#d4af37' }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 直接复用 login.html 的样式 */
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; letter-spacing: 0.1em; }
+        .bg-layer {
+            background-image: url("{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}");
+            background-size: cover; background-position: center; filter: blur(10px) brightness(0.4); transform: scale(1.1);
+        }
+        .login-card { background: rgba(35, 35, 35, 0.75); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6); }
+        .btn-gold { background-color: #d4af37; color: #1a1a1a; transition: all 0.4s ease; }
+        .btn-gold:hover { background-color: #f3cf55; transform: translateY(-2px); }
+        .input-group { position: relative; margin-bottom: 2rem; }
+        .input-field { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding: 12px 0; outline: none; color: #fff; font-family: "Cormorant Garamond", serif; font-size: 1.1rem; transition: border-color 0.3s; }
+        .input-field:focus { border-bottom-color: #d4af37; }
+        .input-label { position: absolute; top: 12px; left: 0; pointer-events: none; transition: all 0.3s ease; color: #888; font-size: 0.9rem; }
+        .input-field:focus ~ .input-label, .input-field:not(:placeholder-shown) ~ .input-label { transform: translateY(-25px) scale(0.85); color: #d4af37; }
+        /* 隐藏掉 Django 默认的 help text */
+        .helptext { display: none; }
+    </style>
+</head>
+<body class="h-screen w-full overflow-hidden flex items-center justify-center relative">
+    <div class="absolute inset-0 bg-layer z-0"></div>
+
+    <div class="relative z-10 w-full max-w-md login-card p-10 md:p-12 rounded-sm">
+        <div class="text-center mb-8">
+            <a href="{% url 'index' %}" class="inline-block hover:opacity-80 transition-opacity">
+                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo" class="h-16 w-auto object-contain mx-auto filter brightness-0 invert"> 
+            </a>
+            <p class="mt-4 text-[10px] tracking-[0.3em] uppercase text-gray-400 font-light">New Membership</p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            
+            {% if form.errors %}
+                <div class="mb-6 p-2 bg-red-900/20 border border-red-500/30 text-center">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <p class="text-red-400 text-xs">{{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                        <p class="text-red-400 text-xs">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Django UserCreationForm 默认包含 username, password, password_confirmation -->
+            {% for field in form %}
+            <div class="input-group">
+                {{ field }}
+                <label class="input-label">{{ field.label }}</label>
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="w-full btn-gold text-sm py-4 tracking-[0.3em] font-bold shadow-lg uppercase mt-6">
+                Create Account
+            </button>
+        </form>
+
+        <div class="text-center mt-8">
+            <p class="text-[11px] text-gray-500 tracking-wider">
+                すでにアカウントをお持ちですか？ 
+                <a href="{% url 'login' %}" class="text-veludo-accent-gold underline hover:text-white transition-colors ml-2">ログイン</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- 复用 login.html 的 JS 脚本以处理浮动标签 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input'); // 选择所有 input
+            function checkState(input) {
+                if (input.value && input.value.length > 0) input.classList.add('has-content');
+                else input.classList.remove('has-content');
+            }
+            inputs.forEach(input => {
+                input.addEventListener('input', () => checkState(input));
+                setTimeout(() => checkState(input), 100);
+            });
+        });
+    </script>
+</body>
+</html>

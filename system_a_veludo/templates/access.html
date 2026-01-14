@@ -1,0 +1,306 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ASMR Salon Veludo - Access Information">
+    <title>Access | Veludo</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Noto+Serif+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        english: ['"Cormorant Garamond"', 'serif'],
+                        japanese: ['"Noto Serif JP"', 'serif'],
+                        sans: ['"Noto Serif JP"', '"Cormorant Garamond"', 'serif'], 
+                    },
+                    colors: {
+                        'veludo-bg': '#F9F8F6',
+                        'veludo-header': '#9c8c74',
+                        'veludo-accent-gold': '#E3C070',
+                        'veludo-text': '#5a544b',
+                        'veludo-light': '#EFECE8',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        html { scroll-behavior: smooth; }
+        body { 
+            background-color: #F9F8F6; 
+            color: #5a544b; 
+            letter-spacing: 0.1em; 
+            font-family: "Noto Serif JP", serif; 
+        }
+
+        /* Navbar */
+        .site-navbar {
+            background-color: #a08977;
+            backdrop-filter: blur(5px);
+            height: 5rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        .nav-link a { position: relative; padding-bottom: 4px; text-decoration: none; transition: color 0.3s ease; }
+        .nav-link a::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 1px;
+            background-color: #E3C070; transition: width 0.3s ease;
+        }
+        .nav-link a:hover { color: #E3C070; }
+        .nav-link a:hover::after { width: 100%; }
+
+        /* Animations */
+        .reveal-on-scroll {
+            opacity: 0; transform: translateY(40px);
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-on-scroll.is-visible { opacity: 1; transform: translateY(0); }
+
+        .slide-in-left {
+            opacity: 0; transform: translateX(-40px);
+            transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .slide-in-left.is-visible { opacity: 1; transform: translateX(0); }
+
+        /* Footer */
+        .site-footer {
+            background-color: #a08977; padding-top: 2rem; padding-bottom: 2rem;
+            text-align: center; color: white; display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* Mobile Menu */
+        #mobile-menu {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            max-height: 0; opacity: 0; overflow: hidden;
+        }
+        #mobile-menu.open { max-height: 400px; opacity: 1; }
+    </style>
+</head>
+<body class="font-serif antialiased overflow-x-hidden bg-veludo-bg">
+
+    <nav class="fixed w-full z-[100] site-navbar transition-all duration-300">
+        <div class="w-full max-w-[120rem] mx-auto px-6 h-full flex justify-between items-center">
+            <div class="flex items-center gap-4 flex-shrink-0">
+                <a href="{% url 'index' %}">
+                    <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-14 w-auto object-contain hover:opacity-80 transition-opacity">
+                </a>
+                <div class="hidden lg:block h-8 w-[1px] bg-white/20"></div>
+                <span class="hidden lg:block text-[15px] tracking-[0.2em] font-light uppercase opacity-90 text-white">ASMR Salon</span>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-10">
+                <div class="flex space-x-8 nav-link text-white font-medium text-[15px] tracking-[0.25em]">
+                    <a href="{% url 'index' %}">HOME</a>
+                    <a href="{% url 'service' %}">SERVICE</a>
+                    <a href="{% url 'cast' %}">CAST</a>
+                    <a href="{% url 'access' %}">ACCESS</a>
+                </div>
+
+                {% if user.is_authenticated %}
+                    <div class="relative group">
+                        <a href="{% url 'profile' %}" class="flex items-center gap-3 px-4 py-2 border border-transparent hover:border-veludo-accent-gold/50 rounded-sm transition-all duration-300 group-hover:bg-white/5">
+                            <div class="flex flex-col items-end">
+                                <span class="text-[10px] text-veludo-accent-gold tracking-widest uppercase">Welcome</span>
+                                <span class="text-xs text-white font-english tracking-wider">{{ user.vrc_id|default:user.username }}</span>
+                            </div>
+                            <div class="w-8 h-8 rounded-full bg-veludo-accent-gold text-veludo-header flex items-center justify-center border border-white/20">
+                                <i class="fa-regular fa-user"></i>
+                            </div>
+                        </a>
+                        <div class="absolute right-0 top-full mt-2 w-48 bg-[#9c8c74] shadow-xl rounded-sm overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50">
+                            <a href="{% url 'profile' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
+                                <i class="fa-solid fa-id-card mr-2"></i> MY PAGE
+                            </a>
+                            <a href="{% url 'my_bookings' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
+                                <i class="fa-solid fa-calendar-check mr-2"></i> RESERVATIONS
+                            </a>
+                            <a href="{% url 'logout' %}" class="block px-4 py-3 text-xs text-red-200 hover:bg-red-900/20 tracking-widest">
+                                <i class="fa-solid fa-arrow-right-from-bracket mr-2"></i> LOGOUT
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <a href="{% url 'login' %}" class="group flex items-center gap-2 border border-white/40 px-6 py-2.5 text-[10px] tracking-widest text-white hover:border-veludo-accent-gold hover:bg-veludo-accent-gold hover:text-white transition-all duration-300 rounded-sm">
+                        <i class="fa-regular fa-user group-hover:scale-110 transition-transform"></i> 
+                        <span>LOGIN</span>
+                    </a>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-6 md:hidden text-white">
+                <a href="{% url 'login' %}" class="text-xs hover:text-veludo-accent-gold"><i class="fa-regular fa-user"></i></a>
+                <button id="mobile-menu-btn" class="text-xl hover:text-veludo-accent-gold transition-colors">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="mobile-menu" class="md:hidden bg-veludo-header border-t border-white/10 text-white">
+            <div class="flex flex-col px-6 py-4 space-y-4 tracking-widest text-sm">
+                <a href="{% url 'index' %}" class="hover:text-veludo-accent-gold">HOME</a>
+                <a href="{% url 'service' %}" class="hover:text-veludo-accent-gold">SERVICE</a>
+                <a href="{% url 'cast' %}" class="hover:text-veludo-accent-gold">CAST</a>
+                <a href="{% url 'access' %}" class="hover:text-veludo-accent-gold">ACCESS</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="pt-32 pb-0">
+        <div class="max-w-7xl mx-auto px-6 relative z-10 pb-32">
+            <div class="text-center mb-20 reveal-on-scroll">
+                <h2 class="font-english italic text-6xl text-veludo-header mb-4">Access</h2>
+                <div class="h-[1px] w-12 bg-veludo-accent-gold mx-auto mb-4"></div>
+                <p class="text-xs tracking-[0.3em] text-gray-500 uppercase font-japanese">ASMR Salon へ行くために</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-24">
+                
+                <div class="relative group slide-in-left">
+                    <div class="absolute inset-0 bg-[#C8A464] transform translate-x-4 translate-y-4 -z-10 transition-transform group-hover:translate-x-2 group-hover:translate-y-2"></div>
+                    <div class="aspect-video overflow-hidden shadow-xl border border-gray-100">
+                        <img src="../static/images/access/s-297x170_8d11f870-c3d5-4fac-9773-b8bcd665c441.png" 
+                             alt="VRChat Group" 
+                             class="w-full h-full object-cover">
+                    </div>
+                </div>
+
+                <div class="reveal-on-scroll space-y-6 text-veludo-text font-japanese text-sm leading-loose">
+                    <p>
+                        ASMR Salonには、<br>
+                        VRSNSである『VRChat』を通じて来店できます。
+                    </p>
+                    <p>
+                        <span class="text-veludo-accent-gold font-bold">PC + VR機器 / Quest単機 / デスクトップ</span><br>
+                        で、それぞれご自身の環境に合わせてご入店ください！
+                    </p>
+                    <p class="text-xs text-gray-400">
+                        (※PC + VR機器での入店が最高品質での楽しみ方になります)
+                    </p>
+                    <p class="mt-8 pt-6 border-t border-gray-200">
+                        ご案内から施術までをスムーズに行うためにも、<br>
+                        <span class="border-b border-veludo-accent-gold font-bold">事前にVRChatログインまで、一度済ませておくことを強くオススメします！</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="text-center mb-12 reveal-on-scroll">
+                <h3 class="font-english italic text-3xl text-veludo-header mb-2">After Login</h3>
+                <p class="text-xs text-gray-400 tracking-widest font-japanese">VRChatにログイン出来たら</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-24 reveal-on-scroll">
+                <div class="space-y-4">
+                    <div class="aspect-video overflow-hidden shadow-lg border border-gray-100 group">
+                        <img src="../static/images/access/s-1423x747_v-fms_webp_6609d62a-ef33-44c7-9b1e-146bb506827a.png" 
+                             alt="VRChat Notification" 
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+                    </div>
+                    <p class="text-xs text-gray-500 text-center font-japanese leading-relaxed">
+                        <span class="block font-bold mb-2 text-veludo-accent-gold">STEP 1</span>
+                        ログイン後、しばらく待っていただくと、<br>予約した時間に担当の施術者（キャスト）から通知が届きます！
+                    </p>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="aspect-video overflow-hidden shadow-lg border border-gray-100 group">
+                        <img src="../static/images/access/s-1405x751_v-fms_webp_c1f5b467-310d-4264-9630-f3100bed4123.png" 
+                             alt="VRChat Menu" 
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+                    </div>
+                    <p class="text-xs text-gray-500 text-center font-japanese leading-relaxed">
+                        <span class="block font-bold mb-2 text-veludo-accent-gold">STEP 2</span>
+                        ※通知表示が数秒なので、<br>メニューを開いて待つのが分かりやすいです。↓
+                    </p>
+                </div>
+            </div>
+
+            <div class="reveal-on-scroll">
+                <div class="text-center mb-12">
+                    <h3 class="font-english italic text-3xl text-veludo-header mb-2">Notification</h3>
+                    <p class="text-xs text-gray-400 tracking-widest font-japanese">キャストから通知が届いたら</p>
+                </div>
+
+                <div class="bg-white p-8 md:p-12 shadow-xl border-t-4 border-veludo-accent-gold rounded-sm max-w-4xl mx-auto">
+                    <p class="text-sm leading-loose text-center text-veludo-text font-japanese mb-8">
+                        <span class="font-bold text-veludo-header">「○○（キャストのVRChat名）」</span>があなたを<br>
+                        「ASMR Salon Veludo-ビロード-」に招待しました。<br><br>
+                        という通知のチェックマークを<span class="border-b border-veludo-accent-gold font-bold">受諾</span>すると、ワールドの移動が始まります！<br>
+                        その後はその場にいるキャストの指示に従ってください！
+                    </p>
+                    
+                    <div class="aspect-video overflow-hidden shadow-lg border border-gray-100 max-w-2xl mx-auto group">
+                        <img src="../static/images/access/s-1411x753_v-fms_webp_09a5395a-b77c-4262-b7b0-65a71bc51938.png" 
+                             alt="Invite Notification" 
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+                    </div>
+                    <p class="text-xs text-gray-400 text-center mt-4">
+                        <span class="text-veludo-accent-gold font-bold">STEP 3</span> 通知のチェックマーク（緑色）を押して移動開始
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="max-w-2xl mx-auto px-6 flex flex-col items-center reveal-on-scroll">
+            <div class="mb-10 flex justify-center">
+                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-12 w-auto object-contain">
+            </div>
+            
+            <div class="text-[12px] md:text-xs leading-loose opacity-80 font-light mb-12 space-y-4 font-japanese text-white text-center">
+                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br>VRChat公認の商用利用店舗です。</p>
+                <p class="text-[11px] text-white/60">
+                    ©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant<br>
+                    ©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ<br>
+                    ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri<br>
+                    Lys　Mister Pink　Nanaha　Ornament Corpse　PetiDoll　snowlight0102　Today cloth<br>
+                    VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん
+                </p>
+            </div>
+            <div class="text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile Menu
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            if(mobileMenuBtn && mobileMenu) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    mobileMenu.classList.toggle('open');
+                });
+            }
+
+            // Scroll Animation
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                    }
+                });
+            }, observerOptions);
+
+            const elements = document.querySelectorAll('.reveal-on-scroll, .slide-in-left');
+            elements.forEach(el => observer.observe(el));
+        });
+    </script>
+</body>
+</html>

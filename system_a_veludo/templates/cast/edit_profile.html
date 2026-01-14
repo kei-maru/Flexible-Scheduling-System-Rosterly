@@ -1,0 +1,469 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Profile | Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'veludo-gold': '#d4af37', 
+                        'veludo-bg': '#1a1a1a',
+                        'veludo-surface': '#2d2d2d',
+                        'paper-bg': '#f5f0e6',
+                        'paper-text': '#5d5555',
+                        'btn-brown': '#a8947d',
+                        'dark-tea': '#4a3b32',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        .glass-panel {
+            background: rgba(35, 35, 35, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        input[type="file"]::file-selector-button {
+            background-color: #2d2d2d;
+            color: #d4af37;
+            border: 1px solid #d4af37;
+            padding: 0.2rem 0.5rem;
+            margin-right: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background-color: #d4af37;
+            color: #000;
+        }
+        
+        /* 轮播图核心样式 */
+        .carousel-item {
+            position: absolute;  /* 必须绝对定位 */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;          /* 默认隐藏 */
+            transition: opacity 0.5s ease-in-out;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .carousel-item.active {
+            opacity: 1; 
+            z-index: 10; 
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-fixed bg-cover bg-center" style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+
+    <div class="relative z-10 w-full max-w-7xl mx-auto px-6 py-10">
+        
+        <div class="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
+            <div>
+                <a href="{% url 'admin_dashboard' %}" class="text-xs text-gray-500 hover:text-veludo-gold mb-2 block tracking-widest">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> BACK TO DASHBOARD
+                </a>
+                <h1 class="text-3xl font-english text-veludo-gold italic">Edit Profile: <span class="text-white not-italic">{{ target_user.username }}</span></h1>
+            </div>
+            
+            {% if messages %}
+                <div class="fixed top-4 right-4 z-50">
+                    {% for message in messages %}
+                        {% if message.tags == 'success' %}
+                            <div class="bg-veludo-gold text-black px-6 py-3 rounded shadow-lg mb-2 font-bold animate-pulse">
+                                {{ message }}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-6">
+                <form method="post" enctype="multipart/form-data" class="space-y-6" id="profileForm" novalidate>
+                    {% csrf_token %}
+                    
+                    <div class="glass-panel p-8 rounded-sm">
+                        <h3 class="text-lg font-english text-white mb-6 border-l-2 border-veludo-gold pl-3">Basic Info</h3>
+                        
+                        {% if form.non_field_errors %}
+                            <div class="bg-red-500/20 border border-red-500 text-red-200 p-3 mb-4 text-xs">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="space-y-5">
+                            <div>
+                                <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">Cast Name</label>
+                                {{ form.name }} 
+                                {% if form.name.errors %}
+                                    <p class="text-red-400 text-xs mt-1">{{ form.name.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                            
+                            <div>
+                                <label class="text-xs text-red-400 uppercase tracking-widest block mb-2">
+                                    <i class="fa-brands fa-youtube mr-1"></i> YouTube URL
+                                </label>
+                                {{ form.youtube_url }}
+                                {% if form.youtube_url.errors %}
+                                    <p class="text-red-400 text-xs mt-1">{{ form.youtube_url.errors.0 }}</p>
+                                {% endif %}
+                                <p class="text-[10px] text-gray-500 mt-1">Paste the video link here to show the button on profile.</p>
+                            </div>
+
+                            <div>
+                                <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">Introduction</label>
+                                {{ form.intro }}
+                                {% if form.intro.errors %}
+                                    <p class="text-red-400 text-xs mt-1">{{ form.intro.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">Tags (JSON)</label>
+                                {{ form.tags }}
+                                <p class="text-[10px] text-gray-500 mt-1">Example: ["癒し", "雑談"]</p>
+                            </div>
+                            <div class="mt-4 p-3 bg-veludo-gold/10 border border-veludo-gold/30 rounded flex items-center gap-3">
+                                {{ form.is_active }}
+                                <label for="{{ form.is_active.id_for_label }}" class="text-sm text-veludo-gold font-bold cursor-pointer select-none">
+                                    サイトに公開する (Active)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-6 border-t border-white/10">
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">Icon / Avatar</label>
+                            <div class="flex items-center gap-4">
+                                {% if form.instance.avatar %}
+                                    <img src="{{ form.instance.avatar.url }}" class="w-16 h-16 rounded-full object-cover border border-veludo-gold">
+                                {% endif %}
+                                {{ form.avatar }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel p-8 rounded-sm">
+                        <h3 class="text-lg font-english text-white mb-6 border-l-2 border-veludo-gold pl-3">Image Gallery</h3>
+                        <p class="text-xs text-gray-500 mb-4">Upload images for the top slider.</p>
+                        
+                        {{ formset.management_form }}
+                        
+                        {% if formset.non_form_errors %}
+                            <div class="bg-red-500/20 border border-red-500 text-red-200 p-3 mb-4 text-xs">
+                                {{ formset.non_form_errors }}
+                            </div>
+                        {% endif %}
+                        
+                        <div id="formset-container" class="space-y-3">
+                            {% for media_form in formset %}
+                                <div class="media-row bg-black/30 border border-white/10 p-4 rounded relative group hover:border-veludo-gold/50 transition-all">
+                                    {{ media_form.id }}
+                                    
+                                    {% if media_form.errors %}
+                                        <div class="text-red-400 text-xs mb-2 pb-2 border-b border-red-500/30">
+                                            {{ media_form.errors }}
+                                        </div>
+                                    {% endif %}
+
+                                    <div class="flex gap-4 items-center">
+                                        <div class="flex-grow">
+                                            <label class="text-[10px] text-veludo-gold uppercase block mb-1">
+                                                <i class="fa-regular fa-image mr-1"></i> Image File
+                                            </label>
+                                            {{ media_form.image_file }}
+                                            {% if media_form.instance.image_file %}
+                                                <div class="text-[10px] text-green-400 mt-1 truncate max-w-[200px]">
+                                                    <i class="fa-solid fa-check"></i> Current: {{ media_form.instance.image_file.name }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="w-20">
+                                            <label class="text-[10px] text-gray-400 uppercase block mb-1">Order</label>
+                                            {{ media_form.order }}
+                                        </div>
+                                    </div>
+
+                                    {% if formset.can_delete and media_form.instance.pk %}
+                                        <div class="absolute top-3 right-3">
+                                            <label class="text-red-400 text-xs cursor-pointer flex items-center gap-1 bg-black/50 px-2 py-1 rounded hover:bg-red-900/50 transition-colors">
+                                                {{ media_form.DELETE }} <i class="fa-solid fa-trash"></i>
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" id="add-form-btn" class="mt-4 w-full py-2 border border-dashed border-gray-600 text-gray-400 hover:text-veludo-gold hover:border-veludo-gold transition-colors text-xs uppercase tracking-widest">
+                            <i class="fa-solid fa-plus mr-2"></i> Add Another Image
+                        </button>
+                    </div>
+
+                    <button type="submit" class="w-full bg-veludo-gold text-black py-4 font-bold tracking-[0.2em] hover:bg-white transition-colors uppercase">
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+
+            <div class="lg:col-span-6 relative flex justify-center">
+                <div class="sticky top-10 w-full flex flex-col items-center">
+                    <h3 class="text-center text-veludo-gold font-english italic mb-4">Live Preview</h3>
+                    
+                    <div class="mx-auto w-[500px] bg-paper-bg shadow-2xl overflow-hidden relative border-4 border-dark-tea rounded-sm">
+    
+                        <div class="relative w-full aspect-[4/3] bg-gray-900 group">
+                            <div id="carousel-inner" class="w-full h-full relative overflow-hidden">
+                                {% if slider_images %}
+                                    {% for media in slider_images %}
+                                        {% if media.image_file %}
+                                            <div class="carousel-item {% if forloop.first %}active{% endif %} w-full h-full">
+                                                
+                                                <div class="absolute inset-0 z-0 overflow-hidden">
+                                                    <img src="{{ media.image_file.url }}" class="w-full h-full object-cover blur-xl scale-110 brightness-50 opacity-80">
+                                                </div>
+
+                                                <div class="relative z-10 w-full h-full flex items-center justify-center p-4">
+                                                    <img src="{{ media.image_file.url }}" class="h-full w-auto object-contain drop-shadow-2xl transition-transform duration-700 hover:scale-[1.02]">
+                                                </div>
+                                                
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="carousel-item active w-full h-full bg-gray-800 flex items-center justify-center relative z-20">
+                                        <div class="text-center text-gray-500">
+                                            <i class="fa-regular fa-image text-4xl mb-2"></i>
+                                            <p class="font-english italic text-sm">No Image Available</p>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <button id="prev-btn" type="button" class="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/10 transition z-30 group/btn">
+                                <i class="fa-solid fa-chevron-left drop-shadow-md text-2xl group-hover/btn:scale-110 transition-transform"></i>
+                            </button>
+                            <button id="next-btn" type="button" class="absolute right-0 top-0 bottom-0 w-16 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/10 transition z-30 group/btn">
+                                <i class="fa-solid fa-chevron-right drop-shadow-md text-2xl group-hover/btn:scale-110 transition-transform"></i>
+                            </button>
+                        </div>
+
+                        <div class="p-8 text-paper-text text-center">
+                            
+                            <h2 class="text-3xl font-serif text-[#a8947d] mb-6 font-bold tracking-wide font-english">
+                                <span id="preview-name">{{ form.name.value|default:"Cast Name" }}</span>
+                            </h2>
+
+                            <div class="text-sm leading-loose text-left space-y-4 font-medium px-4">
+                                <div class="border-l-4 border-[#a8947d] pl-4">
+                                    <div class="font-bold text-[#a8947d] mb-1 text-xs tracking-widest">【Introduction】</div>
+                                    <div id="preview-intro" class="whitespace-pre-wrap">{{ form.intro.value|default:"..." }}</div>
+                                </div>
+                                
+                                <div class="border-l-4 border-[#a8947d] pl-4 mt-6">
+                                    <div class="font-bold text-[#a8947d] mb-1 text-xs tracking-widest">【Tags】</div>
+                                    <div id="preview-tags" class="flex flex-wrap gap-2"></div>
+                                </div>
+                            </div>
+
+                            <div id="youtube-container" class="mt-8 mb-2 hidden">
+                                <a id="youtube-btn" href="#" target="_blank" class="block w-full bg-btn-brown text-white py-4 rounded-full text-sm font-bold shadow-md hover:bg-[#8e7c68] transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                                    施術動画はこちら <i class="fa-brands fa-youtube text-lg"></i>
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="empty-form" class="hidden">
+        <div class="media-row bg-black/30 border border-white/10 p-4 rounded relative group hover:border-veludo-gold/50 transition-all mb-4">
+            <div class="flex gap-4 items-center">
+                <div class="flex-grow">
+                    <label class="text-[10px] text-veludo-gold uppercase block mb-1">
+                        <i class="fa-regular fa-image mr-1"></i> Image File
+                    </label>
+                    {{ formset.empty_form.image_file }}
+                </div>
+                <div class="w-20">
+                    <label class="text-[10px] text-gray-400 uppercase block mb-1">Order</label>
+                    {{ formset.empty_form.order }}
+                </div>
+            </div>
+            <div class="absolute top-3 right-3">
+                <label class="text-red-400 text-xs cursor-pointer flex items-center gap-1 bg-black/50 px-2 py-1 rounded">
+                    Delete <i class="fa-solid fa-trash"></i>
+                    <input type="checkbox" name="cast_profile-medias-__prefix__-DELETE" id="id_cast_profile-medias-__prefix__-DELETE">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- 1. Formset Logic ---
+            const addBtn = document.getElementById('add-form-btn');
+            const formContainer = document.getElementById('formset-container');
+            // 使用属性选择器查找以 -TOTAL_FORMS 结尾的 input
+            const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+            const emptyFormContainer = document.getElementById('empty-form'); 
+
+            if (addBtn && totalFormsInput && emptyFormContainer) {
+                // 获取 hidden div 中的 HTML 模板
+                const emptyFormHtml = emptyFormContainer.innerHTML;
+
+                addBtn.addEventListener('click', () => {
+                    // 获取当前表单数量
+                    const formCount = parseInt(totalFormsInput.value);
+                    
+                    // 动态获取前缀 (例如: 'cast_profile-medias')
+                    const prefix = totalFormsInput.name.replace('-TOTAL_FORMS', '');
+
+                    // 替换 Django 的模板占位符 __prefix__
+                    let newFormHtml = emptyFormHtml.replace(/__prefix__/g, formCount);
+
+                    // 创建临时 DOM 节点来转换 HTML 字符串
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = newFormHtml;
+                    
+                    // 找到真正的 media-row 元素 (去除可能存在的空白文本节点)
+                    const newRow = tempDiv.firstElementChild;
+                    
+                    if (newRow) {
+                        formContainer.appendChild(newRow);
+                        // 更新总数
+                        totalFormsInput.value = formCount + 1;
+                    }
+                });
+            } else {
+                // [修正] 这里去掉了 {{ formset.management_form }}，改为纯文本提示
+                // 防止 Django 渲染出 <input> 标签破坏 JS 语法
+                console.error("Formset elements not found! Please check if 'formset.management_form' is correctly rendered in your HTML.");
+            }
+
+            // --- 2. Live Text Preview ---
+            const nameInput = document.querySelector('input[name="name"]');
+            const introInput = document.querySelector('textarea[name="intro"]');
+            const tagsInput = document.querySelector('input[name="tags"]');
+            const youtubeInput = document.querySelector('input[name="youtube_url"]');
+            const youtubeContainer = document.getElementById('youtube-container');
+            const youtubeBtn = document.getElementById('youtube-btn');
+
+            const updateName = () => { if(nameInput) document.getElementById('preview-name').innerText = nameInput.value || 'Cast Name'; }
+            
+            const updateIntro = () => { 
+                if(introInput) {
+                    const val = introInput.value || '...';
+                    document.getElementById('preview-intro').innerText = val.trim();
+                }
+            }
+            
+            const updateYoutube = () => {
+                if(!youtubeInput) return;
+                const val = youtubeInput.value.trim();
+                if (val && val.length > 5) {
+                    if(youtubeContainer) youtubeContainer.classList.remove('hidden');
+                    if(youtubeBtn) youtubeBtn.href = val;
+                } else {
+                    if(youtubeContainer) youtubeContainer.classList.add('hidden');
+                }
+            };
+
+            const updateTags = () => {
+                if(!tagsInput) return;
+                const container = document.getElementById('preview-tags');
+                if(!container) return;
+                
+                container.innerHTML = '';
+                const val = tagsInput.value.trim();
+                if (!val) return; 
+
+                try {
+                    let tags = [];
+                    if (val.startsWith('[')) {
+                        tags = JSON.parse(val);
+                    } else {
+                        tags = val.split(',').map(t => t.trim()).filter(t => t);
+                    }
+                    if (Array.isArray(tags)) {
+                        tags.forEach(tag => {
+                            const span = document.createElement('span');
+                            span.className = 'text-xs border border-[#a8947d] text-[#a8947d] px-3 py-1 rounded-sm bg-white/50';
+                            span.innerText = tag;
+                            container.appendChild(span);
+                        });
+                    }
+                } catch (e) { console.log(e); }
+            };
+
+            if(nameInput) nameInput.addEventListener('input', updateName);
+            if(introInput) introInput.addEventListener('input', updateIntro);
+            if(tagsInput) tagsInput.addEventListener('input', updateTags);
+            if(youtubeInput) youtubeInput.addEventListener('input', updateYoutube);
+
+            // Init Check
+            updateName();
+            updateIntro();
+            updateTags(); 
+            updateYoutube(); 
+
+            // --- 3. Carousel Logic ---
+            let currentIndex = 0;
+            const carouselInner = document.getElementById('carousel-inner');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            
+            function updateCarousel() {
+                if (!carouselInner) return;
+                const items = carouselInner.querySelectorAll('.carousel-item');
+                if (items.length === 0) return;
+
+                if (currentIndex >= items.length) currentIndex = 0;
+                if (currentIndex < 0) currentIndex = items.length - 1;
+
+                items.forEach((item, index) => {
+                    item.classList.remove('active');
+                    if (index === currentIndex) {
+                        item.classList.add('active');
+                    }
+                });
+            }
+
+            if(prevBtn) {
+                prevBtn.addEventListener('click', (e) => {
+                    e.preventDefault(); 
+                    e.stopPropagation();
+                    currentIndex--;
+                    updateCarousel();
+                });
+            }
+            if(nextBtn) {
+                nextBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    currentIndex++;
+                    updateCarousel();
+                });
+            }
+            updateCarousel();
+        });
+    </script>
+</body>
+</html>

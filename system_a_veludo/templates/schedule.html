@@ -1,0 +1,499 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Schedule Management | Veludo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'veludo-accent-gold': '#d4af37', 
+                        'veludo-dark-bg': '#1a1a1a',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        .glass-panel {
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* FullCalendar Customization */
+        .fc { border: none !important; font-family: "Noto Serif JP", sans-serif; }
+        .fc-toolbar-title { font-family: "Cormorant Garamond", serif; font-size: 1.8rem !important; color: #d4af37; letter-spacing: 0.05em; }
+        .fc-button { 
+            background-color: transparent !important; 
+            border: 1px solid #444 !important; 
+            color: #aaa !important;
+            font-size: 0.75rem !important; 
+            text-transform: uppercase;
+            letter-spacing: 1px; 
+            transition: all 0.3s ease;
+        }
+        .fc-button:hover { border-color: #d4af37 !important; color: #d4af37 !important; }
+        .fc-button-active { background-color: #d4af37 !important; color: #000 !important; border-color: #d4af37 !important; }
+        
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #333 !important; }
+        .fc-timegrid-slot-label { color: #666; font-family: "Cormorant Garamond"; font-size: 0.9em; }
+        
+        /* Event Styling */
+        .fc-event {
+            border: none;
+            border-left: 3px solid #d4af37;
+            border-radius: 0 2px 2px 0;
+            font-size: 0.75rem; 
+            line-height: 1.1;   
+            padding: 1px 4px;   
+            overflow: hidden;   
+            white-space: nowrap;
+            text-overflow: ellipsis; 
+        }
+        .fc-timegrid-event-short .fc-event-main {
+            padding: 0;
+        }
+        .fc-event:hover {
+            background-color: rgba(212, 175, 55, 0.4);
+            transform: scale(1.01);
+            cursor: pointer;
+        }
+        .fc-event.booked-slot {
+            background-color: rgba(139, 0, 0, 0.3) !important;
+            border-left-color: #ff4444 !important;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d4af37; }
+    </style>
+</head>
+<body class="min-h-screen bg-fixed bg-cover bg-center py-6 md:py-10"
+      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-sm"></div>
+
+    <div class="relative z-10 w-full max-w-7xl mx-auto px-4">
+        
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-6">
+                <a href="{% url 'profile' %}" class="text-white/60 hover:text-veludo-accent-gold transition-colors text-xs tracking-[0.2em] flex items-center gap-2 font-serif">
+                    <i class="fa-solid fa-arrow-left"></i> BACK TO PROFILE
+                </a>
+
+                <a href="{% url 'my_bookings' %}" class="text-white/60 hover:text-veludo-accent-gold transition-colors text-xs tracking-[0.2em] flex items-center gap-2 font-serif">
+                    <i class="fa-solid fa-list-check"></i> MY BOOKINGS
+                </a>
+            </div>
+
+            <div id="status-indicator" class="text-xs font-mono text-gray-500">
+                <span class="w-2 h-2 rounded-full bg-gray-500 inline-block mr-1" id="status-dot"></span>
+                System B: <span id="status-text">Standing By</span>
+            </div>
+        </div>
+
+        {% if not is_cast %}
+            <div class="glass-panel border-l-4 border-red-500 p-8 text-center">
+                <h2 class="text-xl text-red-400 font-serif mb-2">Access Denied</h2>
+                <p class="text-gray-400 text-sm">You are not authorized to manage schedules.</p>
+            </div>
+        {% else %}
+
+        <div class="glass-panel p-4 md:p-6 rounded-sm shadow-2xl">
+            <div class="mb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-2 border-b border-white/10 pb-4">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-serif text-veludo-accent-gold tracking-widest mb-1">AVAILABILITY</h1>
+                    <p class="text-xs text-gray-400 font-sans tracking-wide">
+                        <i class="fa-regular fa-hand-pointer mr-1"></i> Drag to add shift
+                        <span class="mx-2">|</span>
+                        <i class="fa-regular fa-trash-can mr-1"></i> Click to delete
+                    </p>
+                </div>
+                
+                <div class="flex flex-col items-end gap-2">
+                    <button onclick="openRecurringModal()" class="bg-veludo-accent-gold/10 text-veludo-accent-gold border border-veludo-accent-gold px-4 py-2 text-xs uppercase tracking-widest hover:bg-veludo-accent-gold hover:text-black transition-colors">
+                        <i class="fa-solid fa-repeat mr-2"></i> Weekly Plan
+                    </button>
+
+                    <div class="flex gap-4 text-xs">
+                        <div class="flex items-center gap-1"><div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> Available</div>
+                        <div class="flex items-center gap-1"><div class="w-3 h-3 bg-red-900/40 border-l-2 border-red-500"></div> Booked</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id='calendar' class="bg-[#1a1a1a]/50 rounded text-gray-200"></div>
+        </div>
+        
+        {% endif %}
+    </div>
+
+    <div id="recurringModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-sm" onclick="closeRecurringModal()"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl px-4">
+            <div class="glass-panel p-6 md:p-8 rounded-sm shadow-2xl relative">
+                <button onclick="closeRecurringModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+                <h2 class="text-xl font-serif text-veludo-accent-gold mb-6 border-l-4 border-veludo-accent-gold pl-3">
+                    Weekly Recurring Schedule
+                </h2>
+                <form id="recurringForm" class="space-y-6">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">From Date</label>
+                            <input type="date" name="range_start" required class="w-full bg-black/30 border border-white/10 text-white p-2 text-sm focus:border-veludo-accent-gold outline-none">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">To Date</label>
+                            <input type="date" name="range_end" required class="w-full bg-black/30 border border-white/10 text-white p-2 text-sm focus:border-veludo-accent-gold outline-none">
+                        </div>
+                    </div>
+                    <div class="bg-black/20 p-4 rounded border border-white/5">
+                        <div class="grid grid-cols-1 gap-2">
+                            <div id="week-rows" class="space-y-3"></div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500 italic">* Conflicting slots will be skipped automatically.</div>
+                    <button type="submit" class="w-full bg-veludo-accent-gold text-black py-3 font-bold uppercase tracking-widest hover:bg-white transition-colors">
+                        Generate Shifts
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            if (!calendarEl) return;
+
+            const CURRENT_RESOURCE_ID = "{{ user.cast_profile.saas_resource_id|default:'' }}";
+
+            // 状态指示器
+            var statusDot = document.getElementById('status-dot');
+            var statusText = document.getElementById('status-text');
+
+            function updateStatus(state) {
+                if (!statusDot || !statusText) return;
+                
+                if(state === 'loading') {
+                    statusDot.className = "w-2 h-2 rounded-full bg-yellow-500 inline-block mr-1 animate-pulse";
+                    statusText.innerText = "Syncing...";
+                    statusText.className = "text-yellow-500";
+                } else if (state === 'success') {
+                    statusDot.className = "w-2 h-2 rounded-full bg-green-500 inline-block mr-1";
+                    statusText.innerText = "Connected";
+                    statusText.className = "text-green-500";
+                } else if (state === 'error') {
+                    statusDot.className = "w-2 h-2 rounded-full bg-red-500 inline-block mr-1";
+                    statusText.innerText = "Error";
+                    statusText.className = "text-red-500";
+                }
+            }
+
+            if (!CURRENT_RESOURCE_ID) {
+                console.error("Missing SaaS Resource ID");
+                updateStatus('error');
+                alert("Configuration Error: Your account is not linked to the reservation system.");
+                return;
+            }
+
+            var isMobile = window.innerWidth < 768;
+
+            window.calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: isMobile ? 'timeGridDay' : 'timeGrid',
+                duration: { days: 7 }, 
+                dateIncrement: { days: 1 }, 
+                height: 'auto',
+                slotMinTime: '00:00:00',
+                scrollTime: '20:00:00',
+                slotDuration: '01:00:00',
+                nowIndicator: true,
+                locale: 'ja',
+                headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
+                dayHeaderFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true },
+                slotLabelFormat: { hour: 'numeric', minute: '2-digit', meridiem: false, hour12: false },
+                allDaySlot: false,
+                selectable: true,
+                selectMirror: true,
+                longPressDelay: 500,
+
+                // --- 1. 获取排班 (FETCH) ---
+                events: function(info, successCallback, failureCallback) {
+                    updateStatus('loading');
+                    
+                    const url = new URL('/accounts/api/availability/', window.location.origin);
+                    url.searchParams.append('resource_id', CURRENT_RESOURCE_ID);
+                    url.searchParams.append('start', info.startStr);
+                    url.searchParams.append('end', info.endStr);
+
+                    fetch(url)
+                        .then(response => {
+                            if (!response.ok) throw new Error("Network response was not ok");
+                            return response.json();
+                        })
+                        .then(data => {
+                            updateStatus('success');
+                            // [FIXED] 这里不再自己计算颜色，直接使用后端传来的 backgroundColor / borderColor
+                            const events = Array.isArray(data) ? data.map(item => {
+                                // 检查是否有 extendedProps.is_booked
+                                const isBooked = item.extendedProps && item.extendedProps.is_booked;
+                                
+                                return {
+                                    id: item.id,
+                                    title: item.title,
+                                    start: item.start,
+                                    end: item.end,
+                                    // 优先使用后端给的颜色
+                                    backgroundColor: item.backgroundColor,
+                                    borderColor: item.borderColor,
+                                    // 依然加上 class 便于 CSS 控制
+                                    classNames: isBooked ? ['booked-slot'] : [],
+                                    editable: item.editable,
+                                    extendedProps: item.extendedProps
+                                };
+                            }) : [];
+                            successCallback(events);
+                        })
+                        .catch(error => {
+                            console.error("Fetch error:", error);
+                            updateStatus('error');
+                            failureCallback(error);
+                        });
+                },
+
+                // --- 2. 创建排班 (CREATE - Single) ---
+                select: function(arg) {
+                    let allEvents = window.calendar.getEvents();
+                    
+                    let isInvalid = allEvents.some(event => {
+                        const overlap = arg.start < event.end && arg.end > event.start;
+                        const touching = (arg.start.getTime() === event.end.getTime()) || 
+                                         (arg.end.getTime() === event.start.getTime());
+                        return overlap || touching;
+                    });
+
+                    if (isInvalid) {
+                        alert('シフトが重複または隣接しています。調整してください。');
+                        window.calendar.unselect();
+                        return;
+                    }
+
+                    if (!confirm(`Create shift?\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
+                        window.calendar.unselect();
+                        return;
+                    }
+
+                    updateStatus('loading');
+                    
+                    fetch('/accounts/api/availability/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            resource_id: CURRENT_RESOURCE_ID,
+                            start: arg.startStr,
+                            end: arg.endStr
+                        })
+                    })
+                    .then(async response => {
+                        if (response.ok) {
+                            window.calendar.refetchEvents();
+                            updateStatus('success');
+                        } else {
+                            const errData = await response.json();
+                            alert(`Failed: ${errData.error || 'Unknown error'}`);
+                            updateStatus('error');
+                        }
+                    })
+                    .catch(err => {
+                        updateStatus('error');
+                        alert('System Error');
+                    })
+                    .finally(() => window.calendar.unselect());
+                },
+
+                // --- 3. 删除排班 (DELETE) ---
+                eventClick: function(arg) {
+                    // 检查 extendedProps
+                    if (arg.event.extendedProps && arg.event.extendedProps.is_booked) {
+                        alert("Cannot delete a booked slot!");
+                        return;
+                    }
+
+                    if (!confirm('Delete this available slot?')) {
+                        return;
+                    }
+
+                    updateStatus('loading');
+                    fetch('/accounts/api/availability/', {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ id: arg.event.id })
+                    })
+                    .then(async response => {
+                        if (response.ok) {
+                            arg.event.remove();
+                            updateStatus('success');
+                        } else {
+                            const errData = await response.json();
+                            alert(`Delete Failed: ${errData.error}`);
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert("Network Error");
+                    });
+                }
+            });
+
+            window.calendar.render();
+        });
+
+        // --- 周期排班 Modal 逻辑 (New) ---
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const weekRowsContainer = document.getElementById('week-rows');
+
+        if (weekRowsContainer) {
+            days.forEach((day, index) => {
+                const row = document.createElement('div');
+                row.className = "flex items-center gap-4 p-2 hover:bg-white/5 rounded transition-colors";
+                row.innerHTML = `
+                    <div class="w-8">
+                        <input type="checkbox" id="day-${index}-check" class="accent-veludo-accent-gold w-4 h-4 cursor-pointer" onchange="toggleDayRow(${index})">
+                    </div>
+                    <div class="w-24 text-sm font-serif text-gray-300">${day}</div>
+                    <div class="flex-1 flex gap-2 items-center opacity-50 pointer-events-none transition-opacity" id="day-${index}-inputs">
+                        <input type="time" id="day-${index}-start" class="bg-black/50 border border-white/10 text-white px-2 py-1 text-sm w-full focus:border-veludo-accent-gold outline-none">
+                        <span class="text-gray-500">-</span>
+                        <input type="time" id="day-${index}-end" class="bg-black/50 border border-white/10 text-white px-2 py-1 text-sm w-full focus:border-veludo-accent-gold outline-none">
+                    </div>
+                `;
+                weekRowsContainer.appendChild(row);
+            });
+        }
+
+        function toggleDayRow(index) {
+            const checkbox = document.getElementById(`day-${index}-check`);
+            const inputsDiv = document.getElementById(`day-${index}-inputs`);
+            
+            if (checkbox.checked) {
+                inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
+                if(!document.getElementById(`day-${index}-start`).value) {
+                    document.getElementById(`day-${index}-start`).value = "10:00";
+                    document.getElementById(`day-${index}-end`).value = "18:00";
+                }
+            } else {
+                inputsDiv.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function openRecurringModal() {
+            document.getElementById('recurringModal').classList.remove('hidden');
+        }
+
+        function closeRecurringModal() {
+            document.getElementById('recurringModal').classList.add('hidden');
+        }
+
+        const recurringForm = document.getElementById('recurringForm');
+        if(recurringForm) {
+            recurringForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const rangeStart = formData.get('range_start');
+                const rangeEnd = formData.get('range_end');
+                
+                // 获取当前 Cast 的 SaaS ID (从模板注入)
+                // 这里需要特别注意：我们不需要传 resource_id，因为后端 View 会自动从 user.cast_profile 获取并覆盖
+                // 但为了保险，我们可以不用填，反正后端会校验
+                
+                let weekConfig = {};
+                let hasSelection = false;
+
+                days.forEach((_, index) => {
+                    const checked = document.getElementById(`day-${index}-check`).checked;
+                    if (checked) {
+                        const start = document.getElementById(`day-${index}-start`).value;
+                        const end = document.getElementById(`day-${index}-end`).value;
+                        if (start && end) {
+                            weekConfig[index] = { enabled: true, start: start, end: end };
+                            hasSelection = true;
+                        }
+                    }
+                });
+
+                if (!hasSelection) {
+                    alert("Please select at least one day.");
+                    return;
+                }
+
+                if (confirm("Generate shifts?")) {
+                    const btn = e.target.querySelector('button[type="submit"]');
+                    const originalText = btn.innerText;
+                    btn.innerText = "Processing...";
+                    btn.disabled = true;
+
+                    // 发送 POST 到同一个接口，后端会自动识别 week_config
+                    fetch('/accounts/api/availability/', { 
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            range_start: rangeStart,
+                            range_end: rangeEnd,
+                            week_config: weekConfig
+                            // resource_id 由后端自动填充
+                        })
+                    })
+                    .then(async response => {
+                        if (response.ok) {
+                            const data = await response.json();
+                            alert(`Completed!\nCreated: ${data.created}\nSkipped: ${data.skipped}`);
+                            closeRecurringModal();
+                            if(window.calendar) window.calendar.refetchEvents(); 
+                        } else {
+                            const err = await response.json();
+                            alert(`Error: ${err.error || 'Unknown'}`);
+                        }
+                    })
+                    .catch(err => {
+                        alert("Network Error");
+                        console.error(err);
+                    })
+                    .finally(() => {
+                        btn.innerText = originalText;
+                        btn.disabled = false;
+                    });
+                }
+            });
+        }
+
+        function formatDate(date) {
+            return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        }
+    </script>
+</body>
+</html>

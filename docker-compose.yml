@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # -----------------------------
+  # PostgreSQL Database
+  # System A 和 System B 共用一个实例，但在内部使用不同 Database
+  # -----------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: veludo_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # 初始化脚本：自动创建两个数据库 (veludo_db 和 saas_db)
+      - ./init_sql:/docker-entrypoint-initdb.d
+
+  # -----------------------------
+  # Redis (For Cache & Celery)
+  # -----------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: veludo_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

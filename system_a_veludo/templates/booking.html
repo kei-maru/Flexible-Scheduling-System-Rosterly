@@ -1,0 +1,886 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Reservation | Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { 'veludo-gold': '#d4af37', 'veludo-bg': '#1a1a1a' },
+                    fontFamily: { serif: ['"Noto Serif JP"', 'serif'], english: ['"Cormorant Garamond"', 'serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #000; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        .glass-panel {
+            background: rgba(30, 30, 30, 0.6);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .slide-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
+        .slide-page {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            overflow-y: auto;
+            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease;
+            opacity: 0; transform: translateX(50px);
+            pointer-events: none; padding-bottom: 50px;
+        }
+        .slide-page.active { opacity: 1; transform: translateX(0); pointer-events: auto; z-index: 10; }
+        .inner-slide-wrapper { position: relative; width: 100%; min-height: 80vh; }
+        .inner-view {
+            position: absolute; top: 0; left: 0; width: 100%;
+            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.5s ease;
+        }
+        #view-cast-list { transform: translateX(0); opacity: 1; pointer-events: auto; z-index: 2; }
+        #view-calendar { transform: translateX(100px); opacity: 0; pointer-events: none; z-index: 1; }
+        .show-calendar #view-cast-list { transform: translateX(-100px); opacity: 0; pointer-events: none; }
+        .show-calendar #view-calendar { transform: translateX(0); opacity: 1; pointer-events: auto; }
+
+        #search-time option {
+        color: black;
+        background-color: white;
+        }
+        
+        /* FullCalendar Styles */
+        .fc-event { cursor: pointer; border: none !important; }
+        .fc-timegrid-event { background-color: rgba(16, 185, 129, 0.2) !important; border-left: 3px solid #10b981 !important; border-radius: 2px; }
+        .fc-event-title { color: #10b981; font-weight: bold; }
+        .fc td, .fc th { border-color: #333 !important; }
+        .fc-timegrid-slot { height: 2em !important; }
+        .fc-timegrid-slot-label-cushion { font-family: monospace; font-size: 0.85rem; color: #888; }
+        
+        /* Form Elements */
+        .input-gold {
+            background: rgba(255,255,255,0.05); border: 1px solid #444; color: white;
+            padding: 10px; width: 100%; outline: none; transition: all 0.3s;
+            font-family: monospace; font-size: 1.1rem;
+        }
+        .input-gold:focus { border-color: #d4af37; background: rgba(212, 175, 55, 0.1); }
+        .mode-btn.active {
+            border-color: #d4af37; background: linear-gradient(90deg, rgba(212, 175, 55, 0.15), transparent);
+        }
+        .mode-btn.active h3 { color: #d4af37; }
+        .mode-btn.active .icon-circle { color: #d4af37; border-color: #d4af37; }
+        
+        .fade-in-up { animation: fadeInUp 0.6s ease-out forwards; opacity: 0; transform: translateY(20px); }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        
+        .hidden { display: none !important; }
+
+        /* [NEW] Final Confirm Checkbox Style */
+        .confirm-item {
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .confirm-item:hover {
+            border-color: #d4af37;
+            background: rgba(212, 175, 55, 0.05);
+        }
+        .confirm-item.checked {
+            border-color: #d4af37;
+            background: rgba(212, 175, 55, 0.1);
+        }
+        .confirm-checkbox {
+            accent-color: #d4af37;
+            width: 1.2rem;
+            height: 1.2rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-fixed bg-cover bg-center overflow-hidden flex items-center justify-center"
+      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-md z-0"></div>
+
+    <div class="relative z-10 w-full h-screen max-w-[1920px] mx-auto grid grid-cols-1 lg:grid-cols-12 shadow-2xl">
+        
+        <div class="lg:col-span-3 h-full glass-panel flex flex-col p-8 relative z-20">
+            <div class="mb-12">
+                <a href="{% url 'index' %}" class="text-white/40 hover:text-veludo-gold transition-colors text-xs tracking-[0.2em] flex items-center gap-2 mb-8 group">
+                    <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition-transform"></i> BACK TO HOME
+                </a>
+                <h1 class="text-3xl font-english text-white tracking-widest mb-1">RESERVATION</h1>
+                <p class="text-[10px] text-veludo-gold tracking-[0.3em] uppercase opacity-70">Veludo Booking System</p>
+            </div>
+
+            <div class="space-y-4 mb-8">
+                <p class="text-[10px] text-gray-500 mb-4 uppercase tracking-wider font-bold">Select Mode</p>
+                <button onclick="switchPage('cast')" id="btn-cast" class="mode-btn w-full p-5 border border-white/5 hover:border-veludo-gold/30 transition-all text-left flex items-center gap-4 group rounded-sm">
+                    <div class="icon-circle w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 transition-colors">
+                        <i class="fa-solid fa-user-tag"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-english text-gray-200 transition-colors italic">By Cast</h3>
+                        <p class="text-[10px] text-gray-500 tracking-wider">指名予約</p>
+                    </div>
+                </button>
+                <button onclick="switchPage('time')" id="btn-time" class="mode-btn w-full p-5 border border-white/5 hover:border-veludo-gold/30 transition-all text-left flex items-center gap-4 group rounded-sm">
+                    <div class="icon-circle w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 transition-colors">
+                        <i class="fa-regular fa-clock"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-english text-gray-200 transition-colors italic">By Time</h3>
+                        <p class="text-[10px] text-gray-500 tracking-wider">時間予約</p>
+                    </div>
+                </button>
+
+                <a href="{% url 'my_bookings' %}" class="mode-btn w-full p-5 border border-white/5 hover:border-veludo-gold/30 transition-all text-left flex items-center gap-4 group rounded-sm">
+                    <div class="icon-circle w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 transition-colors">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-english text-gray-200 transition-colors italic">My Reservations</h3>
+                        <p class="text-[10px] text-gray-500 tracking-wider">予約履歴の確認</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="mt-auto pt-6 border-t border-white/5">
+                <div class="flex items-center gap-3 text-[10px] text-gray-600 uppercase tracking-widest">
+                    <div class="w-1.5 h-1.5 rounded-full bg-veludo-gold animate-pulse"></div>
+                    System Online
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-9 h-full md:pl-8 relative bg-black/40">
+            <div class="slide-container p-8 pl-12 md:pl-24 md:pr-12 py-12">
+                
+                <div id="page-intro" class="slide-page active flex flex-col items-center justify-center h-full text-center pb-20">
+                    <div class="w-20 h-20 border border-white/10 rounded-full flex items-center justify-center mb-8 animate-pulse">
+                        <i class="fa-solid fa-gem text-3xl text-veludo-gold/50"></i>
+                    </div>
+                    <h2 class="text-3xl font-english text-white/80 tracking-widest mb-4">WELCOME</h2>
+                    <p class="text-sm text-gray-500 tracking-widest">左側のメニューから予約方法を選択してください</p>
+                </div>
+
+                <div id="page-cast" class="slide-page">
+                    <div id="cast-wrapper" class="inner-slide-wrapper">
+                        <div id="view-cast-list" class="inner-view">
+                            <h2 class="text-3xl font-english text-veludo-gold mb-10 border-b border-white/10 pb-4 inline-block pr-12">Select a Cast</h2>
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 mb-12">
+                                {% for cast in casts %}
+                                <div onclick="loadCastSchedule(
+                                        '{{ cast.saas_resource_id }}', 
+                                        '{{ cast.name }}',
+                                        {{ cast.allow_30_min|yesno:'true,false' }},
+                                        {{ cast.allow_60_min|yesno:'true,false' }},
+                                        {{ cast.allow_120_min|yesno:'true,false' }}
+                                    )" 
+                                    class="cursor-pointer bg-[#1a1a1a] group hover:-translate-y-1 transition-all duration-300 border border-white/5 hover:border-veludo-gold/50 shadow-lg relative rounded-sm">
+                                    <div class="aspect-[3/4] w-full relative overflow-hidden">
+                                        {% if cast.avatar %}
+                                        <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700">
+                                        {% else %}
+                                        <div class="w-full h-full flex items-center justify-center text-gray-700"><i class="fa-solid fa-user text-4xl"></i></div>
+                                        {% endif %}
+                                        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90"></div>
+                                        <div class="absolute bottom-3 left-3">
+                                            <div class="text-base font-bold text-white font-english italic tracking-wider">{{ cast.name }}</div>
+                                            <div class="text-[10px] text-veludo-gold uppercase tracking-widest">{{ cast.rank }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div id="view-calendar" class="inner-view">
+                            <div class="flex items-center gap-4 mb-6">
+                                <button onclick="backToCastList()" class="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center text-gray-400 hover:text-white hover:border-veludo-gold transition-colors">
+                                    <i class="fa-solid fa-arrow-left"></i>
+                                </button>
+                                <div>
+                                    <h3 class="text-2xl text-white font-english italic leading-none" id="calendar-cast-name">--</h3>
+                                    <p class="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">Availability Schedule</p>
+                                </div>
+                            </div>
+                            <div class="bg-[#151515] border border-white/10 p-6 shadow-2xl relative">
+                                <div class="absolute top-0 left-0 w-1 h-full bg-veludo-gold"></div>
+                                <div class="mb-4 flex justify-end">
+                                    <div class="text-[10px] text-gray-400 bg-white/5 px-3 py-1 rounded border border-white/5">
+                                        <i class="fa-solid fa-computer-mouse mr-2 text-veludo-gold"></i>緑色の枠をクリックして予約 (24時間後から予約可能)
+                                    </div>
+                                </div>
+                                <div id="calendar-cast" class="min-h-[600px]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="page-time" class="slide-page">
+                    <div class="inner-slide-wrapper">
+                        <h2 class="text-3xl font-english text-veludo-gold mb-8 border-b border-white/10 pb-4 inline-block pr-12">Search by Time</h2>
+                        
+                        <div class="bg-[#151515] p-8 border border-white/10 shadow-xl mb-12 rounded-sm">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                                <div>
+                                    <label class="block text-[10px] text-gray-400 uppercase tracking-widest mb-2">Date</label>
+                                    <input type="date" id="search-date" class="input-gold text-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-gray-400 uppercase tracking-widest mb-2">Start Time (24h)</label>
+                                    <div class="relative">
+                                        <select id="search-time" class="input-gold text-lg appearance-none cursor-pointer bg-transparent">
+                                            </select>
+                                        <i class="fa-solid fa-chevron-down absolute right-3 top-4 text-gray-500 pointer-events-none"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-gray-400 uppercase tracking-widest mb-2">Duration</label>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <button onclick="selectSearchDuration(30, this)" class="search-dur-btn bg-veludo-gold text-black py-2 text-xs font-bold border border-transparent rounded-sm" data-val="30">30m</button>
+                                        <button onclick="selectSearchDuration(60, this)" class="search-dur-btn bg-white/5 text-gray-400 py-2 text-xs border border-white/10 hover:border-veludo-gold rounded-sm" data-val="60">60m</button>
+                                        <button onclick="selectSearchDuration(120, this)" class="search-dur-btn bg-white/5 text-gray-400 py-2 text-xs border border-white/10 hover:border-veludo-gold rounded-sm" data-val="120">120m</button>
+                                    </div>
+                                    <input type="hidden" id="search-duration" value="30">
+                                </div>
+                            </div>
+                            
+                            <div class="mt-8 flex justify-between items-center">
+                                <p class="text-xs text-red-400" id="search-error"><i class="fa-solid fa-circle-info mr-1"></i> 24時間後以降の日時を指定してください</p>
+                                <button onclick="executeTimeSearch()" id="btn-do-search" class="bg-white text-black px-8 py-3 text-xs tracking-[0.3em] font-bold hover:bg-veludo-gold transition-colors rounded-sm">
+                                    SEARCH CASTS
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="search-results-area" class="hidden fade-in-up">
+                            <h3 class="text-xl text-white font-english italic mb-6">Available Casts</h3>
+                            <div id="search-results-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                                </div>
+                            <div id="no-results" class="hidden text-center py-10 text-gray-500">
+                                <p>指定された条件で予約可能なキャストは見つかりませんでした。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="booking-modal" class="fixed inset-0 bg-black/90 hidden items-center justify-center z-[100] backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-[#151515] w-full max-w-lg border border-veludo-gold/20 shadow-2xl transform scale-95 opacity-0 transition-all duration-300" id="modal-content">
+            <div class="bg-white/5 p-6 flex justify-between items-center border-b border-white/5">
+                <h3 class="text-xl text-veludo-gold font-english italic">Confirm Reservation</h3>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="p-8 space-y-8">
+                <div class="flex gap-6">
+                    <div class="w-16 h-16 bg-veludo-gold/10 flex items-center justify-center border border-veludo-gold/20">
+                        <i class="fa-solid fa-user-check text-2xl text-veludo-gold"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500 uppercase tracking-widest mb-1">Requested Cast</div>
+                        <div class="text-2xl font-bold text-white font-english italic" id="modal-cast-name">--</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="col-span-2">
+                        <label class="block text-[10px] text-gray-400 uppercase tracking-widest mb-2">Start Time (24H)</label>
+                        <input type="time" id="input-start-time" class="input-gold text-2xl" onchange="calculateEndTime()">
+                        <p class="text-[10px] text-gray-500 mt-2 flex justify-between">
+                            <span>Available Range:</span>
+                            <span id="slot-range-display" class="text-white font-mono">--:-- ~ --:--</span>
+                        </p>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-[10px] text-gray-400 uppercase tracking-widest mb-2">Duration</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" id="btn-30" onclick="setDuration(30, this)" class="duration-btn bg-white/5 border border-white/10 hover:border-veludo-gold text-gray-300 py-2 text-xs">30 min</button>
+                            <button type="button" id="btn-60" onclick="setDuration(60, this)" class="duration-btn bg-white/5 border border-white/10 hover:border-veludo-gold text-gray-300 py-2 text-xs">60 min</button>
+                            <button type="button" id="btn-120" onclick="setDuration(120, this)" class="duration-btn bg-white/5 border border-white/10 hover:border-veludo-gold text-gray-300 py-2 text-xs">120 min</button>
+                        </div>
+                        <input type="hidden" id="input-duration" value="60">
+                    </div>
+                </div>
+
+                <div class="bg-black/40 p-4 border border-white/5 flex justify-between items-center rounded">
+                    <span class="text-xs text-gray-500 uppercase">Est. End Time</span>
+                    <span id="display-end-time" class="text-xl text-white font-mono font-bold">--:--</span>
+                </div>
+
+                <div id="time-error" class="hidden text-red-400 text-xs text-center flex items-center justify-center gap-2 bg-red-900/10 p-2 border border-red-500/20">
+                    <i class="fa-solid fa-circle-exclamation"></i> <span>Time out of range</span>
+                </div>
+            </div>
+
+            <button onclick="openFinalConfirmModal()" id="btn-next-step" class="w-full bg-veludo-gold text-black font-bold py-5 hover:bg-white transition-colors tracking-[0.2em] text-sm uppercase disabled:opacity-50 disabled:cursor-not-allowed">
+                Proceed to Confirmation
+            </button>
+        </div>
+    </div>
+
+    <div id="final-confirm-modal" class="fixed inset-0 bg-black/95 hidden items-center justify-center z-[110] backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-[#1a1a1a] w-full max-w-2xl border border-veludo-gold/30 shadow-[0_0_50px_rgba(212,175,55,0.1)] transform scale-95 opacity-0 transition-all duration-300 relative" id="final-content">
+            <button onclick="closeFinalConfirmModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            
+            <div class="p-8 md:p-10">
+                <h3 class="text-2xl text-veludo-gold font-english italic mb-6 text-center">Final Requirements</h3>
+                
+                <div class="bg-white/5 border border-veludo-gold/20 p-4 mb-8 flex flex-col items-center justify-center gap-2 rounded-sm text-center">
+                    <p class="text-[10px] text-gray-400 uppercase tracking-widest">Reservation Summary</p>
+                    
+                    <div class="flex flex-wrap items-baseline justify-center gap-2">
+                        <span id="final-cast-name" class="text-white font-bold font-english italic text-lg">--</span>
+                        <span class="text-gray-600">/</span>
+                        <span id="final-date-str" class="text-gray-300 text-sm font-mono">--/--/--</span>
+                        <span class="text-gray-600">/</span>
+                        <span id="final-time-str-inline" class="text-veludo-gold text-sm font-mono font-bold">--:-- ~ --:--</span>
+                    </div>
+                </div>
+
+                <p class="text-center text-xs text-gray-500 mb-8 tracking-widest uppercase">以下の項目を確認・同意してください</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                    <label class="confirm-item block p-4 rounded bg-black/40 cursor-pointer group">
+                        <div class="flex items-start gap-4">
+                            <input type="checkbox" class="confirm-checkbox mt-1" onchange="checkAllConfirmed()">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fa-brands fa-discord text-indigo-400 text-xl"></i>
+                                    <span class="font-bold text-sm">公式Discordへ参加</span>
+                                </div>
+                                <p class="text-[10px] text-gray-400 leading-relaxed mb-2">連絡に使用するため、参加が必須です。</p>
+                                <a href="https://discord.gg/CGdGQ3na" target="_blank" class="text-[10px] text-veludo-gold hover:underline flex items-center gap-1" onclick="event.stopPropagation()">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Join Server
+                                </a>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="confirm-item block p-4 rounded bg-black/40 cursor-pointer group">
+                        <div class="flex items-start gap-4">
+                            <input type="checkbox" class="confirm-checkbox mt-1" onchange="checkAllConfirmed()">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-bag-shopping text-pink-400 text-xl"></i>
+                                    <span class="font-bold text-sm">ロールの購入</span>
+                                </div>
+                                <p class="text-[10px] text-gray-400 leading-relaxed mb-2">予約後、ASMR Salon Veludo-ビロード-のグループページ にて料金をお支払いください。</p>
+                                <a href="https://vrchat.com/home/group/grp_46243e70-e64e-4cac-8504-e4890fcfaafc" target="_blank" class="text-[10px] text-veludo-gold hover:underline flex items-center gap-1" onclick="event.stopPropagation()">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Visit Store
+                                </a>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="confirm-item block p-4 rounded bg-black/40 cursor-pointer group">
+                        <div class="flex items-start gap-4">
+                            <input type="checkbox" class="confirm-checkbox mt-1" onchange="checkAllConfirmed()">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-users text-green-400 text-xl"></i>
+                                    <span class="font-bold text-sm">公式グループへ加入</span>
+                                </div>
+                                <p class="text-[10px] text-gray-400 leading-relaxed mb-2">VRChat内でのインスタンス招待に必要です。</p>
+                                <a href="https://vrchat.com/home/group/grp_46243e70-e64e-4cac-8504-e4890fcfaafc" target="_blank" class="text-[10px] text-veludo-gold hover:underline flex items-center gap-1" onclick="event.stopPropagation()">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Join VRC Group
+                                </a>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="confirm-item block p-4 rounded bg-black/40 cursor-pointer group">
+                        <div class="flex items-start gap-4">
+                            <input type="checkbox" class="confirm-checkbox mt-1" onchange="checkAllConfirmed()">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-file-signature text-blue-400 text-xl"></i>
+                                    <span class="font-bold text-sm">VRC利用規約への同意</span>
+                                </div>
+                                <p class="text-[10px] text-gray-400 leading-relaxed mb-2">VRC禁止事項・キャンセルポリシーを確認しました。</p>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="text-center">
+                    <button onclick="realSubmitBooking()" id="btn-final-submit" disabled class="w-full md:w-2/3 bg-white/10 text-gray-500 font-bold py-4 transition-all tracking-[0.2em] text-sm uppercase cursor-not-allowed">
+                        Confirm & Reserve
+                    </button>
+                    <p class="text-[10px] text-gray-600 mt-3" id="final-hint">Please check all boxes above to proceed.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const hasVrcId = {{ user.vrc_id|yesno:"true,false" }};
+        let currentCastName = '';
+        let selectedSlot = null;
+        let calendarInstance = null;
+
+        // 初始化搜索表单
+        document.addEventListener('DOMContentLoaded', () => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const yyyy = tomorrow.getFullYear();
+            const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+            const dd = String(tomorrow.getDate()).padStart(2, '0');
+            const minDateStr = `${yyyy}-${mm}-${dd}`;
+            
+            const dateInput = document.getElementById('search-date');
+            if(dateInput) {
+                dateInput.value = minDateStr;
+                dateInput.min = minDateStr;
+            }
+
+            const timeSelect = document.getElementById('search-time');
+            if(timeSelect) {
+                for(let h=0; h<=23; h++) { // 从 0 到 23
+                    ['00', '30'].forEach(m => {
+                        const val = `${String(h).padStart(2,'0')}:${m}`;
+                        // 不需要 displayH 转换了，因为 h 本身就是 0-23
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.text = val; // value 和 text 都是 "00:30"
+                        timeSelect.appendChild(opt);
+                    });
+                }
+            }
+        });
+
+        // 页面切换
+        function switchPage(pageId) {
+            document.querySelectorAll('.slide-page').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.mode-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+            document.getElementById('btn-' + pageId).classList.add('active');
+        }
+
+        // Cast 模式
+        window.loadCastSchedule = function(resourceId, castName, allow30, allow60, allow120) {
+            currentCastName = castName;
+            document.getElementById('calendar-cast-name').innerText = castName;
+            
+            toggleBtn('btn-30', allow30);
+            toggleBtn('btn-60', allow60);
+            toggleBtn('btn-120', allow120);
+
+            if (allow60) setDuration(60, document.getElementById('btn-60'));
+            else if (allow30) setDuration(30, document.getElementById('btn-30'));
+            else if (allow120) setDuration(120, document.getElementById('btn-120'));
+
+            document.getElementById('cast-wrapper').classList.add('show-calendar');
+            setTimeout(() => { initCalendar(resourceId, castName); }, 300);
+        }
+
+        function toggleBtn(id, show) {
+            const el = document.getElementById(id);
+            if (show) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+
+        window.backToCastList = function() {
+            document.getElementById('cast-wrapper').classList.remove('show-calendar');
+        }
+
+        function initCalendar(resourceId, castName) {
+            let el = document.getElementById('calendar-cast');
+            if(calendarInstance) calendarInstance.destroy();
+
+            calendarInstance = new FullCalendar.Calendar(el, {
+                initialView: 'timeGridWeek',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+                height: 'auto',
+                locale: 'ja',
+                allDaySlot: false,
+                slotMinTime: '13:00:00',
+                slotMaxTime: '27:00:00',
+                slotDuration: '00:30:00', 
+                eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+                events: `/accounts/api/availability/?resource_id=${resourceId}`,
+                // 日历禁用过去的时间 (24小时内)
+                selectAllow: function(selectInfo) {
+                    return selectInfo.start > new Date().getTime() + 24 * 60 * 60 * 1000;
+                },
+                eventClick: function(info) {
+                    openModal(info.event, resourceId);
+                }
+            });
+            calendarInstance.render();
+        }
+
+        // 时长选择逻辑
+        window.setDuration = function(mins, btn) {
+            if(btn.classList.contains('hidden')) return; 
+            document.getElementById('input-duration').value = mins;
+            
+            // 更新按钮样式
+            const isSearchMode = btn.classList.contains('search-dur-btn');
+            const btnClass = isSearchMode ? '.search-dur-btn' : '.duration-btn';
+            
+            document.querySelectorAll(btnClass).forEach(b => {
+                b.classList.remove('bg-veludo-gold', 'text-black', 'border-transparent');
+                b.classList.add('bg-white/5', 'text-gray-300', 'border-white/10');
+            });
+            
+            btn.classList.remove('bg-white/5', 'text-gray-300', 'border-white/10');
+            btn.classList.add('bg-veludo-gold', 'text-black', 'border-transparent');
+            
+            if (!isSearchMode) calculateEndTime();
+        }
+        
+        window.selectSearchDuration = function(mins, btn) {
+            document.getElementById('search-duration').value = mins;
+            document.querySelectorAll('.search-dur-btn').forEach(b => {
+                b.classList.remove('bg-veludo-gold', 'text-black', 'border-transparent');
+                b.classList.add('bg-white/5', 'text-gray-400');
+            });
+            btn.classList.remove('bg-white/5', 'text-gray-400');
+            btn.classList.add('bg-veludo-gold', 'text-black', 'border-transparent');
+        }
+
+        // 核心模态框逻辑
+        function openModal(event, resourceId) {
+            if (!hasVrcId) {
+                if (confirm("予約を行うには VRCID（VRChat ID）の設定が必要です。\nプロフィール設定画面へ移動しますか？")) {
+                    window.location.href = "{% url 'profile' %}";
+                }
+                return;
+            }
+
+            // 24小时规则校验
+            const now = new Date();
+            const minTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); 
+            
+            if (event.start < minTime) {
+                alert("予約は利用日時の24時間前までに行う必要があります。\n\nReservations must be made at least 24 hours in advance.");
+                return;
+            }
+
+            selectedSlot = { start: event.start, end: event.end, resourceId: resourceId };
+            
+            document.getElementById('modal-cast-name').innerText = currentCastName;
+            document.getElementById('slot-range-display').innerText = formatTime24(selectedSlot.start) + ' ~ ' + formatTime24(selectedSlot.end);
+            document.getElementById('input-start-time').value = toInputTimeStr(selectedSlot.start);
+            
+            let modal = document.getElementById('booking-modal');
+            let content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+            
+            calculateEndTime();
+        }
+
+        window.calculateEndTime = function() {
+            let startTimeStr = document.getElementById('input-start-time').value;
+            let duration = parseInt(document.getElementById('input-duration').value);
+            
+            // 基础检查
+            if (!startTimeStr || !selectedSlot) return null;
+
+            let [h, m] = startTimeStr.split(':').map(Number);
+            
+            // 1. 获取排班的基准日期（年/月/日）
+            let baseDate = new Date(selectedSlot.start);
+            baseDate.setHours(0, 0, 0, 0); // 归零到当天 00:00
+
+            // 2. 构建用户选择的时间
+            let userStart = new Date(baseDate);
+            userStart.setHours(h, m, 0, 0);
+
+            // 3. 【核心修复】跨日逻辑判断
+            // 获取排班的实际开始时间（例如 21:00）
+            let slotStartTime = new Date(selectedSlot.start);
+            
+            // 如果用户选的时间（比如 17号 00:30）早于排班开始时间（17号 21:00）
+            // 且排班本身是跨日的（结束时间在第二天），或者仅仅是因为这是深夜场
+            // 那么我们认为用户指的是“第二天凌晨”（18号 00:30）
+            // 这里用一个简单的逻辑：如果选的时间 < 排班开始时间，就自动加一天
+            if (userStart < slotStartTime) {
+                userStart.setDate(userStart.getDate() + 1);
+            }
+
+            // 4. 计算结束时间
+            let userEnd = new Date(userStart.getTime() + duration * 60000);
+
+            // 5. 更新界面显示
+            document.getElementById('display-end-time').innerText = formatTime24(userEnd);
+
+            // 6. 验证是否在排班范围内
+            // 注意：selectedSlot.end 必须足够晚（比如次日 03:00）才能包含 userEnd
+            let isValid = (userStart >= selectedSlot.start && userEnd <= selectedSlot.end);
+            
+            let btn = document.getElementById('btn-next-step');
+            let err = document.getElementById('time-error');
+            
+            if (btn) {
+                if (!isValid) {
+                    err.classList.remove('hidden');
+                    // 为了调试，可以把具体错误打印出来，或者修改错误提示文字
+                    // console.log("Time Invalid:", userStart, userEnd, selectedSlot);
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50');
+                } else {
+                    err.classList.add('hidden');
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50');
+                }
+            }
+            
+            return { start: userStart, end: userEnd, isValid: isValid };
+        }
+
+        window.closeModal = function() {
+            let modal = document.getElementById('booking-modal');
+            let content = document.getElementById('modal-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+// --- NEW: Final Confirmation Logic ---
+
+        window.openFinalConfirmModal = function() {
+            if (!hasVrcId) { alert("VRCID Required"); return; }
+            let data = calculateEndTime();
+            if(!data || !data.isValid) { alert("Time invalid"); return; }
+
+            // 格式化时间信息
+            const dateStr = data.start.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short'});
+            const timeRangeStr = formatTime24(data.start) + ' ~ ' + formatTime24(data.end);
+            
+            // 填充到 HTML
+            document.getElementById('final-cast-name').innerText = currentCastName;
+            document.getElementById('final-date-str').innerText = dateStr;
+            document.getElementById('final-time-str-inline').innerText = timeRangeStr;
+
+            // 打开 Modal
+            const modal = document.getElementById('final-confirm-modal');
+            const content = document.getElementById('final-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+            
+            document.querySelectorAll('.confirm-checkbox').forEach(cb => cb.checked = false);
+            checkAllConfirmed();
+        }
+
+        window.closeFinalConfirmModal = function() {
+            const modal = document.getElementById('final-confirm-modal');
+            const content = document.getElementById('final-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        window.checkAllConfirmed = function() {
+            const checkboxes = document.querySelectorAll('.confirm-checkbox');
+            const btn = document.getElementById('btn-final-submit');
+            const hint = document.getElementById('final-hint');
+            
+            let allChecked = true;
+            checkboxes.forEach(cb => {
+                if(!cb.checked) allChecked = false;
+                // Style parent label
+                if(cb.checked) cb.closest('.confirm-item').classList.add('checked');
+                else cb.closest('.confirm-item').classList.remove('checked');
+            });
+
+            if (allChecked) {
+                btn.disabled = false;
+                btn.classList.remove('bg-white/10', 'text-gray-500', 'cursor-not-allowed');
+                btn.classList.add('bg-veludo-gold', 'text-black', 'hover:bg-white');
+                hint.classList.add('hidden');
+            } else {
+                btn.disabled = true;
+                btn.classList.add('bg-white/10', 'text-gray-500', 'cursor-not-allowed');
+                btn.classList.remove('bg-veludo-gold', 'text-black', 'hover:bg-white');
+                hint.classList.remove('hidden');
+            }
+        }
+
+        // 真正的提交函数 (从原来的 submitBooking 改名而来)
+        window.realSubmitBooking = function() {
+            let data = calculateEndTime();
+            if(!data || !data.isValid) return;
+
+            let btn = document.getElementById('btn-final-submit');
+            let originalText = btn.innerText;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...';
+            btn.disabled = true;
+
+            fetch('/accounts/api/booking/submit/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({
+                    resource_id: selectedSlot.resourceId,
+                    resource_name: currentCastName,
+                    start: data.start.toISOString(),
+                    end: data.end.toISOString()
+                })
+            })
+            .then(res => {
+                if(res.ok) {
+                    alert('予約が完了しました！\nReservation Complete');
+                    window.location.href = '/accounts/my-bookings/';
+                } else {
+                    return res.json().then(json => { throw new Error(json.error || 'Unknown Error') });
+                }
+            })
+            .catch(err => {
+                if (err.message.includes('Time slot unavailable') || err.message.includes('Buffer')) {
+                    alert('予約に失敗しました：\n前後の準備時間（30分）が確保できないため、この時間は予約できません。');
+                } else {
+                    alert('Booking Failed: ' + err.message);
+                }
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        // 时间搜索功能
+        window.executeTimeSearch = function() {
+        const dateVal = document.getElementById('search-date').value;
+        const timeVal = document.getElementById('search-time').value;
+        const duration = document.getElementById('search-duration').value;
+        const btn = document.getElementById('btn-do-search');
+        
+        if(!dateVal || !timeVal) {
+            alert("日付と時間を選択してください");
+            return;
+        }
+
+        let [h, m] = timeVal.split(':').map(Number);
+        let targetDate = new Date(dateVal);
+        targetDate.setHours(h, m, 0, 0);
+
+        // 前端 24小时校验 (调试期间如果嫌麻烦可以先把下面这段注释掉)
+        const now = new Date();
+        if (targetDate < new Date(now.getTime() + 24 * 60 * 60 * 1000)) {
+            alert("24時間後以降の日時を選択してください");
+            return;
+        }
+
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Searching...';
+        btn.disabled = true;
+        
+        // 构造 ISO String
+        // [修正] 手动构造本地时间格式 YYYY-MM-DDTHH:mm:ss，避免 toISOString 转成 UTC 导致日期不对
+        const yyyy = targetDate.getFullYear();
+        const MM = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(targetDate.getDate()).padStart(2, '0');
+        const HH = String(targetDate.getHours()).padStart(2, '0');
+        const mm = String(targetDate.getMinutes()).padStart(2, '0');
+        const localIsoStart = `${yyyy}-${MM}-${dd}T${HH}:${mm}:00`;
+
+        console.log("=== DEBUG FRONTEND ===");
+        console.log("Input Date:", dateVal, "Time:", timeVal);
+        console.log("Sending Start Time to Backend:", localIsoStart);
+        console.log("Duration:", duration);
+
+        fetch(`/accounts/api/cast/search/?start=${localIsoStart}&duration=${duration}`)
+        .then(res => res.json())
+        .then(data => {
+            console.log("Backend Response:", data); // [新增] 查看后端返回了什么
+            
+            const resultsArea = document.getElementById('search-results-area');
+            const resultsGrid = document.getElementById('search-results-grid');
+            const noResults = document.getElementById('no-results');
+
+            resultsArea.classList.remove('hidden');
+            resultsGrid.innerHTML = '';
+            
+            if (!data.casts || data.casts.length === 0) {
+                noResults.classList.remove('hidden');
+            } else {
+                noResults.classList.add('hidden');
+                data.casts.forEach(cast => {
+                    // ... (保持原有的渲染逻辑) ...
+                    const card = document.createElement('div');
+                    card.className = "bg-[#1a1a1a] border border-white/5 p-4 rounded flex flex-col items-center text-center group hover:border-veludo-gold/50 transition-colors";
+                    card.innerHTML = `
+                        <div class="w-20 h-20 rounded-full overflow-hidden mb-3 border-2 border-white/10 group-hover:border-veludo-gold transition-colors">
+                            ${cast.avatar_url ? `<img src="${cast.avatar_url}" class="w-full h-full object-cover">` : `<div class="w-full h-full bg-gray-700 flex items-center justify-center"><i class="fa-solid fa-user"></i></div>`}
+                        </div>
+                        <h4 class="text-white font-bold font-english italic mb-1">${cast.name}</h4>
+                        <p class="text-[10px] text-veludo-gold uppercase tracking-widest mb-4">${cast.rank}</p>
+                        <button onclick="directBook('${cast.saas_id}', '${cast.name}', '${localIsoStart}', ${duration})" class="w-full bg-white/10 hover:bg-veludo-gold hover:text-black text-white text-xs py-2 rounded transition-colors">
+                            This Cast
+                        </button>
+                    `;
+                    resultsGrid.appendChild(card);
+                });
+            }
+        })
+        .catch(err => {
+            console.error("Search Error:", err);
+            alert("Search failed: " + err);
+        })
+        .finally(() => {
+            btn.innerHTML = 'SEARCH CASTS';
+            btn.disabled = false;
+        });
+    }
+        window.directBook = function(resourceId, castName, isoStart, duration) {
+            currentCastName = castName;
+            const start = new Date(isoStart);
+            const end = new Date(start.getTime() + duration * 60000);
+            
+            if (!hasVrcId) {
+                if (confirm("予約を行うには VRCID（VRChat ID）の設定が必要です。")) {
+                    window.location.href = "{% url 'profile' %}";
+                }
+                return;
+            }
+
+            selectedSlot = { start: start, end: end, resourceId: resourceId };
+            
+            document.getElementById('modal-cast-name').innerText = currentCastName;
+            document.getElementById('slot-range-display').innerText = formatTime24(start) + ' ~ ' + formatTime24(end) + ' (Selected)';
+            document.getElementById('input-start-time').value = toInputTimeStr(start);
+            document.getElementById('input-duration').value = duration;
+            
+            document.querySelectorAll('.duration-btn').forEach(b => {
+                b.classList.remove('bg-veludo-gold', 'text-black');
+                b.classList.add('bg-white/5', 'text-gray-300');
+            });
+            const targetBtn = document.getElementById('btn-' + duration);
+            if(targetBtn) {
+                targetBtn.classList.add('bg-veludo-gold', 'text-black');
+                targetBtn.classList.remove('bg-white/5', 'text-gray-300');
+            }
+
+            let modal = document.getElementById('booking-modal');
+            let content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+            
+            calculateEndTime();
+        }
+
+        function formatTime24(d) { return d.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit', hour12:false}); }
+        function toInputTimeStr(d) { return ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2); }
+    </script>
+</body>
+</html>

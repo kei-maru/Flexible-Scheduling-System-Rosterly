@@ -64,11 +64,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'saas_db',
-        'USER': 'dev_user',      # System Aと同じユーザーでOK
-        'PASSWORD': 'dev_password',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': os.environ.get('DB_NAME', 'saas_db'),
+        'USER': os.environ.get('DB_USER', 'dev_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'dev_password'),
+        # 👇 关键：优先读取环境变量 DB_HOST，读不到才用 localhost
+        # 这样在 Docker 里它会自动读到 'db'，在本地开发时读不到就会用 'localhost'
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 

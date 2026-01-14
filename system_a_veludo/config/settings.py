@@ -144,6 +144,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [ BASE_DIR / "static" ]
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 # --- SaaS 配置 ---
 # System B 的地址 (注意端口是 8001)
 SAAS_API_URL = 'http://127.0.0.1:8001/api/v1/integration'

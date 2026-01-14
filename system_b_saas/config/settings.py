@@ -101,6 +101,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 # Custom User Model (SaaS用のユーザーモデル)
 AUTH_USER_MODEL = 'tenants.SaaSUser'
 

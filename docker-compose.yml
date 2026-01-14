@@ -1,34 +1,32 @@
 version: '3.8'
 
 services:
-  # -----------------------------
-  # System A (Admin / Frontend)
-  # -----------------------------
+  # System A
   system_a:
-    build: .  # 使用当前目录下的 Dockerfile 构建
+    build: .
     container_name: veludo_system_a
     restart: always
-    command: gunicorn system_a_veludo.config.wsgi:application --bind 0.0.0.0:8000
+    # 👇【关键修改】加上 --chdir system_a_veludo，让它进入子目录
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo
     volumes:
-      - .:/app  # 挂载代码，方便代码修改后不用重建容器
-      - static_volume:/app/static_root # 收集静态文件的地方
-      - media_volume:/app/media # 上传文件的地方
+      - .:/app
+      - static_volume:/app/static_root
+      - media_volume:/app/media
     ports:
-      - "8000:8000"  # 暂时直接开放端口，以后用 Nginx 代理
+      - "8000:8000"
     depends_on:
       - db
       - redis
     env_file:
       - .env
 
-  # -----------------------------
-  # System B (SaaS API)
-  # -----------------------------
+  # System B
   system_b:
     build: .
     container_name: veludo_system_b
     restart: always
-    command: gunicorn system_b_saas.config.wsgi:application --bind 0.0.0.0:8001
+    # 👇【关键修改】同理，System B 也要进它的子目录
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas
     volumes:
       - .:/app
       - static_volume:/app/static_root

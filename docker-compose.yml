@@ -2,25 +2,64 @@ version: '3.8'
 
 services:
   # -----------------------------
-  # PostgreSQL Database
-  # System A 和 System B 共用一个实例，但在内部使用不同 Database
+  # System A (Admin / Frontend)
+  # -----------------------------
+  system_a:
+    build: .  # 使用当前目录下的 Dockerfile 构建
+    container_name: veludo_system_a
+    restart: always
+    command: gunicorn system_a_veludo.config.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app  # 挂载代码，方便代码修改后不用重建容器
+      - static_volume:/app/static_root # 收集静态文件的地方
+      - media_volume:/app/media # 上传文件的地方
+    ports:
+      - "8000:8000"  # 暂时直接开放端口，以后用 Nginx 代理
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+
+  # -----------------------------
+  # System B (SaaS API)
+  # -----------------------------
+  system_b:
+    build: .
+    container_name: veludo_system_b
+    restart: always
+    command: gunicorn system_b_saas.config.wsgi:application --bind 0.0.0.0:8001
+    volumes:
+      - .:/app
+      - static_volume:/app/static_root
+      - media_volume:/app/media
+    ports:
+      - "8001:8001"
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+
+  # -----------------------------
+  # Database
   # -----------------------------
   db:
     image: postgres:15-alpine
     container_name: veludo_postgres
     restart: always
     environment:
-      POSTGRES_USER: dev_user
-      POSTGRES_PASSWORD: dev_password
+      POSTGRES_USER: ${DB_USER:-dev_user}         # 读取 .env，如果没读到就用默认值
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+      POSTGRES_DB: ${DB_NAME:-veludo_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # 初始化脚本：自动创建两个数据库 (veludo_db 和 saas_db)
       - ./init_sql:/docker-entrypoint-initdb.d
 
   # -----------------------------
-  # Redis (For Cache & Celery)
+  # Redis
   # -----------------------------
   redis:
     image: redis:7-alpine
@@ -31,3 +70,5 @@ services:
 
 volumes:
   postgres_data:
+  static_volume:
+  media_volume:

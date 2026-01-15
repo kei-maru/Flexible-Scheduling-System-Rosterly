@@ -11,7 +11,7 @@ class SaaSClient:
         # 默认端口假定为 8001，路径包含 /integration
         self.api_base_url = getattr(settings, 'SAAS_API_URL', 'http://127.0.0.1:8001/api/v1/integration')
         
-        self.api_key = getattr(settings, 'SAAS_API_KEY', '') 
+        self.api_key = getattr(settings, 'veludo_secret_key_123', '') 
         
         self.headers = {
             'Content-Type': 'application/json',

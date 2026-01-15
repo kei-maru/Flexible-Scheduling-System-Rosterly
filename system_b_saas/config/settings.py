@@ -9,7 +9,7 @@ SECRET_KEY = 'django-insecure-system-b-secret-key-change-in-production'
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*', 'system_b', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['*', 'system_b', 'localhost', '127.0.0.1','172.18.0.4']
 
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

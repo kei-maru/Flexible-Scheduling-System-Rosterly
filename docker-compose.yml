@@ -21,7 +21,7 @@ services:
       - .env
 
   # System B
-  system_b:
+  system-b:
     build: .
     container_name: veludo_system_b
     restart: always

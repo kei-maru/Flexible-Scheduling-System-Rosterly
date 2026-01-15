@@ -1,5 +1,7 @@
 from pathlib import Path
 import os 
+import django.http.request
+import re
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -7,7 +9,10 @@ SECRET_KEY = 'django-insecure-system-b-secret-key-change-in-production'
 
 DEBUG = True
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = ['*', 'system_b', 'localhost', '127.0.0.1']
+
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 INSTALLED_APPS = [
@@ -117,3 +122,6 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'm17621752319@gmail.com' # 你的邮箱
 EMAIL_HOST_PASSWORD = 'grsy mvtz uann nipw' # 谷歌应用专用密码 (不是邮箱登录密码)
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+django.http.request.host_validation_re = re.compile(r".*")

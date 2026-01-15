@@ -76,6 +76,7 @@ DATABASES = {
         # 这样在 Docker 里它会自动读到 'db'，在本地开发时读不到就会用 'localhost'
         'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.environ.get('DB_PORT', '5432'),
+        'CONN_MAX_AGE': 600,
     }
 }
 

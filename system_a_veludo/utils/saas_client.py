@@ -34,7 +34,7 @@ class SaaSClient:
         if end_date: params['end'] = end_date
         
         try:
-            response = requests.get(url, headers=self.headers, params=params)
+            response = requests.get(url, headers=self.headers, params=params, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -53,7 +53,7 @@ class SaaSClient:
             'end': end_time      
         }
         try:
-            response = requests.post(url, headers=self.headers, json=data)
+            response = requests.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -75,7 +75,7 @@ class SaaSClient:
             'week_config': week_config # JSON Object
         }
         try:
-            response = requests.post(url, headers=self.headers, json=data)
+            response = requests.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -91,7 +91,7 @@ class SaaSClient:
         """
         url = f"{self.api_base_url}/availability/{availability_id}/"
         try:
-            response = requests.delete(url, headers=self.headers)
+            response = requests.delete(url, headers=self.headers, timeout=5)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -160,7 +160,7 @@ class SaaSClient:
             'end_time': end
         }
         try:
-            response = requests.post(url, headers=self.headers, json=data)
+            response = requests.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -176,7 +176,7 @@ class SaaSClient:
         elif email: params['customer_email'] = email
             
         try:
-            response = requests.get(url, headers=self.headers, params=params)
+            response = requests.get(url, headers=self.headers, params=params, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -187,7 +187,7 @@ class SaaSClient:
         """取消预约"""
         url = f"{self.api_base_url}/bookings/{booking_id}/"
         try:
-            response = requests.delete(url, headers=self.headers)
+            response = requests.delete(url, headers=self.headers, timeout=5)
             if response.status_code == 204: return True
             return False
         except requests.RequestException as e:
@@ -199,7 +199,7 @@ class SaaSClient:
         url = f"{self.api_base_url}/bookings/{booking_id}/"
         data = {'status': 'COMPLETED'}
         try:
-            response = requests.patch(url, headers=self.headers, json=data)
+            response = requests.patch(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -219,7 +219,7 @@ class SaaSClient:
             'email': email
         }
         try:
-            response = requests.post(url, headers=self.headers, json=data)
+            response = requests.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             result = response.json()
             return result.get('saas_id')

@@ -1,12 +1,16 @@
 version: '3.8'
 
 services:
-  # System A (保持不变，它用默认的 veludo_db 没问题)
+  # ==========================================
+  # System A (Veludo Main)
+  # ==========================================
   system_a:
     build: .
     container_name: veludo_system_a
     restart: always
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo
+    # 👇【性能优化】改为 gthread 模式，开启 2 个进程，每个进程 4 个线程
+    # 这能彻底解决 "System A 请求 System B 时网页卡死" 的问题
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo --workers 2 --worker-class=gthread --threads 4
     volumes:
       - .:/app
       - static_volume:/app/static_root
@@ -19,12 +23,15 @@ services:
     env_file:
       - .env
 
-  # System B (👇 这里需要修改)
+  # ==========================================
+  # System B (SaaS)
+  # ==========================================
   system-b:
     build: .
     container_name: veludo_system_b
     restart: always
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas
+    # 👇【性能优化】System B 也同样开启线程模式，处理并发请求
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas --workers 2 --worker-class=gthread --threads 4
     volumes:
       - .:/app
       - static_volume:/app/static_root
@@ -36,15 +43,17 @@ services:
       - redis
     env_file:
       - .env
-    # 👇【关键修改】在这里显式覆盖 .env 里的配置
+    # 👇【关键配置】强制覆盖环境变量，确保连对数据库
     environment:
       - DB_NAME=saas_db
       - DB_HOST=db
-      # 如果你的 saas_db 密码和用户跟 .env 里不一样，也要在这里覆盖
+      # 注意：如果 .env 里的 USER/PASSWORD 对 saas_db 不适用，请取消下面注释并修改
       # - DB_USER=dev_user
       # - DB_PASSWORD=dev_password
 
-  # Database (保持不变)
+  # ==========================================
+  # Database (PostgreSQL)
+  # ==========================================
   db:
     image: postgres:15-alpine
     container_name: veludo_postgres
@@ -58,8 +67,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init_sql:/docker-entrypoint-initdb.d
+    # 👇【可选优化】如果你觉得服务器太卡，可以取消注释下面几行限制数据库内存
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 512M
 
-  # Redis (保持不变)
+  # ==========================================
+  # Redis
+  # ==========================================
   redis:
     image: redis:7-alpine
     container_name: veludo_redis

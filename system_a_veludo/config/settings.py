@@ -170,7 +170,7 @@ SOCIALACCOUNT_ADAPTER = 'core.adapters.MySocialAccountAdapter'
 SOCIALACCOUNT_PROVIDERS = {
     'discord': {
         # 请求 id 和 email
-        'SCOPE': ['identify'],
+        'SCOPE': ['identify', 'email'],
         'AUTH_PARAMS': {'prompt': 'none'},
         'VERIFIED_EMAIL': True,
     }

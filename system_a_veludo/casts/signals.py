@@ -1,5 +1,3 @@
-# casts/signals.py
-
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
@@ -11,10 +9,13 @@ import traceback
 User = get_user_model()
 
 @receiver(post_save, sender=User)
-print(f"DEBUG: Signal triggered for {instance.username}, is_cast={getattr(instance, 'is_cast', False)}")
 def auto_register_cast_on_saas(sender, instance, created, **kwargs):
+    print(f"DEBUG: Signal triggered for {instance.username}, is_cast={getattr(instance, 'is_cast', False)}")
+
     # 1. 只处理被标记为 Cast 的用户
+    # 注意：如果 allauth 注册时 is_cast 默认为 False，这里会被拦截
     if not getattr(instance, 'is_cast', False):
+        print(f"DEBUG: User {instance.username} is NOT a cast. Skipping.")
         return
 
     print(f"SIGNAL: User {instance.username} saved. Checking status...")
@@ -22,9 +23,6 @@ def auto_register_cast_on_saas(sender, instance, created, **kwargs):
     # 2. 获取或创建 Profile
     profile, profile_created = CastProfile.objects.get_or_create(user=instance)
 
-    # 【新增功能】自动填充本地 Cast 名字
-    # 如果 profile 里的 cast_name 是空的，就自动填入 username
-    # 这样 Admin 列表里就不会显示 "-" 了
     need_save_local = False
     if not profile.name:
         profile.name = instance.username
@@ -42,33 +40,29 @@ def auto_register_cast_on_saas(sender, instance, created, **kwargs):
 
         def sync_task():
             try:
-                print(f"THREAD: Starting sync for {cast_name}...")
                 client = SaaSClient()
                 saas_uuid = client.sync_cast_to_saas(user_id, cast_name, email)
-            
+                
                 if saas_uuid:
                     # 同步成功：更新 saas_resource_id
-                    # 注意：这里我们只更新 ID，名字如果刚才填了，需要一起更新
                     if need_save_local:
                         CastProfile.objects.filter(id=profile.id).update(
                             saas_resource_id=saas_uuid,
-                            name=cast_name # 把名字也顺便存进去
+                            name=cast_name
                         )
-                        
                     else:
                         CastProfile.objects.filter(id=profile.id).update(saas_resource_id=saas_uuid)
-                        
+                    
                     print(f"SIGNAL: >>> SUCCESS! Linked {cast_name} to SaaS ID {saas_uuid}")
                 else:
                     print("SIGNAL: >>> FAILED to get ID from SaaS.")
-                    # 如果同步失败，但本地名字刚才改了，也得保存一下本地名字
+                    if need_save_local:
+                        profile.save()
             except Exception as e:
-                # 👇 这样你才能在 logs 里看到报错
-                print(f"THREAD ERROR: {str(e)}")
+                print(f"SIGNAL ERROR: {str(e)}")
                 traceback.print_exc()
 
         threading.Thread(target=sync_task).start()
     
-    # 如果不需要同步（已经有了ID），但刚才自动填了名字，就单独保存一下
     elif need_save_local:
         profile.save()

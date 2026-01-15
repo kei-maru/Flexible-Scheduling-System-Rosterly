@@ -23,7 +23,7 @@ class CastProfile(models.Model):
 
     display_order = models.IntegerField("表示順序", default=0, help_text="一覧ページでの表示順 (数字が小さい方が先頭)")
     
-    saas_resource_id = models.CharField("SaaSリソースID", max_length=64, blank=True, unique=True, null=True, blank=True)
+    saas_resource_id = models.CharField("SaaSリソースID", max_length=64, blank=True, unique=True, null=True)
 
     allow_30_min = models.BooleanField(default=False, verbose_name="Allow 30 min")
     allow_60_min = models.BooleanField(default=True, verbose_name="Allow 60 min")

@@ -14,8 +14,8 @@ class SaaSClient:
         self.api_key = getattr(settings, 'veludo_secret_key_123', '') 
         
         self.headers = {
+            "X-Tenant-Key": settings.SAAS_API_KEY,
             'Content-Type': 'application/json',
-            'X-Tenant-Key': self.api_key, 
         }
 
     # ========================================================
@@ -27,7 +27,7 @@ class SaaSClient:
         [基础查询] 获取原始排班 (Raw Data)
         API: GET /availability/
         """
-        url = f"{self.api_base_url}/availability/" 
+        url = f"{self.api_base_url}availability/" 
         params = {}
         if resource_id: params['resource_id'] = resource_id
         if start_date: params['start'] = start_date 

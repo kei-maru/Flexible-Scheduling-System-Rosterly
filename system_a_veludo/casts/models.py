@@ -69,8 +69,3 @@ class CastMedia(models.Model):
         ordering = ['order']
         verbose_name = "キャスト作品（メディア）"
         verbose_name_plural = "キャスト作品一覧"
-
-@receiver(post_save, sender=CastProfile)
-def sync_cast_to_saas(sender, instance, created, **kwargs):
-    if created and not instance.saas_resource_id:
-        print(f"模拟同步: 正在向 SaaS 注册 Cast {instance.name}...")

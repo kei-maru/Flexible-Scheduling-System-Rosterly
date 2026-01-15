@@ -12,8 +12,6 @@ User = get_user_model()
 def auto_register_cast_on_saas(sender, instance, created, **kwargs):
     print(f"DEBUG: Signal triggered for {instance.username}, is_cast={getattr(instance, 'is_cast', False)}")
 
-    # 1. 只处理被标记为 Cast 的用户
-    # 注意：如果 allauth 注册时 is_cast 默认为 False，这里会被拦截
     if not getattr(instance, 'is_cast', False):
         print(f"DEBUG: User {instance.username} is NOT a cast. Skipping.")
         return

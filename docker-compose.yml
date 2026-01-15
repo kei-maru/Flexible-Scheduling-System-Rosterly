@@ -1,12 +1,11 @@
 version: '3.8'
 
 services:
-  # System A
+  # System A (保持不变，它用默认的 veludo_db 没问题)
   system_a:
     build: .
     container_name: veludo_system_a
     restart: always
-    # 👇【关键修改】加上 --chdir system_a_veludo，让它进入子目录
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo
     volumes:
       - .:/app
@@ -20,12 +19,11 @@ services:
     env_file:
       - .env
 
-  # System B
+  # System B (👇 这里需要修改)
   system-b:
     build: .
     container_name: veludo_system_b
     restart: always
-    # 👇【关键修改】同理，System B 也要进它的子目录
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas
     volumes:
       - .:/app
@@ -38,16 +36,21 @@ services:
       - redis
     env_file:
       - .env
+    # 👇【关键修改】在这里显式覆盖 .env 里的配置
+    environment:
+      - DB_NAME=saas_db
+      - DB_HOST=db
+      # 如果你的 saas_db 密码和用户跟 .env 里不一样，也要在这里覆盖
+      # - DB_USER=dev_user
+      # - DB_PASSWORD=dev_password
 
-  # -----------------------------
-  # Database
-  # -----------------------------
+  # Database (保持不变)
   db:
     image: postgres:15-alpine
     container_name: veludo_postgres
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-dev_user}         # 读取 .env，如果没读到就用默认值
+      POSTGRES_USER: ${DB_USER:-dev_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
       POSTGRES_DB: ${DB_NAME:-veludo_db}
     ports:
@@ -56,9 +59,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init_sql:/docker-entrypoint-initdb.d
 
-  # -----------------------------
-  # Redis
-  # -----------------------------
+  # Redis (保持不变)
   redis:
     image: redis:7-alpine
     container_name: veludo_redis

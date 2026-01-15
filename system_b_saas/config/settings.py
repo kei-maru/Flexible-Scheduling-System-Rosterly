@@ -91,6 +91,7 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://161.33.129.157:8000",
 ]
 
 LANGUAGE_CODE = 'ja' # 建议改为日语或英语

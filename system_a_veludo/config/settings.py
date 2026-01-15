@@ -123,8 +123,8 @@ STATICFILES_DIRS = [ BASE_DIR / "static" ]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # --- SaaS 配置 ---
-#SAAS_API_URL = 'http://system-b:8001/api/v1/integration/'
-SAAS_API_URL = 'http://172.18.0.4:8001/api/v1/integration/'
+SAAS_API_URL = 'http://system-b:8001/api/v1/integration/'
+#SAAS_API_URL = 'http://172.18.0.4:8001/api/v1/integration/'
 SAAS_API_KEY = 'veludo_secret_key_123'
 SAAS_API_KEY_HEADER = 'X-Tenant-Key'
 

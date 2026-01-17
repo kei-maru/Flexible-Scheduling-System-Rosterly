@@ -531,17 +531,21 @@
 
         // 初始化搜索表单
         document.addEventListener('DOMContentLoaded', () => {
-            const tomorrow = new Date();
+            const now = new Date();
+    
+            // 设置最小值（明天）
+            const tomorrow = new Date(now);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            const yyyy = tomorrow.getFullYear();
-            const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-            const dd = String(tomorrow.getDate()).padStart(2, '0');
-            const minDateStr = `${yyyy}-${mm}-${dd}`;
+            
+            // 设置最大值（一个月后）
+            const maxDate = new Date(now);
+            maxDate.setMonth(maxDate.getMonth() + 1);
             
             const dateInput = document.getElementById('search-date');
             if(dateInput) {
-                dateInput.value = minDateStr;
-                dateInput.min = minDateStr;
+                dateInput.min = tomorrow.toISOString().split('T')[0];
+                dateInput.max = maxDate.toISOString().split('T')[0]; // [修正] 限制最大日期
+                dateInput.value = dateInput.min;
             }
 
             const timeSelect = document.getElementById('search-time');

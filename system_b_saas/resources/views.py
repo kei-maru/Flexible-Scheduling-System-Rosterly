@@ -213,29 +213,30 @@ class IntegrationAvailabilityView(APIView):
         start_str = request.query_params.get('start')
         end_str = request.query_params.get('end')
 
-        # 1. 资源校验 (增强版)
+        print(f"\n[System B] GET Request: mode={mode}, resource_id={resource_id_raw}")
+
+        # 1. 资源校验 (兼容 UUID 和 External ID)
         target_uuid = None
         if resource_id_raw:
-            # 尝试情况 A: 直接是 UUID (Resource.id)
             try:
+                # A. 尝试直接 UUID
                 uuid_obj = UUID(resource_id_raw)
                 if Resource.objects.filter(id=uuid_obj, tenant=request.tenant).exists():
                     target_uuid = uuid_obj
             except ValueError:
                 pass
             
-            # 尝试情况 B: 是 External ID (User ID)
             if not target_uuid:
                 try:
+                    # B. 尝试 External ID (User ID)
                     res = Resource.objects.get(tenant=request.tenant, external_id=resource_id_raw)
                     target_uuid = res.id
                 except Resource.DoesNotExist:
-                    # 只有当 ID 确实存在但找不到资源时才返回空，避免报错
-                    print(f"System B: Resource not found for ID {resource_id_raw}")
+                    print(f"[System B] Resource Not Found: {resource_id_raw}")
                     return Response([], status=200)
 
         if not target_uuid:
-             return Response({'error': 'resource_id required or invalid'}, status=400)
+             return Response({'error': 'resource_id required'}, status=400)
 
         # 2. 时间解析
         start_dt, end_dt = None, None
@@ -243,106 +244,163 @@ class IntegrationAvailabilityView(APIView):
             try:
                 start_dt = parse_datetime(start_str)
                 end_dt = parse_datetime(end_str)
+                # 强制时区
                 if timezone.is_naive(start_dt): start_dt = timezone.make_aware(start_dt, JST)
                 if timezone.is_naive(end_dt): end_dt = timezone.make_aware(end_dt, JST)
             except: 
                 pass
 
-        # 3. 查询逻辑 (Availability + Booking)
-        # 确保只查当前资源的数据
-        avail_qs = Availability.objects.filter(
-            resource__tenant=request.tenant, 
-            resource__id=target_uuid, 
-            is_booked=False
-        )
-        book_qs = Booking.objects.filter(
-            resource__tenant=request.tenant, 
-            resource__id=target_uuid, 
-            status__in=['CONFIRMED', 'PENDING']
-        )
+        # [需求 1] 24小时限制线 (Booking Deadline)
+        booking_deadline = timezone.now() + timedelta(hours=24)
+        
+        # =========================================================
+        # 模式 A: Search (Guest查询: 能否预约某时刻?)
+        # =========================================================
+        if mode == 'search':
+            if not start_dt or not end_dt: return Response({'error': 'Time range required'}, status=400)
 
-        if start_dt:
-            avail_qs = avail_qs.filter(start_time__gte=start_dt)
-            # 扩大搜索范围以包含边界上的缓冲
-            book_qs = book_qs.filter(start_time__gte=start_dt - timedelta(minutes=60)) 
-        if end_dt:
-            avail_qs = avail_qs.filter(end_time__lte=end_dt)
-            book_qs = book_qs.filter(end_time__lte=end_dt + timedelta(minutes=60))
+            # 24h 硬性拦截
+            if start_dt < booking_deadline:
+                return Response([]) # 24小时内不可预约
 
-        avail_list = list(avail_qs)
-        book_list = list(book_qs)
-        final_events = []
+            # [需求 2] 包含查询逻辑: Shift 必须包裹住 Start~End
+            shift = Availability.objects.filter(
+                resource__tenant=request.tenant,
+                resource__id=target_uuid,
+                is_booked=False,
+                start_time__lte=start_dt, # 排班开始 <= 预约开始
+                end_time__gte=end_dt      # 排班结束 >= 预约结束
+            ).first()
 
-        # --- 步骤 A: 添加预约 ---
-        for b in book_list:
-            # 获取客户名字
-            client_name = getattr(b, 'guest_name', 'Guest')
-            if not client_name and hasattr(b, 'user') and b.user:
-                client_name = b.user.username
+            if not shift:
+                return Response([]) 
 
-            final_events.append({
-                'id': str(b.id),
-                'resource_id': str(target_uuid),
-                'start': b.start_time,
-                'end': b.end_time,
-                'is_booked': True,
-                'is_recurring': False, 
-                'type': 'booking',
-                'title': 'Booking',
-                'guest_name': client_name # 传递名字
-            })
+            # 预约冲突检查 (Overlap)
+            buffer = timedelta(minutes=30)
+            has_conflict = Booking.objects.filter(
+                resource__tenant=request.tenant,
+                resource__id=target_uuid,
+                status__in=['CONFIRMED', 'PENDING'],
+                start_time__lt=end_dt + buffer,
+                end_time__gt=start_dt - buffer
+            ).exists()
 
-        # --- 步骤 B: 切割排班 ---
-        buffer = timedelta(minutes=30)
+            if has_conflict: return Response([])
 
-        for avail in avail_list:
-            current_segments = [(avail.start_time, avail.end_time)]
+            return Response([{'start': start_dt, 'end': end_dt, 'status': 'AVAILABLE'}])
+
+        # =========================================================
+        # 模式 B: Raw (日历视图: 显示所有排班)
+        # =========================================================
+        else:
+            avail_qs = Availability.objects.filter(resource__tenant=request.tenant, resource__id=target_uuid, is_booked=False)
+            book_qs = Booking.objects.filter(resource__tenant=request.tenant, resource__id=target_uuid, status__in=['CONFIRMED', 'PENDING'])
+
+            # 时间范围 (Overlap)
+            if start_dt and end_dt:
+                avail_qs = avail_qs.filter(start_time__lt=end_dt, end_time__gt=start_dt)
+                book_qs = book_qs.filter(start_time__lt=end_dt + timedelta(minutes=60), end_time__gt=start_dt - timedelta(minutes=60))
+
+            # [需求 1] 24小时过滤 (仅针对 Availability，不隐藏已存在的 Booking)
+            # 这里先不 filter，而是在切分的时候判断，以免长排班直接消失
             
-            # 找出相关预约
-            relevant_bookings = [
-                b for b in book_list 
-                if (b.end_time + buffer) > avail.start_time and (b.start_time - buffer) < avail.end_time
-            ]
+            avail_list = list(avail_qs)
+            book_list = list(book_qs)
+            final_events = []
 
-            for b in relevant_bookings:
-                cut_start = b.start_time - buffer
-                cut_end = b.end_time + buffer
-                
-                next_segments = []
-                for (seg_s, seg_e) in current_segments:
-                    overlap_start = max(seg_s, cut_start)
-                    overlap_end = min(seg_e, cut_end)
+            print(f"[System B] Found {len(avail_list)} raw shifts, {len(book_list)} bookings")
 
-                    if overlap_start < overlap_end:
-                        if seg_s < overlap_start:
-                            next_segments.append((seg_s, overlap_start))
-                        if overlap_end < seg_e:
-                            next_segments.append((overlap_end, seg_e))
-                    else:
-                        next_segments.append((seg_s, seg_e))
-                current_segments = next_segments
-
-            for (fs_start, fs_end) in current_segments:
-                if (fs_end - fs_start).total_seconds() < 60: continue
+            # 1. 放入 Booking (红色)
+            for b in book_list:
+                client_name = getattr(b, 'guest_name', 'Guest')
+                if not client_name and hasattr(b, 'user') and b.user:
+                    client_name = b.user.username
 
                 final_events.append({
-                    'id': str(avail.id),
+                    'id': str(b.id),
                     'resource_id': str(target_uuid),
-                    'start': fs_start,
-                    'end': fs_end,
-                    'is_booked': False,
-                    'is_recurring': avail.is_recurring,
-                    'type': 'availability',
-                    'title': 'Available'
+                    'start': b.start_time,
+                    'end': b.end_time,
+                    'is_booked': True,
+                    'is_recurring': False,
+                    'type': 'booking',
+                    'title': f"{client_name} 様",
+                    'guest_name': client_name
                 })
 
+            # 2. 切分 Availability (绿色/金色)
+            buffer = timedelta(minutes=30)
+            for avail in avail_list:
+                current_segments = [(avail.start_time, avail.end_time)]
+                
+                # 找出切割刀片 (Bookings)
+                relevant_bookings = [
+                    b for b in book_list 
+                    if (b.end_time + buffer) > avail.start_time and (b.start_time - buffer) < avail.end_time
+                ]
+
+                for b in relevant_bookings:
+                    cut_start = b.start_time - buffer
+                    cut_end = b.end_time + buffer
+                    next_segments = []
+                    for (s_start, s_end) in current_segments:
+                        overlap_start = max(s_start, cut_start)
+                        overlap_end = min(s_end, cut_end)
+                        if overlap_start < overlap_end:
+                            if s_start < overlap_start: next_segments.append((s_start, overlap_start))
+                            if overlap_end < s_end: next_segments.append((overlap_end, s_end))
+                        else:
+                            next_segments.append((s_start, s_end))
+                    current_segments = next_segments
+
+                # 3. 输出并执行 24h 过滤
+                for (fs_start, fs_end) in current_segments:
+                    if (fs_end - fs_start).total_seconds() < 60: continue
+                    
+                    # [关键] 如果这段时间开始于 24h 内，则隐藏
+                    if fs_start < booking_deadline:
+                        # print(f"  -> Hidden (Within 24h): {fs_start}")
+                        continue
+
+                    final_events.append({
+                        'id': str(avail.id),
+                        'resource_id': str(target_uuid),
+                        'start': fs_start,
+                        'end': fs_end,
+                        'is_booked': False,
+                        'is_recurring': avail.is_recurring,
+                        'type': 'availability',
+                        'title': 'Available'
+                    })
+
+            print(f"[System B] Returning {len(final_events)} events after processing")
         return Response(final_events)
 
-    # ... (post, _handle_single, _handle_recurring, _check_conflict, delete 保持不变，不需要修改) ...
-    # 为了完整性，下面我把 _check_conflict 和 delete 也贴在这里，您可以直接复制整个类
-
+    # -------------------------------------------------------------
+    # POST: 增加 24h 创建限制
+    # -------------------------------------------------------------
     def post(self, request):
         resource_uuid = request.data.get('resource_id')
+        
+        # 检查开始时间 (针对 Cast 新建排班)
+        start_check = request.data.get('range_start') or request.data.get('start')
+        if start_check:
+            try:
+                dt = parse_datetime(start_check)
+                if not dt: dt = datetime.strptime(start_check, '%Y-%m-%d') # 处理仅日期
+                if timezone.is_naive(dt): dt = timezone.make_aware(dt, JST)
+                
+                # 如果是单次排班，或者周期排班的开始日期
+                # Cast 界面只能添加 24h 之后的
+                deadline = timezone.now() + timedelta(hours=24)
+                
+                # 只有单次排班做严格报错，周期排班如果选了今天，我们只跳过生成，不报错
+                if 'week_config' not in request.data:
+                    if dt < deadline:
+                        return Response({'error': '新規シフトは24時間後から設定可能です。'}, status=400)
+            except Exception as e:
+                print(f"Date check warning: {e}")
+
         if 'week_config' in request.data:
             return self._handle_recurring(request, resource_uuid)
         else:
@@ -414,13 +472,12 @@ class IntegrationAvailabilityView(APIView):
                         dt_e = datetime.combine(curr_date, e_time).replace(tzinfo=JST)
                         if dt_e <= dt_s: dt_e += timedelta(days=1)
 
-                        if not self._check_conflict(resource, dt_s, dt_e):
-                            Availability.objects.create(
-                                resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True
-                            )
-                            stats['created'] += 1
-                        else:
-                            stats['skipped'] += 1
+                        if dt_s > generation_min_time:
+                            if not self._check_conflict(resource, dt_s, dt_e):
+                                Availability.objects.create(resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True)
+                                stats['created'] += 1
+                            else:
+                                stats['skipped'] += 1
                     except Exception as e:
                         print(f"Recurring Error: {e}")
                 curr_date += timedelta(days=1)

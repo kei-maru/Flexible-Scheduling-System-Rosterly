@@ -278,8 +278,10 @@
                             <div class="bg-[#151515] border border-white/10 p-6 shadow-2xl relative">
                                 <div class="absolute top-0 left-0 w-1 h-full bg-veludo-gold"></div>
                                 <div class="mb-4 flex justify-end">
-                                    <div class="text-[10px] text-gray-400 bg-white/5 px-3 py-1 rounded border border-white/5">
-                                        <i class="fa-solid fa-computer-mouse mr-2 text-veludo-gold"></i>緑色の枠をクリックして予約 (24時間後から予約可能)
+                                    <div class="text-sm md:text-base text-gray-200 bg-white/5 px-4 py-2 rounded border border-veludo-gold/30 shadow-lg">
+                                        <i class="fa-solid fa-computer-mouse mr-2 text-green-400"></i>
+                                        <span class="text-green-400 font-bold">緑色の枠をクリックして予約</span> 
+                                        <span class="text-xs opacity-70 ml-2">(24时间后から一か月まで予約可能)</span>
                                     </div>
                                 </div>
                                 <div id="calendar-cast" class="min-h-[600px]"></div>
@@ -598,12 +600,22 @@
             let el = document.getElementById('calendar-cast');
             if(calendarInstance) calendarInstance.destroy();
 
+            const now = new Date();
+            const oneMonthLater = new Date();
+            oneMonthLater.setMonth(now.getMonth() + 1);
+
             calendarInstance = new FullCalendar.Calendar(el, {
                 initialView: 'timeGridWeek',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
                 height: 'auto',
                 locale: 'ja',
                 allDaySlot: false,
+
+                // --- [修正需求1] 限制日期范围 ---
+                validRange: {
+                    start: now,           // 之前的时间不可选
+                    end: oneMonthLater    // 一个月后的时间不可选
+                },
                 
                 slotMinTime: '11:00:00',
                 slotMaxTime: '29:00:00',
@@ -646,7 +658,7 @@
                                 })
                                 .map(item => ({
                                     id: item.id,
-                                    title: 'Available', // 用户端统一显示 Available
+                                    title: '予約可能', // 用户端统一显示 Available
                                     start: item.start,
                                     end: item.end,
                                     // 强制样式：金色背景 + 金色边框
@@ -1183,7 +1195,6 @@
 
         function formatTime24(d) { return d.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit', hour12:false}); }
         function toInputTimeStr(d) { return ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2); }
-    </script>
     </script>
 </body>
 </html>

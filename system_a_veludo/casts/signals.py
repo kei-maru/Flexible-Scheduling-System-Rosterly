@@ -1,66 +1,63 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from .models import CastProfile
 from utils.saas_client import SaaSClient
-import threading
 import traceback
 
 User = get_user_model()
 
 @receiver(post_save, sender=User)
 def auto_register_cast_on_saas(sender, instance, created, **kwargs):
-    print(f"DEBUG: Signal triggered for {instance.username}, is_cast={getattr(instance, 'is_cast', False)}")
-
+    """
+    当 User 保存时触发。
+    如果是 Cast，自动创建/更新 Profile，并同步到 SaaS (System B)。
+    """
+    # 1. 检查是否为 Cast
     if not getattr(instance, 'is_cast', False):
-        print(f"DEBUG: User {instance.username} is NOT a cast. Skipping.")
         return
 
-    print(f"SIGNAL: User {instance.username} saved. Checking status...")
+    print(f"SIGNAL: User {instance.username} is a CAST. Processing sync...")
 
-    # 2. 获取或创建 Profile
-    profile, profile_created = CastProfile.objects.get_or_create(user=instance)
+    # 2. 定义同步任务 (核心逻辑)
+    def do_sync():
+        try:
+            # A. 获取或创建本地 Profile
+            profile, _ = CastProfile.objects.get_or_create(user=instance)
+            
+            # 如果本地名字为空，先填上
+            if not profile.name:
+                profile.name = instance.username
+                profile.save(update_fields=['name'])
 
-    need_save_local = False
-    if not profile.name:
-        profile.name = instance.username
-        need_save_local = True
-        print(f"SIGNAL: Auto-filling local cast_name with {instance.username}")
+            # B. 准备数据
+            client = SaaSClient()
+            user_id = instance.id
+            cast_name = profile.name
+            email = instance.email
 
-    # 3. 检查是否需要同步到 SaaS
-    if not profile.saas_resource_id:
-        print(f"SIGNAL: Syncing {profile.name} to SaaS...")
-        
-        # 准备数据
-        user_id = instance.id
-        cast_name = profile.name
-        email = instance.email
+            print(f"SIGNAL: Syncing {cast_name} (ID: {user_id}) to SaaS...")
 
-        def sync_task():
-            try:
-                client = SaaSClient()
-                saas_uuid = client.sync_cast_to_saas(user_id, cast_name, email)
+            # C. 调用 System B 接口
+            # 注意：这里我们总是尝试同步，确保 System B 那边的数据是最新的
+            saas_uuid = client.sync_cast_to_saas(user_id, cast_name, email)
+
+            if saas_uuid:
+                print(f"SIGNAL: >>> SUCCESS! SaaS ID: {saas_uuid}")
                 
-                if saas_uuid:
-                    # 同步成功：更新 saas_resource_id
-                    if need_save_local:
-                        CastProfile.objects.filter(id=profile.id).update(
-                            saas_resource_id=saas_uuid,
-                            name=cast_name
-                        )
-                    else:
-                        CastProfile.objects.filter(id=profile.id).update(saas_resource_id=saas_uuid)
-                    
-                    print(f"SIGNAL: >>> SUCCESS! Linked {cast_name} to SaaS ID {saas_uuid}")
-                else:
-                    print("SIGNAL: >>> FAILED to get ID from SaaS.")
-                    if need_save_local:
-                        profile.save()
-            except Exception as e:
-                print(f"SIGNAL ERROR: {str(e)}")
-                traceback.print_exc()
+                # D. 回写 ID 到本地 (如果变了的话)
+                if profile.saas_resource_id != saas_uuid:
+                    profile.saas_resource_id = saas_uuid
+                    profile.save(update_fields=['saas_resource_id'])
+                    print("SIGNAL: Local profile updated with new SaaS ID.")
+            else:
+                print("SIGNAL: >>> FAILED. No ID returned from SaaS.")
 
-        threading.Thread(target=sync_task).start()
-    
-    elif need_save_local:
-        profile.save()
+        except Exception as e:
+            print(f"SIGNAL ERROR: {e}")
+            traceback.print_exc()
+
+    # 3. [关键修复] 确保在数据库事务提交后再执行同步
+    # 这样可以避免 "在新线程里查不到刚刚创建的 Profile" 的问题
+    transaction.on_commit(do_sync)

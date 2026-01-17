@@ -40,6 +40,8 @@ class Availability(models.Model):
     end_time = models.DateTimeField("終了時間")
     
     is_booked = models.BooleanField("予約済み", default=False)
+
+    is_recurring = models.BooleanField("周期フラグ", default=False)
     
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -125,51 +125,82 @@ class AvailabilityAPIView(APIView):
         if not target_resource_id:
             return Response([])
 
-        # [新增] 权限判断：当前用户是否是该资源的主人？
+        # 权限判断
         is_owner = False
         if getattr(request.user, 'is_cast', False):
             try:
-                # 比较当前登录用户的 SaaS ID 和请求查询的 ID
                 my_remote_id = request.user.cast_profile.saas_resource_id
-                # 注意：ID 可能是 UUID 或 字符串，转成字符串比较最安全
                 if str(my_remote_id) == str(target_resource_id):
                     is_owner = True
             except:
                 pass
 
         client = SaaSClient()
+        
         try:
-            # 这里的 mode='calendar_admin' 告诉 System B 返回切割好的时间块 + 预约块
-            # System B 不知道 System A 的用户是谁，所以它把所有数据都发回来
+            # 获取 System B 数据
             events = client.get_calendar_events(target_resource_id, start, end)
             
             formatted_events = []
             for e in events:
-                # System B 返回的 type: 'booking' 或 'availability'
-                is_booked = (e.get('type') == 'booking')
+                # [关键修复] 兼容性判断：
+                # 优先读取 is_booked (System B Raw模式返回的是布尔值)
+                # 如果没有，再尝试读取 type (System B Calendar模式)
+                is_booked = e.get('is_booked') 
+                if is_booked is None:
+                    is_booked = (e.get('type') == 'booking')
 
-                # [核心逻辑] 如果是已预约的块，且当前用户不是主人 -> 隐藏！
+                # 隐私保护：如果是已预约的块，且当前用户不是主人 -> 隐藏
                 if is_booked and not is_owner:
                     continue 
 
+                # 颜色逻辑
+                is_recurring = e.get('is_recurring', False) 
+
+                guest_name = e.get('guest_name', 'Unknown')
+
+                if is_booked:
+                    title = f"{guest_name} 様の予約"       
+                    bg_color = 'rgba(139, 0, 0, 0.6)' # 红色
+                    border_color = '#ff4444'
+                    # [新增] 强制白色文字，确保在深红背景下可见
+                    text_color = '#ffffff' 
+                else:
+                    title = '空きシフト'     
+                    if is_recurring:
+                        # 周期任务 -> 金色
+                        bg_color = 'rgba(212, 175, 55, 0.2)' 
+                        border_color = '#d4af37'
+                        text_color = '#d4af37'
+                    else:
+                        # 单次任务 -> 绿色
+                        bg_color = 'rgba(16, 185, 129, 0.2)' 
+                        border_color = '#10b981'
+                        text_color = '#4ade80'
+
                 formatted_events.append({
                     'id': e['id'],
-                    'title': e.get('title', 'Available'),
+                    'title': title, 
                     'start': e['start'],
                     'end': e['end'],
-                    'is_booked': is_booked,
-                    # 只有 Cast 本人能看到红色/预定状态，客人看到的都是绿色 Available
-                    'backgroundColor': 'rgba(139, 0, 0, 0.5)' if is_booked else 'rgba(20, 184, 166, 0.2)',
-                    'borderColor': '#ff4444' if is_booked else '#d4af37',
-                    'className': 'cursor-pointer hover:opacity-80',
-                    'extendedProps': {'is_booked': is_booked},
-                    'editable': not is_booked # 只有未预约的可以拖拽修改
+                    'backgroundColor': bg_color,
+                    'borderColor': border_color,
+                    'textColor': text_color, 
+                    'className': 'cursor-pointer hover:opacity-80 font-bold',
+                    'extendedProps': {
+                        'is_booked': is_booked,
+                        'is_recurring': is_recurring
+                    },
+                    # 只有未预约的才允许拖拽
+                    'editable': not is_booked 
                 })
             
             return Response(formatted_events)
 
         except Exception as e:
-            print(f"SaaS Error: {e}")
+            import traceback
+            print(f"❌ SaaS Error in GET: {e}")
+            traceback.print_exc()
             return Response([])
 
     def post(self, request):

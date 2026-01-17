@@ -155,8 +155,18 @@
                     </button>
 
                     <div class="flex gap-4 text-xs">
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> 空きシフト</div>
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 bg-red-900/40 border-l-2 border-red-500"></div> 予約済み</div>
+                        <div class="flex items-center gap-1">
+                            <div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> 
+                            <span class="text-gray-400">空き(周期)</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <div class="w-3 h-3 bg-[#10b981]/30 border-l-2 border-[#10b981]"></div> 
+                            <span class="text-gray-400">空き(単発)</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <div class="w-3 h-3 bg-red-900/40 border-l-2 border-red-500"></div> 
+                            <span class="text-gray-400">予約済み</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -209,13 +219,12 @@
 
             const CURRENT_RESOURCE_ID = "{{ user.cast_profile.saas_resource_id|default:'' }}";
 
-            // 状态指示器
+            // --- 状态指示器逻辑 ---
             var statusDot = document.getElementById('status-dot');
             var statusText = document.getElementById('status-text');
 
             function updateStatus(state) {
                 if (!statusDot || !statusText) return;
-                
                 if(state === 'loading') {
                     statusDot.className = "w-2 h-2 rounded-full bg-yellow-500 inline-block mr-1 animate-pulse";
                     statusText.innerText = "Syncing...";
@@ -240,13 +249,14 @@
 
             var isMobile = window.innerWidth < 768;
 
+            // --- 初始化 FullCalendar ---
             window.calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: isMobile ? 'timeGridDay' : 'timeGrid',
                 duration: { days: 7 }, 
                 dateIncrement: { days: 1 }, 
                 height: 'auto',
                 slotMinTime: '00:00:00',
-                scrollTime: '20:00:00', // 滚动条默认停在晚上8点附近
+                scrollTime: '20:00:00',
                 slotDuration: '01:00:00',
                 nowIndicator: true,
                 locale: 'ja',
@@ -274,18 +284,47 @@
                         })
                         .then(data => {
                             updateStatus('success');
+                            // 处理返回的事件数据
                             const events = Array.isArray(data) ? data.map(item => {
-                                const isBooked = item.extendedProps && item.extendedProps.is_booked;
+                                const props = item.extendedProps || {};
+                                const isBooked = props.is_booked;
+                                const isRecurring = props.is_recurring; 
+
+                                // [颜色与文字定义]
+                                let bgColor, borderColor, titleText, textColor;
+
+                                if (isBooked) {
+                                    // 预约：深红色
+                                    titleText = '予約済み';
+                                    bgColor = 'rgba(139, 0, 0, 0.6)'; 
+                                    borderColor = '#ff4444';
+                                    textColor = '#e5e5e5';
+                                } else if (isRecurring) {
+                                    // 周期：Veludo 金色
+                                    titleText = '空き (周期)';
+                                    bgColor = 'rgba(212, 175, 55, 0.25)'; 
+                                    borderColor = '#d4af37';
+                                    textColor = '#d4af37';
+                                } else {
+                                    // 单次：翡翠绿色
+                                    titleText = '空き (単発)';
+                                    bgColor = 'rgba(16, 185, 129, 0.25)'; 
+                                    borderColor = '#10b981';
+                                    textColor = '#4ade80';
+                                }
+
                                 return {
                                     id: item.id,
-                                    title: item.title,
+                                    title: titleText,
                                     start: item.start,
                                     end: item.end,
-                                    backgroundColor: item.backgroundColor,
-                                    borderColor: item.borderColor,
-                                    classNames: isBooked ? ['booked-slot'] : [],
-                                    editable: item.editable,
-                                    extendedProps: item.extendedProps
+                                    backgroundColor: bgColor,
+                                    borderColor: borderColor,
+                                    textColor: textColor,
+                                    classNames: isBooked ? ['booked-slot'] : (isRecurring ? ['recurring-slot'] : ['single-slot']),
+                                    // 只有未预约的可以拖拽修改
+                                    editable: !isBooked, 
+                                    extendedProps: props
                                 };
                             }) : [];
                             successCallback(events);
@@ -297,10 +336,11 @@
                         });
                 },
 
-                // --- 2. 创建排班 (CREATE - Single) ---
+                // --- 2. 创建排班 (CREATE - 单次) ---
                 select: function(arg) {
                     let allEvents = window.calendar.getEvents();
                     
+                    // 检查重叠
                     let isInvalid = allEvents.some(event => {
                         const overlap = arg.start < event.end && arg.end > event.start;
                         const touching = (arg.start.getTime() === event.end.getTime()) || 
@@ -314,7 +354,8 @@
                         return;
                     }
 
-                    if (!confirm(`Create shift?\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
+                    // 确认弹窗
+                    if (!confirm(`【単発シフト】を追加しますか？\n(Create Single Shift)\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
                         window.calendar.unselect();
                         return;
                     }
@@ -335,7 +376,7 @@
                     })
                     .then(async response => {
                         if (response.ok) {
-                            window.calendar.refetchEvents();
+                            window.calendar.refetchEvents(); // 刷新后会显示为绿色
                             updateStatus('success');
                         } else {
                             const errData = await response.json();
@@ -350,14 +391,25 @@
                     .finally(() => window.calendar.unselect());
                 },
 
-                // --- 3. 删除排班 (DELETE) ---
+                // --- 3. 点击事件处理 (跳转详情 或 删除排班) ---
                 eventClick: function(arg) {
-                    if (arg.event.extendedProps && arg.event.extendedProps.is_booked) {
-                        alert("Cannot delete a booked slot!");
-                        return;
+                    const props = arg.event.extendedProps;
+
+                    // [需求2] 如果是已预约 (Booked) -> 跳转详情页
+                    if (props && props.is_booked) {
+                        // 1. 获取 Django 解析出的基础 URL (不带参数)
+                        const targetUrl = "{% url 'my_bookings' %}"; 
+                        
+                        // 2. 拼接 ID 参数 (可选)
+                        // 这样跳转后的地址会变成: /accounts/my-bookings/?highlight=xxxxxxxx-xxxx...
+                        // 虽然你的列表页目前可能还没处理这个参数，但这能帮你以后在列表里高亮显示这条记录
+                        window.location.href = `${targetUrl}?highlight=${arg.event.id}`;
+                        
+                        return; 
                     }
 
-                    if (!confirm('Delete this available slot?')) {
+                    // 如果是空闲排班 -> 执行删除逻辑 (保持不变)
+                    if (!confirm('このシフトを削除しますか？\nDelete this slot?')) {
                         return;
                     }
 
@@ -418,10 +470,10 @@
             
             if (checkbox.checked) {
                 inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
-                // ---【修改 2】默认时间改为 22:00 ~ 01:00 ---
+                // 默认时间
                 if(!document.getElementById(`day-${index}-start`).value) {
-                    document.getElementById(`day-${index}-start`).value = "22:00"; // 晚上10点
-                    document.getElementById(`day-${index}-end`).value = "01:00";   // 凌晨1点 (后端逻辑已支持跨天)
+                    document.getElementById(`day-${index}-start`).value = "22:00"; 
+                    document.getElementById(`day-${index}-end`).value = "01:00";   
                 }
             } else {
                 inputsDiv.classList.add('opacity-50', 'pointer-events-none');
@@ -430,11 +482,9 @@
 
         function openRecurringModal() {
             document.getElementById('recurringModal').classList.remove('hidden');
-
-            // ---【修改 2】默认日期设为今天 ---
+            // 默认选中今天
             const startInput = document.querySelector('input[name="range_start"]');
             const endInput = document.querySelector('input[name="range_end"]');
-
             if (startInput && !startInput.value) {
                 const today = new Date();
                 const yyyy = today.getFullYear();
@@ -458,26 +508,25 @@
                 const rangeEnd = formData.get('range_end');
                 
                 let weekConfig = {};
-                let hasSelection = false;
-
+                
+                // [核心修改] 遍历所有天数，无论勾选与否
                 days.forEach((_, index) => {
                     const checked = document.getElementById(`day-${index}-check`).checked;
+                    const start = document.getElementById(`day-${index}-start`).value;
+                    const end = document.getElementById(`day-${index}-end`).value;
+
                     if (checked) {
-                        const start = document.getElementById(`day-${index}-start`).value;
-                        const end = document.getElementById(`day-${index}-end`).value;
+                        // 勾选：发送启用和时间
                         if (start && end) {
                             weekConfig[index] = { enabled: true, start: start, end: end };
-                            hasSelection = true;
                         }
+                    } else {
+                        // [关键] 未勾选：发送 enabled: false，后端据此执行删除逻辑
+                        weekConfig[index] = { enabled: false };
                     }
                 });
 
-                if (!hasSelection) {
-                    alert("Please select at least one day.");
-                    return;
-                }
-
-                if (confirm("Generate shifts?")) {
+                if (confirm("Apply recurring schedule?\n(Unchecked days within range will be CLEARED)")) {
                     const btn = e.target.querySelector('button[type="submit"]');
                     const originalText = btn.innerText;
                     btn.innerText = "Processing...";
@@ -498,7 +547,8 @@
                     .then(async response => {
                         if (response.ok) {
                             const data = await response.json();
-                            alert(`Completed!\nCreated: ${data.created}\nSkipped: ${data.skipped}`);
+                            // 提示信息
+                            alert(`Done!\nAdded: ${data.created}\nRemoved: ${data.deleted}\nSkipped: ${data.skipped}`);
                             closeRecurringModal();
                             if(window.calendar) window.calendar.refetchEvents(); 
                         } else {

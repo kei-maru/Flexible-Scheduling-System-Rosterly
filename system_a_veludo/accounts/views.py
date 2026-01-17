@@ -187,9 +187,12 @@ class AvailabilityAPIView(APIView):
                     'borderColor': border_color,
                     'textColor': text_color, 
                     'className': 'cursor-pointer hover:opacity-80 font-bold',
+                    'is_recurring': is_recurring, 
+                    'is_booked': is_booked,
                     'extendedProps': {
                         'is_booked': is_booked,
-                        'is_recurring': is_recurring
+                        'is_recurring': is_recurring,
+                        'guest_name': guest_name
                     },
                     # 只有未预约的才允许拖拽
                     'editable': not is_booked 

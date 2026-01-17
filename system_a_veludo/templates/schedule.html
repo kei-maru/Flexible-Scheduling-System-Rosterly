@@ -287,9 +287,11 @@
                             updateStatus('success');
                             // 处理返回的事件数据
                             const events = Array.isArray(data) ? data.map(item => {
+                                // 兼容性读取：优先从 extendedProps 读，如果没有再从顶层读
                                 const props = item.extendedProps || {};
-                                const isBooked = props.is_booked;
-                                const isRecurring = props.is_recurring; 
+                                const isBooked = props.is_booked !== undefined ? props.is_booked : item.is_booked;
+                                const isRecurring = props.is_recurring !== undefined ? props.is_recurring : item.is_recurring;
+                                const guestName = props.guest_name || item.guest_name || '';
 
                                 // [颜色与文字定义]
                                 let bgColor, borderColor, titleText, textColor;
@@ -442,10 +444,13 @@
             window.calendar.render();
         });
 
-        // --- 周期排班 Modal 逻辑 ---
+        // ============================================================
+        // 周期排班 (Recurring Modal) 逻辑 - 包含自动回填功能
+        // ============================================================
         const days = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
         const weekRowsContainer = document.getElementById('week-rows');
 
+        // 1. 生成表单行
         if (weekRowsContainer) {
             days.forEach((day, index) => {
                 const row = document.createElement('div');
@@ -465,34 +470,126 @@
             });
         }
 
-        function toggleDayRow(index) {
+        // 2. 切换行的状态 (支持强制设为 true/false)
+        function toggleDayRow(index, forceState = null) {
             const checkbox = document.getElementById(`day-${index}-check`);
             const inputsDiv = document.getElementById(`day-${index}-inputs`);
             
+            if (forceState !== null) {
+                checkbox.checked = forceState;
+            }
+
             if (checkbox.checked) {
                 inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
-                // 默认时间
                 if(!document.getElementById(`day-${index}-start`).value) {
                     document.getElementById(`day-${index}-start`).value = "22:00"; 
                     document.getElementById(`day-${index}-end`).value = "01:00";   
                 }
             } else {
                 inputsDiv.classList.add('opacity-50', 'pointer-events-none');
+                // 取消勾选时，清空时间，避免混淆
+                document.getElementById(`day-${index}-start`).value = "";
+                document.getElementById(`day-${index}-end`).value = "";
             }
         }
 
+        // 3. 打开模态框 + 自动获取数据并回填
         function openRecurringModal() {
-            document.getElementById('recurringModal').classList.remove('hidden');
-            // 默认选中今天
+            const modal = document.getElementById('recurringModal');
+            modal.classList.remove('hidden');
+
+            const CURRENT_RESOURCE_ID = "{{ user.cast_profile.saas_resource_id|default:'' }}";
+            
+            // 设置日期范围 (从明天开始，往后查 7 天)
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(today.getDate() + 1);
+            
+            const nextWeek = new Date(tomorrow);
+            nextWeek.setDate(tomorrow.getDate() + 7);
+
+            // 转为 YYYY-MM-DD
+            const startStr = tomorrow.toISOString().split('T')[0];
+            const endStr = nextWeek.toISOString().split('T')[0];
+
+            // 填入日期 Input
             const startInput = document.querySelector('input[name="range_start"]');
             const endInput = document.querySelector('input[name="range_end"]');
-            if (startInput && !startInput.value) {
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                startInput.value = `${yyyy}-${mm}-${dd}`;
+            if (startInput) startInput.value = startStr;
+            if (endInput) endInput.value = endStr;
+
+            // 调用回填函数
+            fetchAndPrefillRecurringSettings(CURRENT_RESOURCE_ID, startStr, endStr);
+        }
+
+        // [核心逻辑] 获取数据并回填
+        function fetchAndPrefillRecurringSettings(resourceId, startStr, endStr) {
+            const url = new URL('/accounts/api/availability/', window.location.origin);
+            url.searchParams.append('resource_id', resourceId);
+            url.searchParams.append('start', startStr + "T00:00:00"); 
+            url.searchParams.append('end', endStr + "T23:59:59");
+            url.searchParams.append('mode', 'raw'); 
+
+            console.log(`[Prefill] Fetching...`);
+
+            // 清空表单
+            for (let i = 0; i < 7; i++) {
+                toggleDayRow(i, false); 
             }
+
+            fetch(url)
+                .then(res => {
+                    if (!res.ok) throw new Error("API Response not OK");
+                    return res.json();
+                })
+                .then(data => {
+                    console.log(`[Prefill] Got ${data.length} events`, data); // 打印数据结构
+                    
+                    if (!Array.isArray(data)) return;
+
+                    data.forEach(event => {
+                        // [关键修复] 兼容读取：尝试直接读取 或 从 extendedProps 读取
+                        let isRecurring = event.is_recurring;
+                        if (isRecurring === undefined && event.extendedProps) {
+                            isRecurring = event.extendedProps.is_recurring;
+                        }
+
+                        console.log(`Checking event ${event.id}: is_recurring=${isRecurring}`);
+
+                        if (isRecurring) {
+                            const startIso = event.start;
+                            const endIso = event.end;
+                            
+                            const startDate = new Date(startIso);
+                            const endDate = new Date(endIso);
+                            
+                            const dayIndex = startDate.getDay(); 
+
+                            const fmt = new Intl.DateTimeFormat('ja-JP', {
+                                timeZone: 'Asia/Tokyo',
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false
+                            });
+
+                            const startHM = fmt.format(startDate);
+                            const endHM = fmt.format(endDate);
+
+                            console.log(`  -> Match: Day=${dayIndex}, Time=${startHM}-${endHM}`);
+
+                            const checkbox = document.getElementById(`day-${dayIndex}-check`);
+                            const startInput = document.getElementById(`day-${dayIndex}-start`);
+                            const endInput = document.getElementById(`day-${dayIndex}-end`);
+
+                            if (checkbox && !checkbox.checked) {
+                                startInput.value = startHM;
+                                endInput.value = endHM;
+                                toggleDayRow(dayIndex, true); 
+                            }
+                        }
+                    });
+                })
+                .catch(err => console.error("[Prefill] Error:", err));
         }
 
         function closeRecurringModal() {
@@ -510,19 +607,16 @@
                 
                 let weekConfig = {};
                 
-                // [核心修改] 遍历所有天数，无论勾选与否
                 days.forEach((_, index) => {
                     const checked = document.getElementById(`day-${index}-check`).checked;
                     const start = document.getElementById(`day-${index}-start`).value;
                     const end = document.getElementById(`day-${index}-end`).value;
 
                     if (checked) {
-                        // 勾选：发送启用和时间
                         if (start && end) {
                             weekConfig[index] = { enabled: true, start: start, end: end };
                         }
                     } else {
-                        // [关键] 未勾选：发送 enabled: false，后端据此执行删除逻辑
                         weekConfig[index] = { enabled: false };
                     }
                 });
@@ -540,6 +634,7 @@
                             'X-CSRFToken': '{{ csrf_token }}'
                         },
                         body: JSON.stringify({
+                            resource_id: "{{ user.cast_profile.saas_resource_id|default:'' }}",
                             range_start: rangeStart,
                             range_end: rangeEnd,
                             week_config: weekConfig
@@ -548,7 +643,6 @@
                     .then(async response => {
                         if (response.ok) {
                             const data = await response.json();
-                            // 提示信息
                             alert(`周期スケジュール編集完了!\n増加シフト数: ${data.created}\n削除シフト数: ${data.deleted}\n被ってるシフト数(追加されてません): ${data.skipped}`);
                             closeRecurringModal();
                             if(window.calendar) window.calendar.refetchEvents(); 

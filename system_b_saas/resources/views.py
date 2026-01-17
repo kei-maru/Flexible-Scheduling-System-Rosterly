@@ -215,7 +215,7 @@ class IntegrationAvailabilityView(APIView):
 
         print(f"\n[System B] GET Request: mode={mode}, resource_id={resource_id_raw}")
 
-        # 1. 资源校验 (兼容 UUID 和 External ID)
+        # 1. 资源校验
         target_uuid = None
         if resource_id_raw:
             try:
@@ -252,6 +252,7 @@ class IntegrationAvailabilityView(APIView):
 
         # [需求 1] 24小时限制线 (Booking Deadline)
         booking_deadline = timezone.now() + timedelta(hours=24)
+        print(f"[DEBUG] Deadline(JST): {booking_deadline.astimezone(JST).strftime('%d日 %H:%M')}")
         
         # =========================================================
         # 模式 A: Search (Guest查询: 能否预约某时刻?)
@@ -302,8 +303,9 @@ class IntegrationAvailabilityView(APIView):
                 book_qs = book_qs.filter(start_time__lt=end_dt + timedelta(minutes=60), end_time__gt=start_dt - timedelta(minutes=60))
 
             # [需求 1] 24小时过滤 (仅针对 Availability，不隐藏已存在的 Booking)
-            # 这里先不 filter，而是在切分的时候判断，以免长排班直接消失
-            
+            # 数据库层面先过滤掉完全过期的
+            avail_qs = avail_qs.filter(end_time__gt=booking_deadline)
+
             avail_list = list(avail_qs)
             book_list = list(book_qs)
             final_events = []
@@ -330,7 +332,10 @@ class IntegrationAvailabilityView(APIView):
 
             # 2. 切分 Availability (绿色/金色)
             buffer = timedelta(minutes=30)
+            min_duration_seconds = 30 * 60  # 30分钟限制
+
             for avail in avail_list:
+                # print(f"  > Processing Shift: {avail.start_time.astimezone(JST).strftime('%H:%M')} - {avail.end_time.astimezone(JST).strftime('%H:%M')}")
                 current_segments = [(avail.start_time, avail.end_time)]
                 
                 # 找出切割刀片 (Bookings)
@@ -357,24 +362,38 @@ class IntegrationAvailabilityView(APIView):
                 for (fs_start, fs_end) in current_segments:
                     if (fs_end - fs_start).total_seconds() < 60: continue
                     
-                    # [关键] 如果这段时间开始于 24h 内，则隐藏
-                    if fs_start < booking_deadline:
-                        # print(f"  -> Hidden (Within 24h): {fs_start}")
-                        continue
+                    # [修复点] 先计算修剪后的开始时间
+                    valid_start = max(fs_start, booking_deadline)
 
-                    final_events.append({
-                        'id': str(avail.id),
-                        'resource_id': str(target_uuid),
-                        'start': fs_start,
-                        'end': fs_end,
-                        'is_booked': False,
-                        'is_recurring': avail.is_recurring,
-                        'type': 'availability',
-                        'title': 'Available'
-                    })
+                    # [修复点] 提前定义 v_str，防止报错
+                    v_str = valid_start.astimezone(JST).strftime('%H:%M')
 
-            print(f"[System B] Returning {len(final_events)} events after processing")
-        return Response(final_events)
+                    # 只有当 有效开始 < 结束 时才处理
+                    if valid_start < fs_end:
+                        remaining_duration = (fs_end - valid_start).total_seconds()
+                        remaining_min = remaining_duration / 60
+
+                        # 检查剩余时长是否满足 30 分钟
+                        if remaining_duration < min_duration_seconds:
+                            print(f"    x Hidden (Too Short): {remaining_min:.1f} mins < 30 mins")
+                            continue
+
+                        print(f"    o KEEP: New Range {v_str} ~ {fs_end.astimezone(JST).strftime('%H:%M')} ({remaining_min:.1f} mins)")
+
+                        final_events.append({
+                            'id': str(avail.id),
+                            'resource_id': str(target_uuid),
+                            'start': valid_start, # 使用修剪后的时间
+                            'end': fs_end,
+                            'is_booked': False,
+                            'is_recurring': avail.is_recurring,
+                            'type': 'availability',
+                            'title': 'Available'
+                        })
+                    else:
+                        print(f"    x Hidden (Fully Expired)")
+
+            return Response(final_events)
 
     # -------------------------------------------------------------
     # POST: 增加 24h 创建限制

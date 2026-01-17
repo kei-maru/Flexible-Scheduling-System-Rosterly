@@ -186,16 +186,16 @@
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
                 <h2 class="text-xl font-serif text-veludo-accent-gold mb-6 border-l-4 border-veludo-accent-gold pl-3">
-                    Weekly Recurring Schedule
+                    繰り返しスケジュール編集（周期）
                 </h2>
                 <form id="recurringForm" class="space-y-6">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">From Date</label>
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">開始日付</label>
                             <input type="date" name="range_start" required class="w-full bg-black/30 border border-white/10 text-white p-2 text-sm focus:border-veludo-accent-gold outline-none">
                         </div>
                         <div>
-                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">To Date</label>
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">終了日付</label>
                             <input type="date" name="range_end" required class="w-full bg-black/30 border border-white/10 text-white p-2 text-sm focus:border-veludo-accent-gold outline-none">
                         </div>
                     </div>
@@ -204,9 +204,9 @@
                             <div id="week-rows" class="space-y-3"></div>
                         </div>
                     </div>
-                    <div class="text-xs text-gray-500 italic">* Conflicting slots will be skipped automatically.</div>
+                    <div class="text-xs text-gray-100 italic">* 一回のみ変更シフトのが優先されます</div>
                     <button type="submit" class="w-full bg-veludo-accent-gold text-black py-3 font-bold uppercase tracking-widest hover:bg-white transition-colors">
-                        Generate Shifts
+                        シフトを追加する
                     </button>
                 </form>
             </div>
@@ -261,7 +261,7 @@
                 slotDuration: '01:00:00',
                 nowIndicator: true,
                 locale: 'ja',
-                headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
+                headerToolbar: { left: 'prev,next,today', center: 'title', right: 'today' },
                 dayHeaderFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true },
                 slotLabelFormat: { hour: 'numeric', minute: '2-digit', meridiem: false, hour12: false },
                 allDaySlot: false,
@@ -356,7 +356,7 @@
                     }
 
                     // 确认弹窗
-                    if (!confirm(`【単発シフト】を追加しますか？\n(Create Single Shift)\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
+                    if (!confirm(`【一回のみ変更シフト】を追加しますか？\n(Create Single Shift)\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
                         window.calendar.unselect();
                         return;
                     }
@@ -443,7 +443,7 @@
         });
 
         // --- 周期排班 Modal 逻辑 ---
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const days = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
         const weekRowsContainer = document.getElementById('week-rows');
 
         if (weekRowsContainer) {
@@ -527,7 +527,7 @@
                     }
                 });
 
-                if (confirm("Apply recurring schedule?\n(Unchecked days within range will be CLEARED)")) {
+                if (confirm(" 繰り返しスケジュール編集終わりますか?\n(チェック入れてない日の周期(黄色)スケジュールが削除されます)")) {
                     const btn = e.target.querySelector('button[type="submit"]');
                     const originalText = btn.innerText;
                     btn.innerText = "Processing...";

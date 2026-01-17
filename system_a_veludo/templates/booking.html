@@ -50,17 +50,57 @@
         background-color: white;
         }
         
-        /* FullCalendar Styles */
-        .fc-event { cursor: pointer; border: none !important; }
-        .fc-timegrid-event { background-color: rgba(16, 185, 129, 0.2) !important; border-left: 3px solid #10b981 !important; border-radius: 2px; }
-        .fc-event-title { color: #10b981; font-weight: bold; }
-        .fc td, .fc th { border-color: #333 !important; }
-        .fc-timegrid-slot { height: 2em !important; }
-        .fc-timegrid-slot-label-cushion { font-family: monospace; font-size: 0.85rem; color: #888; }
+        /* --- FullCalendar Customization (Sync with Admin) --- */
+        .fc { border: none !important; font-family: "Noto Serif JP", sans-serif; }
+        .fc-toolbar-title { font-family: "Cormorant Garamond", serif; font-size: 1.5rem !important; color: #d4af37; letter-spacing: 0.05em; }
+        
+        .fc-button { 
+            background-color: transparent !important; 
+            border: 1px solid #444 !important; 
+            color: #aaa !important;
+            font-size: 0.75rem !important; 
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+        .fc-button:hover { border-color: #d4af37 !important; color: #d4af37 !important; }
+        .fc-button-active { background-color: #d4af37 !important; color: #000 !important; border-color: #d4af37 !important; }
+
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #333 !important; }
+
+        /* 时间轴左侧时间 (亮白) */
+        .fc-timegrid-slot-label-cushion { 
+            color: #e5e5e5 !important; 
+            font-family: "Cormorant Garamond"; 
+            font-size: 0.9em; 
+            font-weight: 500;
+        }
+        /* 顶部日期 (金色加粗) */
+        .fc-col-header-cell-cushion {
+            color: #a19d8c !important; 
+            text-decoration: none !important;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .fc-col-header-cell a { text-decoration: none !important; }
+
+        /* 事件卡片样式 (统一为金色风格) */
+        .fc-event {
+            border: none;
+            border-left: 3px solid #d4af37 !important; /* 强制金色边框 */
+            border-radius: 0 2px 2px 0;
+            font-size: 0.75rem; 
+            padding: 1px 4px;   
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .fc-event:hover {
+            transform: scale(1.02);
+            background-color: rgba(212, 175, 55, 0.4) !important;
+        }
         
         /* Form Elements */
         .input-gold {
-            background: rgba(255,255,255,0.05); border: 1px solid #444; color: white;
+            background: rgba(255,255,255,0.05); border: 1px solid #444; color: rgb(211, 211, 211);
             padding: 10px; width: 100%; outline: none; transition: all 0.3s;
             font-family: monospace; font-size: 1.1rem;
         }
@@ -498,8 +538,8 @@
                 height: 'auto',
                 locale: 'ja',
                 allDaySlot: false,
-                slotMinTime: '13:00:00',
-                slotMaxTime: '27:00:00',
+                slotMinTime: '11:00:00',
+                slotMaxTime: '29:00:00',
                 slotDuration: '00:30:00', 
                 eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
                 events: `/accounts/api/availability/?resource_id=${resourceId}`,

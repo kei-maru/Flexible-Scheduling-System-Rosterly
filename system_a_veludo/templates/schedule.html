@@ -48,7 +48,26 @@
         .fc-button-active { background-color: #d4af37 !important; color: #000 !important; border-color: #d4af37 !important; }
         
         .fc-theme-standard td, .fc-theme-standard th { border-color: #333 !important; }
-        .fc-timegrid-slot-label { color: #666; font-family: "Cormorant Garamond"; font-size: 0.9em; }
+        
+        /* ---【修改 1】优化日历字体颜色，使其在深色背景下更明显 --- */
+        /* 时间轴左侧的时间 (如 10:00) 改为亮灰色 */
+        .fc-timegrid-slot-label-cushion { 
+            color: #e5e5e5 !important; 
+            font-family: "Cormorant Garamond"; 
+            font-size: 1em; 
+            font-weight: 500;
+        }
+        /* 顶部的日期 (如 Mon 1/15) 改为主题金，加粗 */
+        .fc-col-header-cell-cushion {
+            color: #4b4225 !important; /* 金色 */
+            text-decoration: none !important;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        /* 去掉默认的链接下划线颜色 */
+        .fc-col-header-cell a {
+            text-decoration: none !important;
+        }
         
         /* Event Styling */
         .fc-event {
@@ -220,7 +239,7 @@
                 dateIncrement: { days: 1 }, 
                 height: 'auto',
                 slotMinTime: '00:00:00',
-                scrollTime: '20:00:00',
+                scrollTime: '20:00:00', // 滚动条默认停在晚上8点附近
                 slotDuration: '01:00:00',
                 nowIndicator: true,
                 locale: 'ja',
@@ -248,20 +267,15 @@
                         })
                         .then(data => {
                             updateStatus('success');
-                            // [FIXED] 这里不再自己计算颜色，直接使用后端传来的 backgroundColor / borderColor
                             const events = Array.isArray(data) ? data.map(item => {
-                                // 检查是否有 extendedProps.is_booked
                                 const isBooked = item.extendedProps && item.extendedProps.is_booked;
-                                
                                 return {
                                     id: item.id,
                                     title: item.title,
                                     start: item.start,
                                     end: item.end,
-                                    // 优先使用后端给的颜色
                                     backgroundColor: item.backgroundColor,
                                     borderColor: item.borderColor,
-                                    // 依然加上 class 便于 CSS 控制
                                     classNames: isBooked ? ['booked-slot'] : [],
                                     editable: item.editable,
                                     extendedProps: item.extendedProps
@@ -331,7 +345,6 @@
 
                 // --- 3. 删除排班 (DELETE) ---
                 eventClick: function(arg) {
-                    // 检查 extendedProps
                     if (arg.event.extendedProps && arg.event.extendedProps.is_booked) {
                         alert("Cannot delete a booked slot!");
                         return;
@@ -369,7 +382,7 @@
             window.calendar.render();
         });
 
-        // --- 周期排班 Modal 逻辑 (New) ---
+        // --- 周期排班 Modal 逻辑 ---
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const weekRowsContainer = document.getElementById('week-rows');
 
@@ -398,9 +411,10 @@
             
             if (checkbox.checked) {
                 inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
+                // ---【修改 2】默认时间改为 22:00 ~ 01:00 ---
                 if(!document.getElementById(`day-${index}-start`).value) {
-                    document.getElementById(`day-${index}-start`).value = "10:00";
-                    document.getElementById(`day-${index}-end`).value = "18:00";
+                    document.getElementById(`day-${index}-start`).value = "22:00"; // 晚上10点
+                    document.getElementById(`day-${index}-end`).value = "01:00";   // 凌晨1点 (后端逻辑已支持跨天)
                 }
             } else {
                 inputsDiv.classList.add('opacity-50', 'pointer-events-none');
@@ -409,6 +423,18 @@
 
         function openRecurringModal() {
             document.getElementById('recurringModal').classList.remove('hidden');
+
+            // ---【修改 2】默认日期设为今天 ---
+            const startInput = document.querySelector('input[name="range_start"]');
+            const endInput = document.querySelector('input[name="range_end"]');
+
+            if (startInput && !startInput.value) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                startInput.value = `${yyyy}-${mm}-${dd}`;
+            }
         }
 
         function closeRecurringModal() {
@@ -423,10 +449,6 @@
                 const formData = new FormData(e.target);
                 const rangeStart = formData.get('range_start');
                 const rangeEnd = formData.get('range_end');
-                
-                // 获取当前 Cast 的 SaaS ID (从模板注入)
-                // 这里需要特别注意：我们不需要传 resource_id，因为后端 View 会自动从 user.cast_profile 获取并覆盖
-                // 但为了保险，我们可以不用填，反正后端会校验
                 
                 let weekConfig = {};
                 let hasSelection = false;
@@ -454,7 +476,6 @@
                     btn.innerText = "Processing...";
                     btn.disabled = true;
 
-                    // 发送 POST 到同一个接口，后端会自动识别 week_config
                     fetch('/accounts/api/availability/', { 
                         method: 'POST',
                         headers: {
@@ -465,7 +486,6 @@
                             range_start: rangeStart,
                             range_end: rangeEnd,
                             week_config: weekConfig
-                            // resource_id 由后端自动填充
                         })
                     })
                     .then(async response => {

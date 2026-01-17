@@ -17,9 +17,10 @@ from django.db import transaction
 import requests
 from uuid import UUID
 import pytz
+from zoneinfo import ZoneInfo
 
 
-JST = pytz.timezone('Asia/Tokyo')
+JST = ZoneInfo("Asia/Tokyo")
 # =========================================================
 # 核心算法 A: 针对 Guest 搜索 (纯净空闲时间)
 # =========================================================
@@ -308,32 +309,57 @@ class IntegrationAvailabilityView(APIView):
         
         try:
             resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
-            curr = parse_datetime(range_start).date() if 'T' in range_start else datetime.strptime(range_start, '%Y-%m-%d').date()
-            end = parse_datetime(range_end).date() if 'T' in range_end else datetime.strptime(range_end, '%Y-%m-%d').date()
-        except Exception as e: return Response({'error': f'Invalid data: {e}'}, status=400)
+            
+            # 1. 解析日期范围 (先转 JST 再取 .date()，防止时区导致日期偏移)
+            def to_jst_date(dt_str):
+                dt = parse_datetime(dt_str)
+                if timezone.is_naive(dt):
+                    return dt.replace(tzinfo=JST).date() # 这里的 replace 对 ZoneInfo 是安全的
+                return dt.astimezone(JST).date()
+
+            curr = to_jst_date(range_start)
+            end = to_jst_date(range_end)
+
+        except Exception as e: 
+            return Response({'error': f'Invalid data: {e}'}, status=400)
 
         created_count = 0
         skipped_count = 0
         
         while curr <= end:
+            # 转换星期: Python(0-6 Mon-Sun) -> JS(1-7 Mon-Sun or 0-6 Sun-Sat)
+            # 假设前端传的是: 1=Mon, ..., 7=Sun (ISO标准) 或者 0=Sun, 1=Mon
+            # 这里沿用你之前的逻辑: str((curr.weekday() + 1) % 7) (0=Sun, 1=Mon...)
             js_day = str((curr.weekday() + 1) % 7) 
+            
             if js_day in week_config and week_config[js_day].get('enabled'):
                 try:
                     cfg = week_config[js_day]
+                    # 解析 "10:00"
                     s_time = datetime.strptime(cfg['start'], '%H:%M').time()
                     e_time = datetime.strptime(cfg['end'], '%H:%M').time()
                     
-                    # [关键修复] 强制 JST
-                    dt_s = timezone.make_aware(datetime.combine(curr, s_time), JST)
-                    dt_e = timezone.make_aware(datetime.combine(curr, e_time), JST)
-                    if dt_e <= dt_s: dt_e += timedelta(days=1)
+                    # 2. [核心修复] 组合日期+时间，并直接指定时区
+                    # ZoneInfo 不会有 19 分钟的问题
+                    dt_s = datetime.combine(curr, s_time).replace(tzinfo=JST)
+                    dt_e = datetime.combine(curr, e_time).replace(tzinfo=JST)
                     
+                    # 跨天处理
+                    if dt_e <= dt_s: 
+                        dt_e += timedelta(days=1)
+                    
+                    # 3. 冲突检测与创建
                     if not self._check_conflict(resource, dt_s, dt_e):
                         Availability.objects.create(resource=resource, start_time=dt_s, end_time=dt_e)
                         created_count += 1
-                    else: skipped_count += 1
-                except: pass
+                    else: 
+                        skipped_count += 1
+                except Exception as e: 
+                    print(f"Recurring Error: {e}")
+                    pass
+            
             curr += timedelta(days=1)
+            
         return Response({'status': 'completed', 'created': created_count, 'skipped': skipped_count}, status=201)
 
     def _check_conflict(self, resource, start, end):

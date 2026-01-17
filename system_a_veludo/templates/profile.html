@@ -75,7 +75,7 @@
             
             <div class="md:col-span-4 border-b md:border-b-0 md:border-r border-white/10 pb-8 md:pb-0 md:pr-8 text-center">
                 <div class="w-32 h-32 rounded-full bg-[#333] mx-auto mb-6 flex items-center justify-center text-4xl text-white border-4 border-veludo-accent-gold/20 shadow-xl overflow-hidden relative group">
-                    {% if user.avatar %}
+                    {% if user.avatar %}  
                         <img src="{{ user.avatar.url }}" class="w-full h-full object-cover">
                     {% elif cast_profile and cast_profile.avatar %}
                         <img src="{{ cast_profile.avatar.url }}" class="w-full h-full object-cover">
@@ -116,7 +116,7 @@
 
             <div class="md:col-span-8">
                 <h3 class="text-xl font-serif text-white border-b border-white/10 pb-4 mb-6 flex justify-between items-end">
-                    <span>Edit Profile</span>
+                    <span>プロフィール</span>
                     <span class="text-xs text-gray-500 font-sans tracking-wide">基本情報の変更</span>
                 </h3>
 
@@ -142,15 +142,15 @@
                                 {{ form.vrc_id.label }} <span class="text-red-500">*</span>
                             </label>
                             {{ form.vrc_id }}
-                            <span class="text-[10px] text-gray-500">*VRChat上の表示名(予約の時に必要になります)</span>
+                            <span class="text-[10px] text-gray-300">*VRChat上の表示名(予約の時に必要になります)</span>
                         </div>
                         
                         <div>
                             <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
-                                {{ form.email.label }}
+                                メールアドレス
                             </label>
                             {{ form.email }}
-                            <span class="text-[10px] text-gray-500">※任意</span>
+                            <span class="text-[10px] text-gray-300">※任意</span>
                         </div>
                     </div>
 
@@ -160,26 +160,26 @@
                                 <i class="fa-brands fa-discord mr-1"></i> {{ form.discord_id.label }}
                             </label>
                             {{ form.discord_id }}
-                            <span class="text-[10px] text-gray-500">※自動連携（変更不可）</span>
+                            <span class="text-[10px] text-gray-300">※自動連携（変更不可）</span>
                         </div>
                         <div>
                             <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
                                 <i class="fa-brands fa-x-twitter mr-1"></i> {{ form.twitter_id.label }}
                             </label>
                             {{ form.twitter_id }}
-                            <span class="text-[10px] text-gray-500">※任意</span>
+                            <span class="text-[10px] text-gray-300">※任意</span>
                         </div>
                     </div>
 
                     <div class="mb-8 p-4 bg-white/5 border border-white/10 rounded-sm">
-                        <label class="block text-xs text-gray-400 mb-3 uppercase tracking-wider">Profile Avatar</label>
+                        <label class="block text-xs text-gray-400 mb-3 uppercase tracking-wider">アイコンの変更</label>
                         {{ form.avatar }}
-                        <p class="mt-2 text-[10px] text-gray-500">推奨サイズ: 500x500px, Max 2MB. (JPG/PNG)</p>
+                        <p class="mt-2 text-[10px] text-gray-300">推奨サイズ: 500x500px, Max 2MB. (JPG/PNG)</p>
                     </div>
 
                     <div class="flex justify-end">
-                        <button type="submit" class="bg-white/10 hover:bg-veludo-accent-gold hover:text-black text-white px-10 py-3 text-xs tracking-widest transition-all border border-white/20 font-bold">
-                            SAVE CHANGES
+                        <button type="submit" id="save-btn" class="bg-white/5 text-gray-400 border border-white/10 px-10 py-3 text-xs tracking-widest font-bold transition-all duration-300 pointer-events-none opacity-50">
+                            保存する
                         </button>
                     </div>
 
@@ -214,5 +214,75 @@
             </div>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            const saveBtn = document.getElementById('save-btn');
+            
+            // 获取所有表单控件 (input, select, textarea)
+            const inputs = form.querySelectorAll('input, select, textarea');
+            
+            // 1. 记录初始值
+            inputs.forEach(input => {
+                if (input.type === 'checkbox' || input.type === 'radio') {
+                    input.dataset.initial = input.checked;
+                } else if (input.type === 'file') {
+                    input.dataset.initial = ''; // 文件初始为空
+                } else {
+                    input.dataset.initial = input.value;
+                }
+            });
+
+            // 2. 检查变更的函数
+            function checkChanges() {
+                let hasChanges = false;
+
+                inputs.forEach(input => {
+                    if (hasChanges) return; // 只要发现一个变了，就不需要继续检查
+
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        // 对比布尔值字符串
+                        if (input.checked.toString() !== input.dataset.initial) {
+                            hasChanges = true;
+                        }
+                    } else if (input.type === 'file') {
+                        // 文件上传框只要有文件被选中，就算变更
+                        if (input.files.length > 0) {
+                            hasChanges = true;
+                        }
+                    } else {
+                        if (input.value !== input.dataset.initial) {
+                            hasChanges = true;
+                        }
+                    }
+                });
+
+                updateSaveButton(hasChanges);
+            }
+
+            // 3. 更新按钮样式
+            function updateSaveButton(hasChanges) {
+                if (hasChanges) {
+                    // [变亮模式] 金色背景，黑色文字，可点击，有阴影
+                    saveBtn.className = "bg-veludo-accent-gold text-black border border-veludo-accent-gold px-10 py-3 text-xs tracking-widest font-bold transition-all duration-300 shadow-[0_0_15px_rgba(212,175,55,0.4)] transform scale-105 cursor-pointer";
+                    saveBtn.style.pointerEvents = "auto";
+                    saveBtn.style.opacity = "1";
+                    saveBtn.innerHTML = '<i class="fa-solid fa-check mr-2"></i>変更を保存';
+                } else {
+                    // [暗淡模式] 灰色背景，灰色文字，不可点击
+                    saveBtn.className = "bg-white/5 text-gray-500 border border-white/10 px-10 py-3 text-xs tracking-widest font-bold transition-all duration-300";
+                    saveBtn.style.pointerEvents = "none";
+                    saveBtn.style.opacity = "0.5";
+                    saveBtn.innerHTML = '保存する';
+                }
+            }
+
+            // 4. 绑定监听事件
+            inputs.forEach(input => {
+                input.addEventListener('input', checkChanges);
+                input.addEventListener('change', checkChanges);
+            });
+        });
+    </script>
 </body>
 </html>

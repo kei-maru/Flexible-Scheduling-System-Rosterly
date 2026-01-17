@@ -14,6 +14,34 @@ User = get_user_model()
 # 1. 登录与注册表单 (保持不变)
 # ==========================================
 
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        # 根据你的HTML，这里包含了 User 模型字段
+        fields = ['vrc_id', 'email', 'discord_id', 'twitter_id', 'avatar'] 
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # --- 统一添加样式 ---
+        for field_name, field in self.fields.items():
+            # 基础样式
+            field.widget.attrs['class'] = 'input-field'
+            
+            # [需求 1] 针对头像字段：
+            # 使用 FileInput 覆盖默认的 ClearableFileInput
+            # 这样就不会显示 "目前: /media/..." 的文字，只显示上传按钮
+            if field_name == 'avatar':
+                field.widget = forms.FileInput(attrs={
+                    'class': 'block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:bg-white/10 file:text-veludo-accent-gold hover:file:bg-white/20 cursor-pointer',
+                    'accept': 'image/*'
+                })
+
+        # Discord ID 通常是只读的
+        if 'discord_id' in self.fields:
+            self.fields['discord_id'].widget.attrs['readonly'] = True
+            self.fields['discord_id'].widget.attrs['class'] += ' opacity-50 cursor-not-allowed'
+
 class VeludoLoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(attrs={
         'class': 'input-field', 'id': 'username', 'autocomplete': 'username'
@@ -90,6 +118,11 @@ class ProfileEditForm(forms.ModelForm):
             # Twitter: 任意
             'twitter_id': forms.TextInput(attrs={
                 'placeholder': '@username'
+            }),
+
+            'avatar': forms.FileInput(attrs={
+                'class': 'block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:bg-white/10 file:text-veludo-accent-gold hover:file:bg-white/20 cursor-pointer',
+                'accept': 'image/*'
             }),
         }
 

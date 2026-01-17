@@ -244,15 +244,16 @@
                                         {{ cast.allow_30_min|yesno:'true,false' }},
                                         {{ cast.allow_60_min|yesno:'true,false' }},
                                         {{ cast.allow_120_min|yesno:'true,false' }},
-                                        '{{ cast.avatar.url|default:'' }}'
-                                    )" 
+                                        '{% if cast.avatar %}{{ cast.avatar.url }}{% endif %}'  )" 
                                     class="cursor-pointer bg-[#1a1a1a] group hover:-translate-y-1 transition-all duration-300 border border-white/5 hover:border-veludo-gold/50 shadow-lg relative rounded-sm">
+                                    
                                     <div class="aspect-[3/4] w-full relative overflow-hidden">
                                         {% if cast.avatar %}
                                         <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700">
                                         {% else %}
                                         <div class="w-full h-full flex items-center justify-center text-gray-700"><i class="fa-solid fa-user text-4xl"></i></div>
                                         {% endif %}
+                                        
                                         <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90"></div>
                                         <div class="absolute bottom-3 left-3">
                                             <div class="text-base font-bold text-white font-english italic tracking-wider">{{ cast.name }}</div>
@@ -260,7 +261,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                {% endfor %}
+                            {% endfor %}
                             </div>
                         </div>
 

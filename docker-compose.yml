@@ -8,9 +8,17 @@ services:
     build: .
     container_name: veludo_system_a
     restart: always
-    # 👇【性能优化】改为 gthread 模式，开启 2 个进程，每个进程 4 个线程
-    # 这能彻底解决 "System A 请求 System B 时网页卡死" 的问题
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo --workers 2 --worker-class=gthread --threads 4
+    # 👇【核心修改】智能启动脚本
+    # 逻辑：如果 .env 里 DEBUG=True，就用 runserver (解决本地图片/CSS不显示问题)
+    #      如果 DEBUG=False，就用 gunicorn (服务器高性能模式)
+    command: >
+      sh -c "if [ '$DEBUG' = 'True' ]; then
+               echo '🟢 Local Mode: Starting runserver...';
+               python system_a_veludo/manage.py runserver 0.0.0.0:8000;
+             else
+               echo '🚀 Production Mode: Starting Gunicorn...';
+               gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo --workers 2 --worker-class=gthread --threads 4;
+             fi"
     volumes:
       - .:/app
       - static_volume:/app/static_root
@@ -30,8 +38,15 @@ services:
     build: .
     container_name: veludo_system_b
     restart: always
-    # 👇【性能优化】System B 也同样开启线程模式，处理并发请求
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas --workers 2 --worker-class=gthread --threads 4
+    # 👇【核心修改】System B 同理，支持智能切换
+    command: >
+      sh -c "if [ '$DEBUG' = 'True' ]; then
+               echo '🟢 Local Mode: Starting runserver...';
+               python system_b_saas/manage.py runserver 0.0.0.0:8001;
+             else
+               echo '🚀 Production Mode: Starting Gunicorn...';
+               gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas --workers 2 --worker-class=gthread --threads 4;
+             fi"
     volumes:
       - .:/app
       - static_volume:/app/static_root
@@ -67,7 +82,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init_sql:/docker-entrypoint-initdb.d
-    # 👇【可选优化】如果你觉得服务器太卡，可以取消注释下面几行限制数据库内存
+    # 👇【可选优化】限制内存（建议在服务器上打开，本地开发可以注释掉）
     # deploy:
     #   resources:
     #     limits:

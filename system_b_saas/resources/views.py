@@ -434,26 +434,42 @@ class IntegrationAvailabilityView(APIView):
         range_end = request.data.get('range_end')
         week_config = request.data.get('week_config') or {} 
         
+        generation_min_time = timezone.now() + timedelta(hours=24) # 24h 限制线
+
         with transaction.atomic():
             try:
                 resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
+                
+                # [关键修复] 鲁棒的日期解析函数
                 def to_jst_date(dt_str):
+                    # 1. 尝试作为 datetime 解析 (ISO)
                     dt = parse_datetime(dt_str)
-                    if timezone.is_naive(dt): return dt.replace(tzinfo=JST).date()
-                    return dt.astimezone(JST).date()
+                    if dt:
+                        if timezone.is_naive(dt): return dt.replace(tzinfo=JST).date()
+                        return dt.astimezone(JST).date()
+                    # 2. 尝试作为 date 解析 (YYYY-MM-DD)
+                    d = parse_date(dt_str)
+                    if d:
+                        return d
+                    raise ValueError(f"Invalid date format: {dt_str}")
+
                 curr_date = to_jst_date(range_start)
                 end_date = to_jst_date(range_end)
+                
             except Exception as e: 
-                return Response({'error': f'Invalid data: {e}'}, status=400)
+                print(f"Date Parse Error: {e}")
+                return Response({'error': f'Invalid date data: {e}'}, status=400)
 
-            stats = {'created': 0, 'skipped': 0, 'deleted': 0}
+            stats = {'created': 0, 'skipped_conflict': 0, 'skipped_24h': 0, 'deleted': 0}
             
             while curr_date <= end_date:
                 py_weekday = curr_date.weekday()
                 js_day_key = '0' if py_weekday == 6 else str(py_weekday + 1)
+                
                 day_start_limit = datetime.combine(curr_date, datetime.min.time()).replace(tzinfo=JST)
                 day_end_limit = day_start_limit + timedelta(hours=30) 
 
+                # 1. 删除旧的
                 del_count, _ = Availability.objects.filter(
                     resource=resource,
                     start_time__gte=day_start_limit,
@@ -463,23 +479,34 @@ class IntegrationAvailabilityView(APIView):
                 ).delete()
                 stats['deleted'] += del_count
 
+                # 2. 创建新的
                 if js_day_key in week_config and week_config[js_day_key].get('enabled'):
                     try:
                         cfg = week_config[js_day_key]
                         s_time = datetime.strptime(cfg['start'], '%H:%M').time()
                         e_time = datetime.strptime(cfg['end'], '%H:%M').time()
+                        
                         dt_s = datetime.combine(curr_date, s_time).replace(tzinfo=JST)
                         dt_e = datetime.combine(curr_date, e_time).replace(tzinfo=JST)
                         if dt_e <= dt_s: dt_e += timedelta(days=1)
 
-                        if dt_s > generation_min_time:
-                            if not self._check_conflict(resource, dt_s, dt_e):
-                                Availability.objects.create(resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True)
-                                stats['created'] += 1
-                            else:
-                                stats['skipped'] += 1
+                        # [判定 1] 24小时限制
+                        if dt_s < generation_min_time:
+                            stats['skipped_24h'] += 1
+                            # print(f"Skipped 24h: {dt_s}")
+                        
+                        # [判定 2] 冲突检测
+                        elif not self._check_conflict(resource, dt_s, dt_e):
+                            Availability.objects.create(
+                                resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True
+                            )
+                            stats['created'] += 1
+                        else:
+                            stats['skipped_conflict'] += 1
+                            
                     except Exception as e:
                         print(f"Recurring Error: {e}")
+                
                 curr_date += timedelta(days=1)
             
         return Response(stats, status=201)

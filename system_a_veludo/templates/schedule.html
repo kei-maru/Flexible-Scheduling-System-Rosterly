@@ -549,7 +549,7 @@
                         if (response.ok) {
                             const data = await response.json();
                             // 提示信息
-                            alert(`Done!\nAdded: ${data.created}\nRemoved: ${data.deleted}\nSkipped: ${data.skipped}`);
+                            alert(`周期スケジュール編集完了!\n増加シフト数: ${data.created}\n削除シフト数: ${data.deleted}\n被ってるシフト数(追加されてません): ${data.skipped}`);
                             closeRecurringModal();
                             if(window.calendar) window.calendar.refetchEvents(); 
                         } else {

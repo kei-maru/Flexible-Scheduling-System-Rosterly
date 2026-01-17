@@ -117,11 +117,11 @@
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-6">
                 <a href="{% url 'profile' %}" class="text-white/60 hover:text-veludo-accent-gold transition-colors text-xs tracking-[0.2em] flex items-center gap-2 font-serif">
-                    <i class="fa-solid fa-arrow-left"></i> BACK TO PROFILE
+                    <i class="fa-solid fa-arrow-left"></i> プロフィールに戻る
                 </a>
 
                 <a href="{% url 'my_bookings' %}" class="text-white/60 hover:text-veludo-accent-gold transition-colors text-xs tracking-[0.2em] flex items-center gap-2 font-serif">
-                    <i class="fa-solid fa-list-check"></i> MY BOOKINGS
+                    <i class="fa-solid fa-list-check"></i> 予約内容一覧
                 </a>
             </div>
 
@@ -156,13 +156,14 @@
 
                     <div class="flex gap-4 text-xs">
                         <div class="flex items-center gap-1">
-                            <div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> 
-                            <span class="text-gray-400">空き(周期)</span>
+                            <div class="w-3 h-3 bg-[#10b981]/30 border-l-2 border-[#10b981]"></div> 
+                            <span class="text-gray-400">空きシフト(一回のみ変更)</span>
                         </div>
                         <div class="flex items-center gap-1">
-                            <div class="w-3 h-3 bg-[#10b981]/30 border-l-2 border-[#10b981]"></div> 
-                            <span class="text-gray-400">空き(単発)</span>
+                            <div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> 
+                            <span class="text-gray-400">空きシフト(周期)</span>
                         </div>
+                        
                         <div class="flex items-center gap-1">
                             <div class="w-3 h-3 bg-red-900/40 border-l-2 border-red-500"></div> 
                             <span class="text-gray-400">予約済み</span>
@@ -301,13 +302,13 @@
                                     textColor = '#e5e5e5';
                                 } else if (isRecurring) {
                                     // 周期：Veludo 金色
-                                    titleText = '空き (周期)';
+                                    titleText = '空きシフト (周期)';
                                     bgColor = 'rgba(212, 175, 55, 0.25)'; 
                                     borderColor = '#d4af37';
                                     textColor = '#d4af37';
                                 } else {
                                     // 单次：翡翠绿色
-                                    titleText = '空き (単発)';
+                                    titleText = '空きシフト ';
                                     bgColor = 'rgba(16, 185, 129, 0.25)'; 
                                     borderColor = '#10b981';
                                     textColor = '#4ade80';

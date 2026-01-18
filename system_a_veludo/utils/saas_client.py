@@ -62,6 +62,32 @@ class SaaSClient:
                 print(f"SaaS Response: {e.response.text}")
             return None
 
+    def get_recurring_config(self, resource_id):
+        """
+        [新增] 获取周期排班规则
+        API: GET /integration/availability/recurring-config/
+        """
+        # 注意 URL 拼写，必须和 System B 的 urls.py 一致
+        url = f"{self.api_base_url}/availability/recurring-config/"
+        params = {'resource_id': resource_id}
+        
+        print(f"[SaaSClient] Requesting URL: {url}") # Debug
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            
+            if response.status_code == 404:
+                print("[SaaSClient] 404 Not Found (Normal for new users)")
+                return {}
+                
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"[SaaSClient] Error: {e}")
+            if e.response:
+                print(f"[SaaSClient] Response Content: {e.response.text}")
+            return {}
+
     def create_recurring_availability(self, resource_id, range_start, range_end, week_config):
         """
         [新增 - 周期排班]

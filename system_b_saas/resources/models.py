@@ -52,3 +52,24 @@ class Availability(models.Model):
 
     def __str__(self):
         return f"{self.resource.name}: {self.start_time} - {self.end_time}"
+
+class RecurringPattern(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='recurring_patterns')
+    
+    # 星期几 (0=Sunday, 1=Monday... 6=Saturday) 
+    # 注意：Python weekday是0=Mon，但为了配合前端习惯，建议 0=Sun 或明确字段名
+    day_of_week = models.IntegerField() 
+    
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    
+    # 有效期范围 (可选，但这符合你之前的 range_start/end 逻辑)
+    valid_from = models.DateField()
+    valid_until = models.DateField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # 确保同一资源、同一天不会有重复的规则（或者根据业务需求允许）
+        unique_together = ('resource', 'day_of_week', 'start_time', 'end_time')

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Resource, Availability
+from .models import Resource, Availability, RecurringPattern
 
 class AvailabilityInline(admin.TabularInline):
     model = Availability
@@ -15,3 +15,9 @@ class ResourceAdmin(admin.ModelAdmin):
 class AvailabilityAdmin(admin.ModelAdmin):
     list_display = ('resource', 'start_time', 'end_time')
     list_filter = ('resource__tenant', 'resource')
+
+@admin.register(RecurringPattern)
+class RecurringPatternAdmin(admin.ModelAdmin):
+    list_display = ('id', 'resource', 'day_of_week', 'start_time', 'end_time', 'valid_from', 'valid_until')
+    list_filter = ('day_of_week', 'resource')
+    ordering = ('resource', 'day_of_week', 'start_time')

@@ -500,7 +500,8 @@
 
             const CURRENT_RESOURCE_ID = "{{ user.cast_profile.saas_resource_id|default:'' }}";
             
-            // 设置日期范围 (从明天开始，往后查 7 天)
+            // --- A. 设置默认显示的日期 (作为兜底) ---
+            // 默认从 "明天" 开始，持续 7 天
             const today = new Date();
             const tomorrow = new Date(today);
             tomorrow.setDate(today.getDate() + 1);
@@ -508,33 +509,34 @@
             const nextWeek = new Date(tomorrow);
             nextWeek.setDate(tomorrow.getDate() + 7);
 
-            // 转为 YYYY-MM-DD
-            const startStr = tomorrow.toISOString().split('T')[0];
-            const endStr = nextWeek.toISOString().split('T')[0];
+            // 格式化为 YYYY-MM-DD
+            const defaultStart = tomorrow.toISOString().split('T')[0];
+            const defaultEnd = nextWeek.toISOString().split('T')[0];
 
-            // 填入日期 Input
+            // 预填默认值 (防止接口慢的时候框是空的)
             const startInput = document.querySelector('input[name="range_start"]');
             const endInput = document.querySelector('input[name="range_end"]');
-            if (startInput) startInput.value = startStr;
-            if (endInput) endInput.value = endStr;
+            if (startInput) startInput.value = defaultStart;
+            if (endInput) endInput.value = defaultEnd;
 
-            // 调用回填函数
-            fetchAndPrefillRecurringSettings(CURRENT_RESOURCE_ID, startStr, endStr);
+            // --- B. 调用 API 获取真实配置 ---
+            // 传入 resource_id 即可，不需要传日期，因为我们要问后端："现在库里存的是什么？"
+            fetchAndPrefillRecurringSettings(CURRENT_RESOURCE_ID);
         }
 
         // [核心逻辑] 获取数据并回填
-        function fetchAndPrefillRecurringSettings(resourceId, startStr, endStr) {
-            const url = new URL('/accounts/api/availability/', window.location.origin);
+        function fetchAndPrefillRecurringSettings(resourceId) {
+            // 请求 System A 的 Proxy 接口 (它会转发给 System B 的 RecurringConfigView)
+            const url = new URL('/accounts/api/availability/recurring-config/', window.location.origin);
             url.searchParams.append('resource_id', resourceId);
-            url.searchParams.append('start', startStr + "T00:00:00"); 
-            url.searchParams.append('end', endStr + "T23:59:59");
-            url.searchParams.append('mode', 'raw'); 
 
-            console.log(`[Prefill] Fetching...`);
+            console.log(`[Prefill] Fetching recurring config...`);
 
-            // 清空表单
+            // 1. 先重置表单（清空所有勾选）
             for (let i = 0; i < 7; i++) {
                 toggleDayRow(i, false); 
+                document.getElementById(`day-${i}-start`).value = "";
+                document.getElementById(`day-${i}-end`).value = "";
             }
 
             fetch(url)
@@ -543,51 +545,44 @@
                     return res.json();
                 })
                 .then(data => {
-                    console.log(`[Prefill] Got ${data.length} events`, data); // 打印数据结构
+                    console.log(`[Prefill] Got config from backend:`, data);
                     
-                    if (!Array.isArray(data)) return;
+                    const config = data.week_config;
+                    const range = data.range;
 
-                    data.forEach(event => {
-                        // [关键修复] 兼容读取：尝试直接读取 或 从 extendedProps 读取
-                        let isRecurring = event.is_recurring;
-                        if (isRecurring === undefined && event.extendedProps) {
-                            isRecurring = event.extendedProps.is_recurring;
-                        }
+                    // [修复 Bug 1] 如果后端有存储的日期范围，覆盖前端的默认值
+                    if (range && range.start && range.end) {
+                        console.log(`[Prefill] Overwriting dates: ${range.start} ~ ${range.end}`);
+                        const startInput = document.querySelector('input[name="range_start"]');
+                        const endInput = document.querySelector('input[name="range_end"]');
+                        if (startInput) startInput.value = range.start;
+                        if (endInput) endInput.value = range.end;
+                    }
 
-                        console.log(`Checking event ${event.id}: is_recurring=${isRecurring}`);
+                    // [修复 Bug 2] 回填每一天的配置
+                    if (config) {
+                        // config 结构是 { "0": {enabled: true, start: "10:00", end: "18:00"}, ... }
+                        Object.keys(config).forEach(dayKey => {
+                            const dayCfg = config[dayKey];
+                            const dayIndex = parseInt(dayKey); // "0" -> 0
 
-                        if (isRecurring) {
-                            const startIso = event.start;
-                            const endIso = event.end;
-                            
-                            const startDate = new Date(startIso);
-                            const endDate = new Date(endIso);
-                            
-                            const dayIndex = startDate.getDay(); 
+                            if (dayCfg && dayCfg.enabled) {
+                                const checkbox = document.getElementById(`day-${dayIndex}-check`);
+                                const startInput = document.getElementById(`day-${dayIndex}-start`);
+                                const endInput = document.getElementById(`day-${dayIndex}-end`);
 
-                            const fmt = new Intl.DateTimeFormat('ja-JP', {
-                                timeZone: 'Asia/Tokyo',
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                hour12: false
-                            });
-
-                            const startHM = fmt.format(startDate);
-                            const endHM = fmt.format(endDate);
-
-                            console.log(`  -> Match: Day=${dayIndex}, Time=${startHM}-${endHM}`);
-
-                            const checkbox = document.getElementById(`day-${dayIndex}-check`);
-                            const startInput = document.getElementById(`day-${dayIndex}-start`);
-                            const endInput = document.getElementById(`day-${dayIndex}-end`);
-
-                            if (checkbox && !checkbox.checked) {
-                                startInput.value = startHM;
-                                endInput.value = endHM;
-                                toggleDayRow(dayIndex, true); 
+                                if (checkbox) {
+                                    // 填入时间 (后端返回的就是 HH:MM)
+                                    startInput.value = dayCfg.start; 
+                                    endInput.value = dayCfg.end;
+                                    
+                                    // 勾选并激活输入框
+                                    toggleDayRow(dayIndex, true); 
+                                    console.log(`  -> Restored Day ${dayIndex}: ${dayCfg.start}-${dayCfg.end}`);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 })
                 .catch(err => console.error("[Prefill] Error:", err));
         }
@@ -664,7 +659,9 @@
         }
 
         function formatDate(date) {
-            return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            const h = date.getHours().toString().padStart(2, '0');
+            const m = date.getMinutes().toString().padStart(2, '0');
+            return `${h}:${m}`;
         }
     </script>
 </body>

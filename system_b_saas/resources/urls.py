@@ -5,7 +5,8 @@ from django.urls import path
 from .views import (
     IntegrationAvailabilityView, 
     IntegrationBookingView, 
-    IntegrationResourceView
+    IntegrationResourceView,
+    RecurringConfigView
 )
 
 urlpatterns = [
@@ -17,6 +18,7 @@ urlpatterns = [
     #   - GET: System A 查询某位 Cast 的排班表 (用于日历显示)
     #   - POST: System A 的 Cast 设置自己的新排班
     path('availability/', IntegrationAvailabilityView.as_view(), name='integration-availability-list'),
+    path('availability/recurring-config/', RecurringConfigView.as_view()),
 
     # System A 请求地址: DELETE .../api/v1/integration/availability/{uuid}/
     # 含义: Cast 删除某一条特定的排班记录

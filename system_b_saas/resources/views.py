@@ -8,7 +8,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from datetime import datetime, timedelta
 from tenants.permissions import IsTenantAuthorized
-from .models import Resource, Availability
+from .models import Resource, Availability, RecurringPattern
 from bookings.models import Booking
 import threading
 from django.core.mail import send_mail
@@ -18,6 +18,7 @@ import requests
 from uuid import UUID
 import pytz
 from zoneinfo import ZoneInfo
+from django.db.models import Min, Max
 
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -459,17 +460,14 @@ class IntegrationAvailabilityView(APIView):
             try:
                 resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
                 
-                # [关键修复] 鲁棒的日期解析函数
+                # 日期解析函数
                 def to_jst_date(dt_str):
-                    # 1. 尝试作为 datetime 解析 (ISO)
                     dt = parse_datetime(dt_str)
                     if dt:
                         if timezone.is_naive(dt): return dt.replace(tzinfo=JST).date()
                         return dt.astimezone(JST).date()
-                    # 2. 尝试作为 date 解析 (YYYY-MM-DD)
                     d = parse_date(dt_str)
-                    if d:
-                        return d
+                    if d: return d
                     raise ValueError(f"Invalid date format: {dt_str}")
 
                 curr_date = to_jst_date(range_start)
@@ -479,16 +477,46 @@ class IntegrationAvailabilityView(APIView):
                 print(f"Date Parse Error: {e}")
                 return Response({'error': f'Invalid date data: {e}'}, status=400)
 
+            # =========================================================
+            # PART 1: 保存规则到 RecurringPattern 表 (Source of Truth)
+            # =========================================================
+            # 先清除该资源在 [curr_date, end_date] 范围内有重叠的旧规则
+            # 策略：简单覆盖。只要有效期有重叠就删掉旧的，或者您可以选择更复杂的逻辑。
+            # 这里为了简单稳健，直接删除该资源所有的旧规则，保存最新的（假设用户总是全量更新规则）
+            # 或者：只删除 valid_until >= curr_date 的规则
+            RecurringPattern.objects.filter(resource=resource).delete() 
+
+            for day_key, config in week_config.items():
+                if config.get('enabled'):
+                    try:
+                        RecurringPattern.objects.create(
+                            resource=resource,
+                            day_of_week=int(day_key),
+                            start_time=config['start'], # 前端传 "HH:MM"
+                            end_time=config['end'],
+                            valid_from=curr_date,
+                            valid_until=end_date
+                        )
+                    except Exception as e:
+                        print(f"Error saving pattern: {e}")
+
+            # =========================================================
+            # PART 2: 生成具体 Availability (保持原有逻辑不变)
+            # =========================================================
             stats = {'created': 0, 'skipped_conflict': 0, 'skipped_24h': 0, 'deleted': 0}
             
-            while curr_date <= end_date:
-                py_weekday = curr_date.weekday()
+            loop_date = curr_date
+            while loop_date <= end_date:
+                py_weekday = loop_date.weekday()
+                # Python weekday: 0=Mon, 6=Sun
+                # JS day_key: 0=Sun, 1=Mon ... 6=Sat
+                # 转换: Python 6 -> JS 0, 其他 Python + 1 -> JS
                 js_day_key = '0' if py_weekday == 6 else str(py_weekday + 1)
                 
-                day_start_limit = datetime.combine(curr_date, datetime.min.time()).replace(tzinfo=JST)
+                day_start_limit = datetime.combine(loop_date, datetime.min.time()).replace(tzinfo=JST)
                 day_end_limit = day_start_limit + timedelta(hours=30) 
 
-                # 1. 删除旧的
+                # 1. 删除旧的具体的 Availability
                 del_count, _ = Availability.objects.filter(
                     resource=resource,
                     start_time__gte=day_start_limit,
@@ -498,23 +526,19 @@ class IntegrationAvailabilityView(APIView):
                 ).delete()
                 stats['deleted'] += del_count
 
-                # 2. 创建新的
+                # 2. 根据规则创建新的
                 if js_day_key in week_config and week_config[js_day_key].get('enabled'):
                     try:
                         cfg = week_config[js_day_key]
                         s_time = datetime.strptime(cfg['start'], '%H:%M').time()
                         e_time = datetime.strptime(cfg['end'], '%H:%M').time()
                         
-                        dt_s = datetime.combine(curr_date, s_time).replace(tzinfo=JST)
-                        dt_e = datetime.combine(curr_date, e_time).replace(tzinfo=JST)
+                        dt_s = datetime.combine(loop_date, s_time).replace(tzinfo=JST)
+                        dt_e = datetime.combine(loop_date, e_time).replace(tzinfo=JST)
                         if dt_e <= dt_s: dt_e += timedelta(days=1)
 
-                        # [判定 1] 24小时限制
                         if dt_s < generation_min_time:
                             stats['skipped_24h'] += 1
-                            # print(f"Skipped 24h: {dt_s}")
-                        
-                        # [判定 2] 冲突检测
                         elif not self._check_conflict(resource, dt_s, dt_e):
                             Availability.objects.create(
                                 resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True
@@ -522,11 +546,10 @@ class IntegrationAvailabilityView(APIView):
                             stats['created'] += 1
                         else:
                             stats['skipped_conflict'] += 1
-                            
                     except Exception as e:
-                        print(f"Recurring Error: {e}")
+                        print(f"Recurring Gen Error: {e}")
                 
-                curr_date += timedelta(days=1)
+                loop_date += timedelta(days=1)
             
         return Response(stats, status=201)
 
@@ -552,6 +575,67 @@ class IntegrationAvailabilityView(APIView):
         avail.delete()
         return Response(status=204)
 
+class RecurringConfigView(APIView):
+    permission_classes = [IsTenantAuthorized]
+    def get(self, request):
+        resource_id_raw = request.query_params.get('resource_id')
+        print(f"\n[System B] GET Recurring Config: resource_id={resource_id_raw}")
+
+        if not resource_id_raw: 
+            return Response({})
+        
+        try:
+            # 兼容 UUID 和 External ID
+            try:
+                uuid_obj = UUID(resource_id_raw)
+                res = Resource.objects.get(id=uuid_obj, tenant=request.tenant)
+            except ValueError:
+                res = Resource.objects.get(external_id=resource_id_raw, tenant=request.tenant)
+                
+            patterns = RecurringPattern.objects.filter(resource=res)
+            count = patterns.count()
+            print(f"[System B] Found {count} recurring patterns for this resource.")
+            
+            config = {}
+            range_info = {'start': None, 'end': None}
+            
+            if patterns.exists():
+                # [修复 Bug 1] 自动计算整个周期任务的 [最早开始] 和 [最晚结束] 时间
+                # 这样前端就能显示正确的日期范围，而不仅仅是默认的一周
+                dates = patterns.aggregate(
+                    min_start=Min('valid_from'),
+                    max_end=Max('valid_until')
+                )
+                range_info['start'] = dates['min_start']
+                range_info['end'] = dates['max_end']
+                
+                print(f"[System B] Calculated Range: {range_info['start']} ~ {range_info['end']}")
+
+                for p in patterns:
+                    # 注意：时间字段转字符串，去掉秒数 (HH:MM:SS -> HH:MM)
+                    s_str = p.start_time.strftime('%H:%M')
+                    e_str = p.end_time.strftime('%H:%M')
+                    
+                    config[str(p.day_of_week)] = {
+                        'enabled': True,
+                        'start': s_str,
+                        'end': e_str
+                    }
+                    print(f"  - Day {p.day_of_week}: {s_str} - {e_str}")
+            else:
+                print("[System B] No patterns found (New setup).")
+            
+            return Response({
+                'range': range_info,
+                'week_config': config
+            })
+            
+        except Resource.DoesNotExist:
+            print("[System B] Resource not found.")
+            return Response({})
+        except Exception as e:
+            print(f"[System B] Error in RecurringConfigView: {e}")
+            return Response({'error': str(e)}, status=500)
 
 # ---------------------------------------------------------
 # 2. 辅助函数 (Email / Webhook)

@@ -249,6 +249,34 @@ class AvailabilityAPIView(APIView):
             return Response(status=204)
         return Response({'error': 'Failed to delete'}, status=500)
 
+def recurring_config_proxy(request):
+    print("\n[System A] Proxy: recurring_config_proxy called") # Debug 1
+
+    # 1. 权限与参数校验
+    if not request.user.is_authenticated:
+        print("[System A] User not authenticated")
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+        
+    resource_id = getattr(request.user.cast_profile, 'saas_resource_id', None)
+    if not resource_id:
+        print("[System A] No resource_id found")
+        return JsonResponse({})
+        
+    # 2. 调用 Client
+    try:
+        client = SaaSClient()
+        print(f"[System A] Calling SaaSClient for {resource_id}...") # Debug 2
+        config_data = client.get_recurring_config(resource_id)
+        
+        print(f"[System A] Received from System B: {config_data}") # Debug 3: 关键！看这里是否为空
+        
+        # 3. 返回结果
+        return JsonResponse(config_data)
+        
+    except Exception as e:
+        print(f"[System A] Proxy Exception: {e}") # Debug 4: 捕获报错
+        return JsonResponse({})
+
 # --- 7. 预约页面视图 ---
 class BookingPageView(LoginRequiredMixin, TemplateView):
     template_name = 'booking.html'

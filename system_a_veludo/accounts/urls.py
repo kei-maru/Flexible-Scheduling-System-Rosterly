@@ -20,6 +20,7 @@ urlpatterns = [
 
     # --- API 接口 ---
     path('api/availability/', views.AvailabilityAPIView.as_view(), name='api_availability'),
+    path('api/availability/recurring-config/', views.recurring_config_proxy, name='api_recurring_config'),
     # [修正] 这里的路径不能和上面一样，加个后缀区分
     path('api/availability/proxy/', views.availability_proxy, name='api_availability_proxy'),
     

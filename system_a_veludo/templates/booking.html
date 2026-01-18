@@ -682,7 +682,13 @@
                 // --- 交互限制 ---
                 // 只能选择 24小时之后的时间
                 selectAllow: function(selectInfo) {
-                    return selectInfo.start > new Date().getTime() + 24 * 60 * 60 * 1000;
+                    const nowTime = new Date().getTime();
+                    // 给予 15 分钟的容错缓冲 (buffer)
+                    // 这样即使用户在页面停留了几分钟，也不会导致刚好卡在24h边界的时间无法选择
+                    const buffer = 5 * 60 * 1000; 
+                    const minTime = nowTime + (24 * 60 * 60 * 1000) - buffer;
+                    
+                    return selectInfo.start.getTime() >= minTime;
                 },
                 eventClick: function(info) {
                     openModal(info.event, resourceId);
@@ -731,7 +737,8 @@
             }
 
             const now = new Date();
-            const minTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); 
+            const buffer = 5 * 60 * 1000;
+            const minTime = new Date(now.getTime() + (24 * 60 * 60 * 1000) - buffer);
             
             if (event.start < minTime) {
                 alert("予約は利用日時の24時間前までに行う必要があります。");
@@ -1052,87 +1059,87 @@
         }
 
         window.executeTimeSearch = function() {
-        const dateVal = document.getElementById('search-date').value;
-        const timeVal = document.getElementById('search-time').value;
-        const duration = document.getElementById('search-duration').value;
-        const btn = document.getElementById('btn-do-search');
-        
-        if(!dateVal || !timeVal) {
-            alert("日付と時間を選択してください");
-            return;
-        }
-
-        let [h, m] = timeVal.split(':').map(Number);
-        let targetDate = new Date(dateVal);
-        targetDate.setHours(h, m, 0, 0);
-
-        const now = new Date();
-        if (targetDate < new Date(now.getTime() + 24 * 60 * 60 * 1000)) {
-            alert("24時間後以降の日時を選択してください");
-            return;
-        }
-
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Searching...';
-        btn.disabled = true;
-        
-        const yyyy = targetDate.getFullYear();
-        const MM = String(targetDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(targetDate.getDate()).padStart(2, '0');
-        const HH = String(targetDate.getHours()).padStart(2, '0');
-        const mm = String(targetDate.getMinutes()).padStart(2, '0');
-        const localIsoStart = `${yyyy}-${MM}-${dd}T${HH}:${mm}:00`;
-
-        console.log("=== DEBUG FRONTEND ===");
-        console.log("Input Date:", dateVal, "Time:", timeVal);
-        console.log("Sending Start Time to Backend:", localIsoStart);
-        console.log("Duration:", duration);
-
-        fetch(`/accounts/api/cast/search/?start=${localIsoStart}&duration=${duration}`)
-        .then(res => res.json())
-        .then(data => {
-            console.log("Backend Response:", data); 
+            const dateVal = document.getElementById('search-date').value;
+            const timeVal = document.getElementById('search-time').value;
+            const duration = document.getElementById('search-duration').value;
+            const btn = document.getElementById('btn-do-search');
             
-            const resultsArea = document.getElementById('search-results-area');
-            const resultsGrid = document.getElementById('search-results-grid');
-            const noResults = document.getElementById('no-results');
-
-            resultsArea.classList.remove('hidden');
-            resultsGrid.innerHTML = '';
-            
-            if (!data.casts || data.casts.length === 0) {
-                noResults.classList.remove('hidden');
-            } else {
-                noResults.classList.add('hidden');
-                data.casts.forEach(cast => {
-                    const card = document.createElement('div');
-                    card.className = "bg-[#1a1a1a] border border-white/5 p-4 rounded flex flex-col items-center text-center group hover:border-veludo-gold/50 transition-colors";
-                    
-                    // [优化 2] 传递 avatarUrl 给 directBook
-                    const avatarUrl = cast.avatar_url || '';
-                    
-                    card.innerHTML = `
-                        <div class="w-20 h-20 rounded-full overflow-hidden mb-3 border-2 border-white/10 group-hover:border-veludo-gold transition-colors">
-                            ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full object-cover">` : `<div class="w-full h-full bg-gray-700 flex items-center justify-center"><i class="fa-solid fa-user"></i></div>`}
-                        </div>
-                        <h4 class="text-white font-bold font-english italic mb-1">${cast.name}</h4>
-                        <p class="text-[10px] text-veludo-gold uppercase tracking-widest mb-4">${cast.rank}</p>
-                        <button onclick="directBook('${cast.saas_id}', '${cast.name}', '${localIsoStart}', ${duration}, '${avatarUrl}')" class="w-full bg-white/10 hover:bg-veludo-gold hover:text-black text-white text-xs py-2 rounded transition-colors">
-                            This Cast
-                        </button>
-                    `;
-                    resultsGrid.appendChild(card);
-                });
+            if(!dateVal || !timeVal) {
+                alert("日付と時間を選択してください");
+                return;
             }
-        })
-        .catch(err => {
-            console.error("Search Error:", err);
-            alert("Search failed: " + err);
-        })
-        .finally(() => {
-            btn.innerHTML = 'SEARCH CASTS';
-            btn.disabled = false;
-        });
-    }
+
+            let [h, m] = timeVal.split(':').map(Number);
+            let targetDate = new Date(dateVal);
+            targetDate.setHours(h, m, 0, 0);
+
+            const now = new Date();
+            if (targetDate < new Date(now.getTime() + 24 * 60 * 60 * 1000)) {
+                alert("24時間後以降の日時を選択してください");
+                return;
+            }
+
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Searching...';
+            btn.disabled = true;
+            
+            const yyyy = targetDate.getFullYear();
+            const MM = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(targetDate.getDate()).padStart(2, '0');
+            const HH = String(targetDate.getHours()).padStart(2, '0');
+            const mm = String(targetDate.getMinutes()).padStart(2, '0');
+            const localIsoStart = `${yyyy}-${MM}-${dd}T${HH}:${mm}:00`;
+
+            console.log("=== DEBUG FRONTEND ===");
+            console.log("Input Date:", dateVal, "Time:", timeVal);
+            console.log("Sending Start Time to Backend:", localIsoStart);
+            console.log("Duration:", duration);
+
+            fetch(`/accounts/api/cast/search/?start=${localIsoStart}&duration=${duration}`)
+            .then(res => res.json())
+            .then(data => {
+                console.log("Backend Response:", data); 
+                
+                const resultsArea = document.getElementById('search-results-area');
+                const resultsGrid = document.getElementById('search-results-grid');
+                const noResults = document.getElementById('no-results');
+
+                resultsArea.classList.remove('hidden');
+                resultsGrid.innerHTML = '';
+                
+                if (!data.casts || data.casts.length === 0) {
+                    noResults.classList.remove('hidden');
+                } else {
+                    noResults.classList.add('hidden');
+                    data.casts.forEach(cast => {
+                        const card = document.createElement('div');
+                        card.className = "bg-[#1a1a1a] border border-white/5 p-4 rounded flex flex-col items-center text-center group hover:border-veludo-gold/50 transition-colors";
+                        
+                        // [优化 2] 传递 avatarUrl 给 directBook
+                        const avatarUrl = cast.avatar_url || '';
+                        
+                        card.innerHTML = `
+                            <div class="w-20 h-20 rounded-full overflow-hidden mb-3 border-2 border-white/10 group-hover:border-veludo-gold transition-colors">
+                                ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full object-cover">` : `<div class="w-full h-full bg-gray-700 flex items-center justify-center"><i class="fa-solid fa-user"></i></div>`}
+                            </div>
+                            <h4 class="text-white font-bold font-english italic mb-1">${cast.name}</h4>
+                            <p class="text-[10px] text-veludo-gold uppercase tracking-widest mb-4">${cast.rank}</p>
+                            <button onclick="directBook('${cast.saas_id}', '${cast.name}', '${localIsoStart}', ${duration}, '${avatarUrl}')" class="w-full bg-white/10 hover:bg-veludo-gold hover:text-black text-white text-xs py-2 rounded transition-colors">
+                                This Cast
+                            </button>
+                        `;
+                        resultsGrid.appendChild(card);
+                    });
+                }
+            })
+            .catch(err => {
+                console.error("Search Error:", err);
+                alert("Search failed: " + err);
+            })
+            .finally(() => {
+                btn.innerHTML = 'SEARCH CASTS';
+                btn.disabled = false;
+            });
+        }
         // [优化 2] 增加 avatarUrl
         window.directBook = function(resourceId, castName, isoStart, duration, avatarUrl) {
             currentCastName = castName;

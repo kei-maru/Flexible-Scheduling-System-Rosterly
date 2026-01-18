@@ -371,10 +371,10 @@
                         <!-- 下拉菜单 (Hover 显示) -->
                         <div class="absolute right-0 top-full mt-2 w-48 bg-[#9c8c74] shadow-xl rounded-sm overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50">
                             <a href="{% url 'profile' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
-                                <i class="fa-solid fa-id-card mr-2"></i> MY PAGE
+                                <i class="fa-solid fa-id-card mr-2"></i> マイページ
                             </a>
                             <a href="{% url 'my_bookings' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
-                                <i class="fa-solid fa-calendar-check mr-2"></i> MY RESERVATIONS
+                                <i class="fa-solid fa-calendar-check mr-2"></i> 予約一覧
                             </a>
                             <a href="{% url 'logout' %}" class="block px-4 py-3 text-xs text-red-200 hover:bg-red-900/20 tracking-widest">
                                 <i class="fa-solid fa-arrow-right-from-bracket mr-2"></i> LOGOUT
@@ -670,13 +670,24 @@
                         </p>
                     </div>
                     <div class="flex flex-col items-center gap-6 mt-8">
-                        <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event)" class="w-64 btn-gold-interactive text-white py-4 text-xs tracking-[0.4em] shadow-lg">
-                            RESERVATION
+                        <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event)" class="w-64 btn-gold-interactive text-white py-4 text-xs tracking-[0.4em] shadow-lg text-center">
+                            予約ページ
                         </a>
-                        <div class="flex gap-8 text-lg text-veludo-header/60">
-                            <a href="https://x.com/vrasmr_veludo" class="hover:text-veludo-accent-gold"><i class="fa-brands fa-twitter"></i></a>
-                            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" class="hover:text-veludo-accent-gold"><i class="fa-brands fa-youtube"></i></a>
-                            <a href="https://discord.gg/5MwQHAzjSu" class="hover:text-veludo-accent-gold"><i class="fa-brands fa-discord"></i></a>
+
+                        <div class="flex items-center gap-8 text-lg text-veludo-header/60">
+                            <a href="https://x.com/vrasmr_veludo" class="hover:text-veludo-accent-gold flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/>
+                                </svg>
+                            </a>
+                            
+                            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" class="hover:text-veludo-accent-gold flex items-center">
+                                <i class="fa-brands fa-youtube"></i>
+                            </a>
+                            
+                            <a href="https://discord.gg/5MwQHAzjSu" class="hover:text-veludo-accent-gold flex items-center">
+                                <i class="fa-brands fa-discord"></i>
+                            </a>
                         </div>
                     </div>
                 </div>

@@ -98,13 +98,13 @@
                 <div class="space-y-4">
                     {% if is_cast %}
                         <a href="{% url 'schedule' %}" class="block w-full bg-veludo-accent-gold text-black py-3 text-xs font-bold tracking-widest hover:bg-white transition-colors text-center">
-                            <i class="fa-regular fa-calendar-check mr-2"></i> SCHEDULE
+                            <i class="fa-regular fa-calendar-check mr-2"></i> スケジュール＆シフト一覧
                         </a>
                     {% endif %}
                     
                     {% if is_admin %}
                     <a href="{% url 'admin_dashboard' %}" target="_blank" class="block w-full bg-red-900/40 text-red-200 border border-red-500/30 py-3 text-xs tracking-widest hover:bg-red-900/60 transition-colors text-center">
-                        <i class="fa-solid fa-screwdriver-wrench mr-2"></i> ADMIN PANEL
+                        <i class="fa-solid fa-screwdriver-wrench mr-2"></i> 管理者ダッシュボード
                     </a>
                     {% endif %}
                 </div>

@@ -185,19 +185,19 @@
 
                     {% if is_cast %}
                     <div class="mt-8 pt-8 border-t border-white/10">
-                        <h3 class="text-lg text-veludo-gold mb-4 font-english italic">Course Settings</h3>
-                        <div class="flex gap-6">
-                            <label class="flex items-center space-x-2 cursor-pointer">
+                        <h3 class="text-lg text-veludo-gold mb-4 font-english italic">施術可能コース</h3>
+                        <div class="flex gap-10">
+                            <label class="flex items-center space-x-2 cursor-pointer whitespace-nowrap">
                                 {{ form.allow_30_min }}
-                                <span class="text-sm text-gray-300">30 Mins</span>
+                                <span class="text-sm text-gray-300">30分コース</span>
                             </label>
-                            <label class="flex items-center space-x-2 cursor-pointer">
+                            <label class="flex items-center space-x-2 cursor-pointer whitespace-nowrap">
                                 {{ form.allow_60_min }}
-                                <span class="text-sm text-gray-300">60 Mins</span>
+                                <span class="text-sm text-gray-300">60分コース</span>
                             </label>
-                            <label class="flex items-center space-x-2 cursor-pointer">
+                            <label class="flex items-center space-x-2 cursor-pointer whitespace-nowrap">
                                 {{ form.allow_120_min }}
-                                <span class="text-sm text-gray-300">120 Mins</span>
+                                <span class="text-sm text-gray-300">120分コース</span>
                             </label>
                         </div>
                     </div>

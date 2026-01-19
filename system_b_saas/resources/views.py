@@ -712,12 +712,8 @@ class IntegrationBookingView(APIView):
         start_time = parse_datetime(start_time_str)
         end_time = parse_datetime(end_time_str)
 
-        # ==========================================
-        # 【核心修复】: 不要用 get_or_create(external_id=...)
-        # ==========================================
         try:
             # 直接用 UUID (id) 查找资源
-            # 如果找不到，说明 System A 和 System B 不同步，应该报错而不是瞎创建
             resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
             
             # (可选) 如果传了名字，顺便更新一下名字
@@ -743,7 +739,7 @@ class IntegrationBookingView(APIView):
 
         try:
             with transaction.atomic():
-                # 3. 创建预约 (默认 CONFIRMED，按你要求修改)
+                # 3. 创建预约
                 booking = Booking.objects.create(
                     tenant=request.tenant,
                     resource=resource,
@@ -786,50 +782,57 @@ class IntegrationBookingView(APIView):
         """
         [Debug模式] 查询预约
         """
-        print("\n----- System B Debug: GET /bookings -----")
+        print("\n----- System B Debug: GET /bookings (Deep Debug) -----")
         
         email = request.query_params.get('customer_email')
         resource_id = request.query_params.get('resource_id')
         
         queryset = Booking.objects.filter(tenant=request.tenant)
 
-        # 1. Email 过滤 (客人视角)
+        # 1. Email 过滤
         if email:
             queryset = queryset.filter(customer_email=email)
         
-        # 2. Resource ID 过滤 (Cast 视角) - 【核心修复】
+        # 2. Resource ID 过滤
         if resource_id:
-            print(f"DEBUG: 收到 resource_id 参数: {resource_id}")
             try:
-                # 尝试解析为 UUID
                 uuid_obj = UUID(resource_id)
-                # 如果是 UUID，查 System B 的主键
                 queryset = queryset.filter(resource__id=uuid_obj)
-                print(f"DEBUG: 使用 UUID 过滤预约: {uuid_obj}")
             except ValueError:
-                # 如果不是 UUID，查 External ID (System A 的 ID)
                 queryset = queryset.filter(resource__external_id=resource_id)
-                print(f"DEBUG: 使用 External ID 过滤预约: {resource_id}")
 
         queryset = queryset.order_by('-start_time')
-
-        # 3. 构造返回数据
-        data = [{
-            'id': str(b.id),
-            'resource_name': b.resource.name,
-            'customer_name': b.customer_name,
-            'customer_email': b.customer_email,
-            'start': b.start_time,
-            'end': b.end_time,
-            'status': b.status,
-            'created_at': b.created_at
-        } for b in queryset]
         
-        print(f"DEBUG: 最终返回预约条数: {len(data)}")
+        # [重点] 强制展开循环，打印每一行数据，确保字段被正确读取
+        data = []
+        print(f"DEBUG: Queryset count: {queryset.count()}")
+        
+        for b in queryset:
+            # 打印关键信息到控制台，确认数据库里读出来的 model 对象里到底有没有 email
+            # 注意：如果这里打印出来是 None，说明 Model 定义或者数据库有大问题
+            # 如果这里打印出来有值，但前端没收到，说明是下面的 data.append 没写对
+            if str(b.id).startswith('26d8e381'): # 只针对那个有问题的订单打印，防止日志刷屏
+                print(f"  >>> TARGET HIT: ID={b.id} | DB_Email={b.customer_email} | DB_Name={b.customer_name}")
+            
+            data.append({
+                'id': str(b.id),
+                'resource_name': b.resource.name,
+                'customer_name': b.customer_name,
+                'customer_email': b.customer_email, # 确保这一行存在
+                'start': b.start_time,
+                'end': b.end_time,
+                'status': b.status,
+                'created_at': b.created_at
+            })
+        
+        print(f"DEBUG: Returning {len(data)} items to Client")
         return Response(data)
     
     def delete(self, request, pk=None):
         booking_id = pk or request.query_params.get('id')
+        # [兼容] 支持 path 参数或 query param
+        if not booking_id and pk: booking_id = pk
+            
         booking = get_object_or_404(Booking, id=booking_id, tenant=request.tenant)
         
         # 记录数据用于发信
@@ -839,6 +842,7 @@ class IntegrationBookingView(APIView):
         s_time = booking.start_time
         e_time = booking.end_time
 
+        # 检查是否过期
         if (booking.start_time - timezone.now()) < timedelta(hours=2):
             return Response({'error': 'Cancellation allows only 2 hours in advance.'}, status=400)
         
@@ -848,6 +852,9 @@ class IntegrationBookingView(APIView):
 
     def patch(self, request, pk=None):
         booking_id = pk or request.query_params.get('id')
+        # [兼容] 支持 path 参数或 query param
+        if not booking_id and pk: booking_id = pk
+
         booking = get_object_or_404(Booking, id=booking_id, tenant=request.tenant)
         
         new_status = request.data.get('status')

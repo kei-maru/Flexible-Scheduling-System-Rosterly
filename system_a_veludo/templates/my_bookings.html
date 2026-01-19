@@ -42,6 +42,8 @@
                 <div onclick="showDetail(this)" 
                      data-id="{{ booking.id }}"
                      data-cast="{{ booking.resource_name }}"
+                     data-customer="{{ booking.customer_name }}" 
+                     data-discord="{{ booking.discord_id|default:'' }}"
                      data-start-date="{{ booking.start|date:'Y/m/d (D)' }}"
                      data-time-range="{{ booking.start|date:'H:i' }} - {{ booking.end|date:'H:i' }}"
                      data-status="{{ booking.status }}"
@@ -51,25 +53,42 @@
                     <div class="absolute top-0 left-0 w-1 h-full bg-veludo-gold opacity-50 group-hover:opacity-100 transition-opacity"></div>
                     
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div class="flex items-start gap-4">
-                            <div class="text-center bg-black/30 p-3 rounded min-w-[80px] border border-white/5 group-hover:border-veludo-gold/30 transition-colors">
-                                <div class="text-[10px] text-gray-500 uppercase tracking-widest">DATE</div>
-                                <div class="text-xl font-english text-white">{{ booking.start|date:"M d" }}</div>
-                            </div>
-                            <div>
-                                <div class="text-2xl font-english text-veludo-gold">
-                                    {{ booking.start|date:"H:i" }} <span class="text-sm text-gray-500">~ {{ booking.end|date:"H:i" }}</span>
+                        <div class="flex items-center gap-6">
+                            
+                            <div class="text-center bg-white/5 p-2 rounded-sm min-w-[70px] border border-white/10 group-hover:border-veludo-gold/30 transition-colors">
+                                <div class="text-[9px] text-gray-200 uppercase tracking-[0.2em] mb-1 font-serif">DATE</div>
+                                
+                                <div class="text-xl font-serif font-normal text-white lining-nums tracking-widest leading-none">
+                                    {{ booking.start|date:"m/d" }}
                                 </div>
+                            </div>
+
+                            <div>
+                                <div class="text-xl font-english text-veludo-gold lining-nums leading-none flex items-center gap-2">
+                                    <span>{{ booking.start|date:"H:i" }}</span>
+                                    <span class="text-xl font-english text-gray-200 ">~</span>
+                                    <span class="text-xl font-english text-gray-200">{{ booking.end|date:"H:i" }}</span>
+                                </div>
+                                
                                 <div class="flex items-center gap-2 mt-2">
-                                    <span class="bg-white/10 px-2 py-0.5 rounded text-[10px] text-gray-300 border border-white/10">
-                                        {% if is_cast %}GUEST{% else %}CAST{% endif %}
+                                    <span class="bg-white/5 px-1.5 py-0.5 rounded-sm text-[8px] text-gray-200 border border-white/10 tracking-[0.15em] uppercase">
+                                        {% if is_cast %}GUEST{% else %}Staff{% endif %}
                                     </span>
-                                    <span class="text-sm font-bold tracking-wider">{{ booking.resource_name }}</span>
+                                    <span class="text-xs font-normal tracking-widest text-gray-200 font-serif">
+                                        {% if is_cast %}
+                                            {{ booking.customer_name }}
+                                            <span class="text-[9px] text-indigo-400/60 ml-1 font-sans tracking-tight">
+                                                <i class="fa-brands fa-discord"></i> {{ booking.discord_id|default:'-' }}
+                                            </span>
+                                        {% else %}
+                                            {{ booking.resource_name }}
+                                        {% endif %}
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="flex flex-col items-end gap-2">
+                         <div class="flex flex-col items-end gap-2">
                             <span class="px-3 py-1 text-[10px] tracking-widest rounded
                                 {% if booking.status == 'COMPLETED' %}
                                     border border-veludo-gold/30 text-veludo-gold bg-veludo-gold/10
@@ -80,7 +99,7 @@
                             </span>
                             <div class="text-[10px] text-gray-600 font-mono">ID: {{ booking.id|slice:":8" }}...</div>
                             <div class="text-[10px] text-veludo-gold mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                Click for Details <i class="fa-solid fa-angle-right ml-1"></i>
+                                予約詳細 <i class="fa-solid fa-angle-right ml-1"></i>
                             </div>
                         </div>
                     </div>
@@ -118,19 +137,27 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-black/40 p-3 rounded border border-white/5">
-                        <div class="text-[10px] text-gray-500 uppercase" id="modal-label-role">CAST</div>
-                        <div class="text-lg font-bold text-white mt-1" id="modal-cast">--</div>
+                    <div class="bg-black/40 p-3 rounded border border-white/5 flex flex-col justify-center">
+                        <div class="text-[13px] text-gray-500 uppercase" id="modal-label-role">STAFF</div>
+                        <div class="text-lg font-bold text-white mt-1 leading-tight" id="modal-name">--</div>
+                        
+                        <div id="modal-discord-box" class="hidden mt-2">
+                            <span class="inline-flex items-center text-[10px] text-indigo-300 font-sans tracking-tight bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+                                <i class="fa-brands fa-discord mr-1.5"></i>
+                                <span id="modal-discord-val">--</span>
+                            </span>
+                        </div>
                     </div>
-                    <div class="bg-black/40 p-3 rounded border border-white/5">
-                        <div class="text-[10px] text-gray-500 uppercase">DATE</div>
+
+                    <div class="bg-black/40 p-3 rounded border border-white/5 flex flex-col justify-center">
+                        <div class="text-[13px] text-gray-500 uppercase">DATE</div>
                         <div class="text-lg font-bold text-white mt-1" id="modal-date">--</div>
                     </div>
                 </div>
 
                 <div class="bg-black/40 p-4 rounded border border-white/5 flex items-center justify-between">
-                    <div class="text-[10px] text-gray-500 uppercase">TIME</div>
-                    <div class="text-xl font-english text-veludo-gold" id="modal-time">-- : --</div>
+                    <div class="text-[13px] text-gray-500 uppercase">TIME</div>
+                    <div class="text-2xl font-english text-veludo-gold" id="modal-time">-- : --</div>
                 </div>
 
                 <div class="text-[10px] text-gray-500 text-center leading-relaxed">
@@ -164,46 +191,53 @@
 
         function showDetail(element) {
             // 1. 获取数据
-            const id = element.dataset.id;
-            const cast = element.dataset.cast;
-            const date = element.dataset.startDate;
-            const time = element.dataset.timeRange;
-            const status = element.dataset.status;
-            const startIso = element.dataset.startIso;
+            const ds = element.dataset; // 简化写法
+            
+            currentBookingId = ds.id;
 
-            currentBookingId = id;
+            // 2. 填充基本信息
+            document.getElementById('modal-id').innerText = 'ID: ' + ds.id;
+            document.getElementById('modal-date').innerText = ds.startDate;
+            document.getElementById('modal-time').innerText = ds.timeRange;
+            document.getElementById('modal-status').innerText = ds.status;
 
-            // 2. 填充 Modal
-            document.getElementById('modal-id').innerText = 'ID: ' + id;
-            document.getElementById('modal-cast').innerText = cast;
-            document.getElementById('modal-date').innerText = date;
-            document.getElementById('modal-time').innerText = time;
-            document.getElementById('modal-status').innerText = status;
+            // [核心修改 1] 名字显示逻辑
+            // 如果我是 Cast，我要看客人的名字(customer)；如果我是客人，我要看 Cast 的名字
+            const displayName = IS_CAST ? ds.customer : ds.cast;
+            document.getElementById('modal-name').innerText = displayName;
 
-            // [修正 4] Modalのラベルを動的に変更
+            // [核心修改 2] Label 逻辑
             document.getElementById('modal-label-role').innerText = IS_CAST ? 'GUEST' : 'CAST';
 
-            // 3. 计算按钮显示逻辑
+            // [核心修改 3] Discord ID 显示逻辑
+            const discordBox = document.getElementById('modal-discord-box');
+            const discordVal = document.getElementById('modal-discord-val');
+            const discordId = ds.discord;
+
+            // 只有 Cast 且 Discord ID 存在时才显示
+            if (IS_CAST && discordId && discordId !== 'None' && discordId !== '未設定' && discordId !== '') {
+                discordBox.classList.remove('hidden');
+                discordVal.innerText = discordId;
+            } else {
+                discordBox.classList.add('hidden');
+            }
+
+            // --- 以下按钮逻辑保持不变 ---
             const btnCancel = document.getElementById('btn-cancel');
             const btnComplete = document.getElementById('btn-complete'); 
             const note = document.getElementById('cancel-note');
             
-            // 重置状态：先隐藏所有按钮，清空提示
             btnCancel.classList.add('hidden');
             btnComplete.classList.add('hidden');
             note.innerHTML = "";
 
-            if (status === 'COMPLETED') {
-                // 如果已经是完成状态
+            if (ds.status === 'COMPLETED') {
                 document.getElementById('modal-status').innerText = "COMPLETED";
                 document.getElementById('modal-status').className = "px-3 py-1 text-[10px] tracking-widest border border-blue-500/30 text-blue-400 bg-blue-500/10 rounded";
                 note.innerText = "この案件は完了しています。(Service Completed)";
             }
             else if (IS_CAST) {
-                // --- Cast 的视角 ---
-                
-                // 只有在 CONFIRMED 状态下才显示“完成”按钮
-                if (status === 'CONFIRMED') {
+                if (ds.status === 'CONFIRMED') {
                     btnComplete.classList.remove('hidden');
                     note.innerHTML = `<span class="text-veludo-gold">業務が終了したら「COMPLETE WORK」を押してください。<br>報酬が確定します。</span>`;
                 } else {
@@ -211,13 +245,12 @@
                 }
             } 
             else {
-                // --- 客人 (Customer) 的视角 ---
-                if (startIso) {
-                    const startTime = new Date(startIso);
+                // 客人取消逻辑
+                if (ds.startIso) {
+                    const startTime = new Date(ds.startIso);
                     const now = new Date();
                     const diffHours = (startTime - now) / (1000 * 60 * 60);
 
-                    // 2小时前可取消
                     if (diffHours >= 2) {
                         btnCancel.classList.remove('hidden');
                         note.innerText = "キャンセルは左下のボタンから行えます。(開始2時間前まで)";
@@ -227,7 +260,7 @@
                 }
             }
 
-            // 4. 显示动画
+            // 显示动画
             const modal = document.getElementById('detail-modal');
             const content = document.getElementById('modal-content');
             modal.classList.remove('hidden');

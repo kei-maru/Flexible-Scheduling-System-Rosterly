@@ -202,7 +202,13 @@ class SaaSClient:
         elif email: params['customer_email'] = email
             
         try:
+            print(f"[SaaSClient] Requesting: {url} with params {params}")
             response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            
+            # [新增调试] 打印原始响应文本
+            print(f"[SaaSClient] Raw Response Status: {response.status_code}")
+            print(f"[SaaSClient] Raw Response Text: {response.text[:500]}...") # 只打印前500字符
+            
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:

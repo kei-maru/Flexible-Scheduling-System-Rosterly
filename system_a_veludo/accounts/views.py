@@ -12,6 +12,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.utils.dateparse import parse_datetime
 from django import forms
 from django.contrib import messages
+from django.db.models import Q
 import requests
 import json
 import pytz
@@ -282,6 +283,7 @@ class BookingPageView(LoginRequiredMixin, TemplateView):
     template_name = 'booking.html'
 
     def get_context_data(self, **kwargs):
+        
         context = super().get_context_data(**kwargs)
         from casts.models import CastProfile
         context['casts'] = CastProfile.objects.filter(is_active=True)
@@ -404,98 +406,81 @@ class MyBookingsPageView(LoginRequiredMixin, TemplateView):
     template_name = 'my_bookings.html'
 
     def get_context_data(self, **kwargs):
+        print(f"\n========== DEBUG START: User {self.request.user.username} (Class View) ==========")
+        
         context = super().get_context_data(**kwargs)
         user = self.request.user
         
+        client = SaaSClient()
         is_cast = getattr(user, 'is_cast', False)
         context['is_cast'] = is_cast
         
-        client = SaaSClient()
-        bookings = []
-
-        print(f"\n========== DEBUG START: User {user.username} ==========")
-
+        # 1. 获取 System B 的数据
         if is_cast:
-            # --- Cast 视角 (查看 Guest) ---
-            try:
-                profile = CastProfile.objects.get(user=user)
-                if profile.saas_resource_id:
-                    raw_bookings = client.get_my_bookings(resource_id=profile.saas_resource_id)
-                    
-                    for b in raw_bookings:
-                        guest_email = b.get('email')
-                        display_name = b.get('customer_name') # SaaS 原始名字
-                        
-                        print(f"处理订单: {b.get('id')} | 原始Guest名: {display_name} | Email: {guest_email}")
-
-                        if guest_email:
-                            try:
-                                guest_user = User.objects.get(email=guest_email)
-                                if guest_user.vrc_id:
-                                    print(f"  -> 找到本地用户，VRCID为: {guest_user.vrc_id}")
-                                    display_name = guest_user.vrc_id
-                                else:
-                                    print(f"  -> 找到本地用户，但没有 VRCID，使用 Username: {guest_user.username}")
-                                    display_name = guest_user.username
-                            except User.DoesNotExist:
-                                print("  -> 本地数据库没找到这个 Email 的用户")
-
-                        b['resource_name'] = display_name 
-                        
-                        if b.get('start'): b['start'] = parse_datetime(b['start'])
-                        if b.get('end'): b['end'] = parse_datetime(b['end'])
-                        bookings.append(b)
-                else:
-                    print("DEBUG: Cast 没有绑定 SaaS ID")
-            except CastProfile.DoesNotExist:
-                print("DEBUG: Cast 账号没有 Profile")
-
+            if hasattr(user, 'cast_profile') and user.cast_profile.saas_resource_id:
+                bookings = client.get_my_bookings(resource_id=user.cast_profile.saas_resource_id)
+            else:
+                bookings = []
+                print("DEBUG: Current user is Cast but has no saas_resource_id")
         else:
-            # =================================================
-            # Guest 视角 (这是你需要修复的部分)
-            # =================================================
-            print(f"DEBUG: Guest查询 - Email: {user.email}")
-            raw_bookings = client.get_my_bookings(email=user.email)
+            bookings = client.get_my_bookings(email=user.email)
+
+        # 2. [核心修复] 补充 Discord ID 并转换时间格式
+        for booking in bookings:
+            # -------------------------------------------------------
+            # [修复时间消失] 将字符串转换为 datetime 对象
+            # -------------------------------------------------------
+            if booking.get('start'):
+                booking['start'] = parse_datetime(booking['start'])
+            if booking.get('end'):
+                booking['end'] = parse_datetime(booking['end'])
+            # -------------------------------------------------------
+
+            booking['discord_id'] = None 
             
-            for b in raw_bookings:
-                r_id = b.get('resource_id')
-                cast_display_name = b.get('resource_name') # SaaS 返回的原始 Cast 名 (例如: yukimikei)
+            # 仅 Cast 端需要显示客人的 Discord
+            if is_cast:
+                guest_email = booking.get('customer_email') 
+                guest_name = booking.get('customer_name') or booking.get('guest_name')
                 
-                print(f"处理订单: {b.get('id')} | 原始Cast名: {cast_display_name} | ResourceID: {r_id}")
+                target_user = None
+                match_method = "None"
 
-                target_cast_user = None
-
-                # 策略 1: 尝试通过 SaaS ID 查找
-                if r_id:
-                    try:
-                        cast_profile = CastProfile.objects.get(saas_resource_id=r_id)
-                        target_cast_user = cast_profile.user
-                    except CastProfile.DoesNotExist:
-                        pass
+                # 策略 A: Email 匹配
+                if guest_email:
+                    target_user = User.objects.filter(email__iexact=guest_email).first()
+                    match_method = "Email"
                 
-                # 策略 2: [新增] 如果没 ID，尝试直接通过 Username 查找
-                # 前提：SaaS 里的 resource_name 存的是 System A 的 username
-                if not target_cast_user and cast_display_name:
-                    try:
-                        target_cast_user = User.objects.get(username=cast_display_name)
-                        print(f"  -> 通过用户名 '{cast_display_name}' 找到了本地用户")
-                    except User.DoesNotExist:
-                        print(f"  -> 本地找不到用户名为 '{cast_display_name}' 的用户")
+                # 策略 B: Name 匹配
+                if not target_user and guest_name:
+                    target_user = User.objects.filter(username__iexact=guest_name).first()
+                    match_method = "Username"
+                    if not target_user:
+                        # 智能筛选 VRCID
+                        candidates = User.objects.filter(vrc_id__iexact=guest_name)
+                        if candidates.exists():
+                            match_method = "VRC_ID"
+                            best_match = None
+                            for u in candidates:
+                                d_id = getattr(u, 'discord_id', '')
+                                if d_id and d_id != '-' and d_id != '':
+                                    best_match = u
+                                    break
+                            target_user = best_match if best_match else candidates.first()
 
-                # 如果找到了对应的 Cast 用户，就尝试拿他的 VRCID
-                if target_cast_user:
-                    if target_cast_user.vrc_id:
-                        print(f"  -> 替换显示名称: {cast_display_name} -> {target_cast_user.vrc_id}")
-                        cast_display_name = target_cast_user.vrc_id
+                # 3. 提取 Discord ID
+                if target_user:
+                    d_id = getattr(target_user, 'discord_id', None)
+                    if d_id and d_id != '-':
+                        booking['discord_id'] = d_id
+                        print(f"  [SUCCESS] Match: {match_method} -> Discord: {d_id}")
                     else:
-                        print("  -> 该 Cast 没有设置 VRCID，保持原名")
+                        booking['discord_id'] = "未設定"
+                else:
+                    booking['discord_id'] = "未登録"
 
-                b['resource_name'] = cast_display_name
-
-                if b.get('start'): b['start'] = parse_datetime(b['start'])
-                if b.get('end'): b['end'] = parse_datetime(b['end'])
-                bookings.append(b)
-
+        print("========== DEBUG END ==========\n")
+        
         context['bookings'] = bookings
         return context
 

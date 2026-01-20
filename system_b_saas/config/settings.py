@@ -20,7 +20,7 @@ ALLOWED_HOSTS = [
     'saas.vr-veludo.com',
     
     # Docker 内部
-    'system_b',             # docker-compose 服务名 (注意是下划线还是横线，代码里要做适配)
+    'system_b',             # docker-compose 服务名
     'system-b',             # 兼容 host 名
     'veludo_system_b',      # 容器名
     
@@ -124,15 +124,23 @@ TIME_ZONE = 'Asia/Tokyo'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'static_root'
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'tenants.SaaSUser'
 
 SESSION_COOKIE_NAME = 'saas_sessionid'
 CSRF_COOKIE_NAME = 'saas_csrftoken'
+
+# =========================================================
+# 3. 静态文件与媒体文件 (核心修复)
+# =========================================================
+STATIC_URL = '/static/'
+MEDIA_URL = '/media/'
+
+# 👇 关键修改：使用绝对路径，指向 Docker 容器内的 /app/static_root
+# 这样才能和 docker-compose.yml 里的 volumes 挂载点对齐
+STATIC_ROOT = '/app/static_root'
+MEDIA_ROOT = '/app/media'
 
 # Email (Gmail 配置)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

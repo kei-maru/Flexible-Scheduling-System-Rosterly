@@ -120,8 +120,8 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'static_root' # 必须指向容器内映射的路径
-STATICFILES_DIRS = [ BASE_DIR / "static" ]
+STATIC_ROOT = '/app/static_root'
+MEDIA_ROOT = '/app/media'
 
 # =========================================================
 # SaaS 互联配置 (Docker 内部通讯)

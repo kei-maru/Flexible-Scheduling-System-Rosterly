@@ -121,7 +121,7 @@ STATIC_ROOT = '/app/static_root' # 指向 Docker 内部路径
 
 # 告诉 Django 源文件在哪里 (你的图标就在这里面)
 STATICFILES_DIRS = [
-    BASE_DIR / "system_a_veludo" / "static",
+    BASE_DIR /  "static",
 ]
 
 # 2. 媒体文件 (用户上传)

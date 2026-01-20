@@ -49,6 +49,7 @@ class VeludoLoginForm(AuthenticationForm):
     password = forms.CharField(widget=forms.PasswordInput(attrs={
         'class': 'input-field', 'id': 'password', 'autocomplete': 'current-password'
     }))
+from django.core.exceptions import ValidationError
 
 class VeludoRegisterForm(UserCreationForm):
     class Meta:
@@ -60,6 +61,17 @@ class VeludoRegisterForm(UserCreationForm):
         for field in self.fields.values():
             field.widget.attrs['class'] = 'input-field'
             field.widget.attrs['placeholder'] = ' '
+            field.required = False
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        # 如果用户输入了邮箱，且该邮箱已存在于数据库 (不区分大小写)
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("このメールアドレスは既に使用されています。")
+        return email
+
+    def clean(self):
+        return self.cleaned_data
 
 # ==========================================
 # 2. 用户个人资料编辑表单 (Profile - User model)

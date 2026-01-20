@@ -50,7 +50,7 @@ services:
     volumes:
       - .:/app
       - ./static_root_saas:/app/static_root
-      - ./media:/app/media
+      - ./system_a_veludo/media:/app/media
     ports:
       - "8001:8001"
     depends_on:

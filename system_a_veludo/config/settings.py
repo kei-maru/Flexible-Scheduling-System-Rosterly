@@ -115,13 +115,18 @@ USE_TZ = True
 
 AUTH_USER_MODEL = 'core.User'
 
-# 静态文件与媒体文件
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# 1. 静态文件 (System 图片)
+STATIC_URL = '/static/'
+STATIC_ROOT = '/app/static_root' # 指向 Docker 内部路径
 
-STATIC_URL = 'static/'
-STATIC_ROOT = '/app/static_root'
-MEDIA_ROOT = '/app/media'
+# 告诉 Django 源文件在哪里 (你的图标就在这里面)
+STATICFILES_DIRS = [
+    BASE_DIR / "system_a_veludo" / "static",
+]
+
+# 2. 媒体文件 (用户上传)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = '/app/media'        # 指向 Docker 内部路径
 
 # =========================================================
 # SaaS 互联配置 (Docker 内部通讯)

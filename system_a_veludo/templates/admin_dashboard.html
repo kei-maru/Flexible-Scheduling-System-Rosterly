@@ -69,6 +69,9 @@
             <button onclick="switchTab('content')" id="tab-content" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
                 <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Cast CMS
             </button>
+            <button onclick="switchTab('shifts')" id="tab-shifts" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
+                <i class="fa-solid fa-calendar-check mr-2"></i> Shifts & Orders
+            </button>
             <button onclick="switchTab('analytics')" id="tab-analytics" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
                 <i class="fa-solid fa-chart-line mr-2"></i> Analytics
             </button>
@@ -234,6 +237,144 @@
             </div>
         </div>
 
+        <div id="section-shifts" class="hidden-section">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <div class="lg:col-span-1 glass-panel p-6 rounded-sm h-[600px] overflow-y-auto flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-english italic text-white">Select Cast</h3>
+                        <span class="text-[10px] text-gray-500 uppercase tracking-wider">View Schedule</span>
+                    </div>
+
+                    <div class="space-y-3 flex-grow">
+                        <div onclick="filterSchedule('all', this)" 
+                             class="schedule-cast-item selected flex items-center gap-3 p-3 border border-white/5 hover:border-veludo-gold/50 bg-black/20 cursor-pointer transition-all">
+                            <div class="w-10 h-10 flex items-center justify-center bg-gray-800 rounded-full text-veludo-gold">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                            <div>
+                                <div class="text-white font-bold text-sm">View All</div>
+                                <div class="text-[10px] text-gray-500 uppercase">Overview</div>
+                            </div>
+                        </div>
+
+                        {% for cast in casts %}
+                        <div onclick="filterSchedule('{{ cast.id }}', this)" 
+                             class="schedule-cast-item flex items-center gap-3 p-3 border border-white/5 hover:border-veludo-gold/50 bg-black/20 cursor-pointer transition-all group">
+                            
+                            <div class="w-10 h-10 bg-gray-800 overflow-hidden shrink-0 rounded-full">
+                                {% if cast.avatar %}
+                                <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                                <div class="w-full h-full flex items-center justify-center text-gray-600 hidden"><i class="fa-solid fa-user"></i></div>
+                                {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-gray-600"><i class="fa-solid fa-user"></i></div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="overflow-hidden flex-grow">
+                                <div class="text-veludo-gold font-bold font-english truncate text-sm">
+                                    {{ cast.user.vrc_id|default:cast.user.username }}
+                                </div>
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest truncate">
+                                    @{{ cast.user.username }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 glass-panel p-0 rounded-sm overflow-hidden flex flex-col h-[600px]">
+                    <div class="p-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                        <div>
+                            <h3 id="schedule-view-title" class="text-xl font-english italic text-white">Overview</h3>
+                            <p class="text-xs text-gray-500 mt-1">Showing data for: <span id="schedule-view-target" class="text-veludo-gold">All Casts</span></p>
+                        </div>
+                        <div class="flex gap-4 text-xs">
+                            <div class="text-center">
+                                <div class="text-gray-500 uppercase tracking-wider text-[10px]">Shifts</div>
+                                <div id="count-shifts" class="text-white font-bold text-lg">{{ shifts|length }}</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-gray-500 uppercase tracking-wider text-[10px]">Orders</div>
+                                <div id="count-orders" class="text-white font-bold text-lg">{{ orders|length }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-300 mb-4 flex items-center gap-2">
+                                <i class="fa-regular fa-calendar text-veludo-gold"></i> Upcoming Shifts
+                            </h4>
+                            <div class="space-y-2">
+                                {% for shift in shifts %}
+                                <div class="shift-card p-3 border border-white/5 bg-white/5 rounded flex justify-between items-center" 
+                                     data-cast-id="{{ shift.cast_id }}">
+                                    <div>
+                                        <div class="text-xs text-veludo-gold font-bold mb-1">{{ shift.cast_name }}</div>
+                                        <div class="text-sm text-white">
+                                            {{ shift.date|date:"M d" }} <span class="text-gray-400 mx-1">|</span> {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        {% if shift.type == 'RECURRING' %}
+                                            <span class="text-[10px] bg-yellow-900/40 text-yellow-300 px-2 py-1 rounded border border-yellow-500/20 tracking-wider">
+                                                <i class="fa-solid fa-arrows-rotate mr-1 text-[9px]"></i>RECURRING
+                                            </span>
+                                        {% else %}
+                                            <span class="text-[10px] bg-green-900/20 text-green-300 px-2 py-1 rounded border border-green-500/20 tracking-wider">
+                                                SINGLE
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="text-gray-500 text-xs italic text-center py-4">No open shifts found.</div>
+                                {% endfor %}
+                                <div id="no-shifts-msg" class="hidden text-gray-500 text-xs italic text-center py-4">No open shifts for this cast.</div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-300 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-receipt text-veludo-gold"></i> Order History
+                            </h4>
+                            <div class="space-y-2">
+                                {% for order in orders %}
+                                <div class="order-card p-3 border border-white/5 bg-white/5 rounded group hover:border-veludo-gold/30 transition-colors"
+                                     data-cast-id="{{ order.cast_id }}">
+                                    <div class="flex justify-between mb-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-gray-500">{{ order.created_at|date:"Y/m/d H:i" }}</span>
+                                        </div>
+                                        
+                                        <span class="text-[10px] uppercase px-1.5 py-0.5 rounded 
+                                            {% if order.status == 'confirmed' %}bg-green-500/20 text-green-300
+                                            {% elif order.status == 'pending' %}bg-yellow-500/20 text-yellow-300
+                                            {% else %}bg-gray-500/20 text-gray-300{% endif %}">
+                                            {{ order.status }}
+                                        </span>
+                                    </div>
+                                    <div class="text-sm text-white font-bold mb-1">{{ order.customer_name }}</div>
+                                    <div class="text-xs text-gray-400 flex justify-between">
+                                        <span>with <span class="text-veludo-gold">{{ order.cast_name }}</span></span>
+                                        <span>{{ order.booking_date|date:"m/d" }} {{ order.start_time|time:"H:i" }}</span>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="text-gray-500 text-xs italic text-center py-4">No orders found via API.</div>
+                                {% endfor %}
+                                <div id="no-orders-msg" class="hidden text-gray-500 text-xs italic text-center py-4">No orders for this cast.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="section-analytics" class="hidden-section">
             <div class="glass-panel p-12 rounded-sm text-center min-h-[400px] flex flex-col items-center justify-center">
                 <i class="fa-solid fa-chart-pie text-6xl text-white/10 mb-6 animate-pulse"></i>
@@ -270,15 +411,25 @@
     <script>
         // Tab Logic
         function switchTab(tabName) {
-            ['users', 'content', 'analytics'].forEach(t => {
-                document.getElementById('section-' + t).classList.add('hidden-section');
-                document.getElementById('tab-' + t).classList.remove('active', 'text-white');
-                document.getElementById('tab-' + t).classList.add('text-gray-500');
+            ['users', 'content', 'shifts', 'analytics'].forEach(t => {
+                const section = document.getElementById('section-' + t);
+                const tab = document.getElementById('tab-' + t);
+                
+                if (section && tab) {
+                    section.classList.add('hidden-section');
+                    tab.classList.remove('active', 'text-white');
+                    tab.classList.add('text-gray-500');
+                }
             });
-            document.getElementById('section-' + tabName).classList.remove('hidden-section');
+            
+            const activeSection = document.getElementById('section-' + tabName);
             const activeTab = document.getElementById('tab-' + tabName);
-            activeTab.classList.add('active', 'text-white');
-            activeTab.classList.remove('text-gray-500');
+            
+            if (activeSection && activeTab) {
+                activeSection.classList.remove('hidden-section');
+                activeTab.classList.add('active', 'text-white');
+                activeTab.classList.remove('text-gray-500');
+            }
         }
 
         // User Filter Logic
@@ -332,6 +483,49 @@
         function closeRoleModal() {
             document.getElementById('role-modal').classList.add('hidden');
             document.getElementById('role-modal').classList.remove('flex');
+        }
+
+        function filterSchedule(castId, element) {
+            // 1. UI 选中状态切换
+            document.querySelectorAll('.schedule-cast-item').forEach(el => el.classList.remove('selected', 'bg-veludo-gold/10', 'border-veludo-gold'));
+            if (element) {
+                element.classList.add('selected', 'bg-veludo-gold/10', 'border-veludo-gold');
+                // 更新标题
+                const nameDiv = element.querySelector('.font-english');
+                const nameText = nameDiv ? nameDiv.innerText : "All Casts";
+                document.getElementById('schedule-view-title').innerText = castId === 'all' ? 'Overview' : nameText;
+                document.getElementById('schedule-view-target').innerText = castId === 'all' ? 'All Casts' : nameText;
+            }
+
+            // 2. 筛选 Shifts
+            let shiftCount = 0;
+            const shifts = document.querySelectorAll('.shift-card');
+            shifts.forEach(card => {
+                if (castId === 'all' || card.dataset.castId === castId) {
+                    card.classList.remove('hidden');
+                    shiftCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+            document.getElementById('count-shifts').innerText = shiftCount;
+            // 显示/隐藏空状态提示
+            document.getElementById('no-shifts-msg').classList.toggle('hidden', shiftCount > 0);
+
+            // 3. 筛选 Orders
+            let orderCount = 0;
+            const orders = document.querySelectorAll('.order-card');
+            orders.forEach(card => {
+                if (castId === 'all' || card.dataset.castId === castId) {
+                    card.classList.remove('hidden');
+                    orderCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+            document.getElementById('count-orders').innerText = orderCount;
+            // 显示/隐藏空状态提示
+            document.getElementById('no-orders-msg').classList.toggle('hidden', orderCount > 0);
         }
 
         // Sortable Logic (Drag & Drop)

@@ -17,6 +17,7 @@ import requests
 import json
 import pytz
 import traceback
+import logging
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -39,6 +40,7 @@ from .forms import CastProfileForm, CastMediaFormSet
 
 # [关键修复] 获取 User 模型并赋值给全局变量
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 SYSTEM_B_ROOT = "http://127.0.0.1:8001" 
 SYSTEM_B_API_KEY = "veludo_secret_key_123"
@@ -575,12 +577,12 @@ class BookingCompleteAPI(APIView):
 # 管理员面板视图 (Admin Dashboard)
 # ==========================================
 
-# accounts/views.py
-
 @login_required
 @user_passes_test(lambda u: u.is_staff or u.is_superuser)
 def admin_dashboard(request):
-    # 1. 处理 AJAX 拖拽排序请求 (保持不变)
+    # --------------------------------------------------------
+    # 1. 处理 AJAX 拖拽排序请求 (CMS)
+    # --------------------------------------------------------
     if request.method == 'POST' and request.headers.get('x-requested-with') == 'XMLHttpRequest':
         try:
             data = json.loads(request.body)
@@ -592,11 +594,137 @@ def admin_dashboard(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
-    # 2. 常规页面数据获取
-    # 这里获取了所有用户，包含了 vrc_id 字段
+    # --------------------------------------------------------
+    # 2. 获取本地数据 (Users & Casts)
+    # --------------------------------------------------------
     users = User.objects.all().order_by('-date_joined')
     casts = CastProfile.objects.all().select_related('user').order_by('display_order', 'id')
 
+    # --------------------------------------------------------
+    # 3. 获取 SaaS 数据 (Shifts & Orders)
+    # --------------------------------------------------------
+    client = SaaSClient()
+    
+    # === [Debug] 打印本地 Cast 信息，方便在控制台查看 ===
+    print(f"--- [Local Casts Debug] ---")
+    for c in casts:
+        print(f"ID: {c.user.id} | VRCID: {c.user.vrc_id} | User: {c.user.username}")
+
+    # 准备匹配字典 (全部转小写，方便忽略大小写匹配)
+    cast_map_by_id = {str(c.user.id): c for c in casts}
+    
+    # 字典只能做精确查找，所以我们保留列表用于模糊查找
+    local_casts_list = list(casts)
+
+    def find_local_cast(saas_item):
+        """
+        超级匹配函数：ID -> VRCID精确 -> VRCID模糊 -> Username
+        """
+        # 1. 尝试 ID 匹配 (System A user_id vs System B resource_id)
+        r_id = str(saas_item.get('resource_id', ''))
+        if r_id in cast_map_by_id:
+            return cast_map_by_id[r_id]
+        
+        # 获取 SaaS 端返回的名字 (去除空格，转小写)
+        r_name_raw = str(saas_item.get('resource_name', ''))
+        r_name = r_name_raw.strip().lower()
+        
+        if not r_name:
+            return None
+
+        # 2. 尝试 VRCID 匹配 (这是你最需要的)
+        for cast in local_casts_list:
+            vrcid = str(cast.user.vrc_id).strip().lower() if cast.user.vrc_id else ""
+            
+            # A. 精确匹配 (忽略大小写)
+            if vrcid == r_name:
+                return cast
+            
+            # B. 包含匹配 (解决 keimaru00 vs Keimaru 的问题)
+            # 如果 SaaS名字(Keimaru) 包含在 VRCID(keimaru00) 里，或者反过来
+            if vrcid and (r_name in vrcid or vrcid in r_name):
+                print(f"🔥 Fuzzy Match Found: Local '{vrcid}' <-> SaaS '{r_name}'")
+                return cast
+
+        # 3. 尝试 Username 匹配 (备用)
+        for cast in local_casts_list:
+            uname = cast.user.username.strip().lower()
+            if uname == r_name or uname in r_name or r_name in uname:
+                return cast
+                
+        print(f"⚠️ No Match for SaaS Resource: {r_name_raw} (ID: {r_id})")
+        return None
+
+    # --- A. 处理排班数据 (Shifts) ---
+    # [修正] 必须确保 SaaSClient 默认查询未来一段时间，否则可能返回空
+    print("--- DEBUG: Fetching Shifts ---")
+    processed_shifts = []
+
+    for cast in casts:
+        r_id = str(cast.user.id) 
+        raw_shifts = client.get_availabilities(resource_id=r_id)
+        
+        if raw_shifts and isinstance(raw_shifts, list):
+            for s in raw_shifts:
+                # [新增需求 1] 过滤掉已预订 (BOOKED) 的排班
+                is_booked = s.get('is_booked', False) or s.get('status') == 'BOOKED'
+                if is_booked:
+                    continue # 跳过，不在 Upcoming Shifts 里显示
+
+                # 解析时间
+                start_dt = parse_datetime(s.get('start')) if s.get('start') else None
+                end_dt = parse_datetime(s.get('end')) if s.get('end') else None
+
+                # [新增需求 2] 判断排班类型 (单次 vs 周期)
+                # 逻辑：如果 API 返回了 recurrence_rule (RRULE字符串) 或者是 is_recurring=True，则是周期排班
+                is_recurring = bool(s.get('recurrence_rule') or s.get('is_recurring'))
+                shift_type = 'RECURRING' if is_recurring else 'SINGLE'
+
+                if start_dt:
+                    processed_shifts.append({
+                        'cast': cast,
+                        'cast_id': cast.id, 
+                        'cast_name': cast.user.vrc_id or cast.user.username,
+                        'date': start_dt,
+                        'start_time': start_dt,
+                        'end_time': end_dt,
+                        'type': shift_type, # 传递给模板使用
+                        'raw': s 
+                    })
+    
+    print(f"--- [Dashboard] Total Shifts Loaded: {len(processed_shifts)}")
+    
+    # --- B. 处理订单数据 (Orders) ---
+    raw_orders = client.get_my_bookings()
+    processed_orders = []
+
+    print(f"--- [SaaS Orders Debug] Count: {len(raw_orders) if raw_orders else 0}")
+
+    if raw_orders and isinstance(raw_orders, list):
+        for o in raw_orders:
+            local_cast = find_local_cast(o)
+
+            created_at = parse_datetime(o.get('created_at')) if o.get('created_at') else None
+            
+            # 👇 [修复] 优先取 'start' (SaaS返回的key)，取不到再取 'start_time'
+            s_time_str = o.get('start') or o.get('start_time')
+            start_dt = parse_datetime(s_time_str) if s_time_str else None
+            
+            processed_orders.append({
+                'id': o.get('id'),
+                'created_at': created_at,
+                'status': o.get('status', 'pending').lower(),
+                'customer_name': o.get('customer_name', 'Unknown'),
+                'cast': local_cast,
+                'cast_id': local_cast.id if local_cast else 'unknown',
+                'cast_name': local_cast.user.vrc_id if local_cast else o.get('resource_name', 'Unknown'),
+                'booking_date': start_dt,
+                'start_time': start_dt,
+            })
+
+    # --------------------------------------------------------
+    # 4. 处理 POST 请求 (User Role & CMS)
+    # --------------------------------------------------------
     role_form = UserRoleForm()
     cms_form = CastCMSForm()
 
@@ -605,7 +733,6 @@ def admin_dashboard(request):
         if 'update_role' in request.POST:
             form = UserRoleForm(request.POST)
             if form.is_valid():
-                # [修正] 表单通常提交的是用户的 ID (主键)，字段名通常是 user_id
                 target_user_id = form.cleaned_data.get('user_id') 
                 target_user = get_object_or_404(User, id=target_user_id)
                 
@@ -616,14 +743,22 @@ def admin_dashboard(request):
                 target_user.is_cast = is_cast
                 
                 if is_cast:
-                    # [核心修改] 创建 CastProfile 时，优先使用 VRCID 作为名字
-                    # 如果用户没填 VRCID，才退回到 username
+                    # [本地逻辑] 创建 CastProfile
                     display_name = target_user.vrc_id if target_user.vrc_id else target_user.username
-                    
                     CastProfile.objects.get_or_create(
                         user=target_user, 
                         defaults={'name': display_name}
                     )
+
+                    # [SaaS逻辑] 同步到 System B
+                    try:
+                        client.sync_cast_to_saas(
+                            user_id=target_user.id,
+                            name=display_name,
+                            email=target_user.email
+                        )
+                    except Exception as e:
+                        print(f"SaaS Sync Warning: {e}")
                 
                 target_user.save()
                 return redirect('admin_dashboard')
@@ -637,10 +772,16 @@ def admin_dashboard(request):
                 form.save()
                 return redirect('admin_dashboard')
 
+    # --------------------------------------------------------
+    # 5. 渲染页面
+    # --------------------------------------------------------
     context = {
         'users': users,
         'casts': casts,
         'role_form': role_form,
         'cms_form': cms_form,
+        # 新增列表，包含了 cast_id 供前端 JS 筛选使用
+        'shifts': processed_shifts,
+        'orders': processed_orders,
     }
     return render(request, 'admin_dashboard.html', context)

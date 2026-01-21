@@ -1,5 +1,6 @@
 import requests
 from django.conf import settings
+import datetime
 
 class SaaSClient:
     """
@@ -27,14 +28,27 @@ class SaaSClient:
         [基础查询] 获取原始排班 (Raw Data)
         API: GET /availability/
         """
-        url = f"{self.api_base_url}availability/" 
+        url = f"{self.api_base_url}/availability/" 
         params = {}
+
+        # [新增] 如果没有传日期，默认查询 未来30天 的数据
+        if not start_date and not end_date:
+            today = datetime.date.today()
+            next_month = today + datetime.timedelta(days=30)
+            params['start'] = today.isoformat()
+            params['end'] = next_month.isoformat()
+        else:
+            if start_date: params['start'] = start_date 
+            if end_date: params['end'] = end_date
+
         if resource_id: params['resource_id'] = resource_id
         if start_date: params['start'] = start_date 
         if end_date: params['end'] = end_date
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            if response.status_code == 400:
+                print(f"❌ SaaS 400 Error Detail: {response.text}")
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:

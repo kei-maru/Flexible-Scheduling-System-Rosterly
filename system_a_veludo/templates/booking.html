@@ -523,6 +523,36 @@
     </div>
 
     <script>
+        function trackEvent(action, target = '', meta = {}) {
+            const url = "/core/api/track/"; 
+            
+            // ✨✨✨ [核心修改] 自动注入当前页面信息 ✨✨✨
+            // 如果 meta 本身没有传 page_url，我们就自动加上浏览器的当前路径
+            if (!meta.page_url) {
+                meta.page_url = window.location.pathname; // 例如 "/accounts/reservation/"
+            }
+            // 可选：同时也记录页面标题
+            if (!meta.page_title) {
+                meta.page_title = document.title; // 例如 "Reservation | Veludo"
+            }
+            // ✨✨✨ [修改结束] ✨✨✨
+
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({
+                    action: action,
+                    target: target,
+                    meta: meta // 现在的 meta 包含了 url 信息
+                })
+            }).catch(err => console.log("Tracking ignored:", err));
+        }
+
+        // [可选] 自动记录页面访问
+        trackEvent('VIEW_PAGE', 'Reservation Page');
         const hasVrcId = {{ user.vrc_id|yesno:"true,false" }};
         let currentCastName = '';
         let currentCastAvatar = ''; // [优化 2] 存储头像URL
@@ -569,12 +599,14 @@
             document.querySelectorAll('.mode-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             document.getElementById('btn-' + pageId).classList.add('active');
+            trackEvent('SWITCH_MODE', pageId);
         }
 
         // Cast 模式
         window.loadCastSchedule = function(resourceId, castName, allow30, allow60, allow120, avatarUrl) {
             currentCastName = castName;
             currentCastAvatar = avatarUrl; // 保存头像 URL
+            trackEvent('CLICK_CAST', castName, { resource_id: resourceId });
             
             document.getElementById('calendar-cast-name').innerText = castName;
             
@@ -1031,6 +1063,10 @@
                 const json = await res.json();
                 if(res.ok) {
                     // 成功：跳转
+                    trackEvent('BOOKING_SUCCESS', currentCastName, { 
+                        start: selectedSlot.start, 
+                        duration: document.getElementById('input-duration').value 
+                    });
                     alert('予約が完了しました！\nReservation Complete');
                     window.location.href = '/accounts/my-bookings/';
                 } else {
@@ -1206,6 +1242,7 @@
 
         function formatTime24(d) { return d.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit', hour12:false}); }
         function toInputTimeStr(d) { return ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2); }
+        
     </script>
 </body>
 </html>

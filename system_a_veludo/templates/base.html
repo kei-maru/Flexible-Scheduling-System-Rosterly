@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Veludo{% endblock %}</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'veludo-gold': '#d4af37', 
+                        'veludo-bg': '#1a1a1a',
+                        'veludo-surface': '#2d2d2d',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        /* 这里可以放更多全局样式 */
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    
+    {% block content %}{% endblock %}
+
+    <script>
+        // 定义全局埋点函数
+        function trackEvent(action, target = '', meta = {}) {
+            console.log("Tracking:", action, target); // Debug用
+
+            // 注意：这里 URL 需要根据你的 urls.py 配置调整
+            // 假设你在 core/urls.py 里配置的是 'api/track/'
+            // 并且在 config/urls.py 里 include 了 'core/'
+            // 那么最终 URL 应该是 '/core/api/track/'
+            const url = "/core/api/track/";
+
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}" // Django 注入的 Token
+                },
+                body: JSON.stringify({
+                    action: action,
+                    target: target,
+                    meta: meta
+                })
+            }).catch(err => console.error("Tracking Error:", err));
+        }
+
+        // [可选] 全局自动记录页面访问
+        document.addEventListener("DOMContentLoaded", function() {
+            // 如果页面定义了特定的 Page ID，就用它，否则用 Title
+            const pageTarget = document.title || window.location.pathname;
+            trackEvent('VIEW_PAGE', pageTarget);
+        });
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

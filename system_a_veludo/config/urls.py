@@ -15,6 +15,7 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html'), name='index'),
     path('service/', TemplateView.as_view(template_name='service.html'), name='service'), 
     path('access/', TemplateView.as_view(template_name='access.html'), name='access'),
+    path('core/', include('core.urls')),
 
     # 用户及预约相关
     path('accounts/', include('accounts.urls')), 

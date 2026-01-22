@@ -4,3 +4,5 @@ __pycache__/
 *.sqlite3
 .env
 .DS_Store
+system_a_veludo/media/
+/media/

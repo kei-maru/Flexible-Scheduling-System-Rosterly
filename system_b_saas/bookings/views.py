@@ -143,7 +143,7 @@ def send_booking_emails(booking):
           <div class="info-block">
             <p>{{ service_name }}</p>
             <p>担当: {{ resource_name }}</p>
-            <p><span class="highlight">{{ tenant_name }}</span></p>
+            <p><strong>{{ tenant_name }}</strong></p>
           </div>
 
           <a href="{{ button_link }}" class="btn">{{ button_text }}</a>

@@ -87,46 +87,63 @@ def send_booking_emails(booking):
         <html>
         <head>
         <style>
-          body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #ffffff; color: #333; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 0 auto; text-align: center; padding: 40px 20px; }
-          .logo { width: 80px; height: auto; margin-bottom: 20px; border-radius: 50%; }
-          .title { font-size: 24px; font-weight: bold; margin-bottom: 30px; letter-spacing: 0.05em; color: #000; }
-          .card { border: 1px solid #e5e5e5; padding: 40px 30px; border-radius: 8px; background: #fff; margin-bottom: 30px; text-align: center; }
-          .date-block { font-weight: bold; font-size: 18px; margin-bottom: 20px; line-height: 1.6; color: #000; }
-          .info-block { margin-bottom: 30px; color: #555; font-size: 14px; line-height: 1.8; }
-          .highlight { background-color: #fceea7; padding: 0 4px; }
-          .btn { display: inline-block; background-color: #f0e6cc; color: #5d5340; padding: 14px 50px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 10px; }
-          .footer { border: 1px solid #e5e5e5; padding: 20px; border-radius: 8px; font-size: 12px; text-align: center; color: #666; }
-          .footer-head { font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #333; }
+        body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #ffffff; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; text-align: center; padding: 40px 20px; }
+        .logo { width: 80px; height: auto; margin-bottom: 20px; border-radius: 50%; }
+        .title { font-size: 24px; font-weight: bold; margin-bottom: 30px; letter-spacing: 0.05em; color: #000; }
+        .card { border: 1px solid #e5e5e5; padding: 40px 30px; border-radius: 8px; background: #fff; margin-bottom: 30px; text-align: center; }
+        .date-block { font-weight: bold; font-size: 18px; margin-bottom: 20px; line-height: 1.6; color: #000; }
+        
+        /* 👇 【修改了这里】字体变大(18px)、加粗(bold)、颜色变深(#000) */
+        .info-block { 
+            margin-bottom: 30px; 
+            color: #000; 
+            font-size: 18px; 
+            font-weight: bold; 
+            line-height: 1.6; 
+        }
+
+        .highlight { background-color: #fceea7; padding: 0 4px; }
+        .btn { display: inline-block; background-color: #f0e6cc; color: #5d5340; padding: 14px 50px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 10px; }
+        .footer { border: 1px solid #e5e5e5; padding: 20px; border-radius: 8px; font-size: 12px; text-align: center; color: #666; }
+        .footer-head { font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #333; }
         </style>
         </head>
         <body>
-          <div class="container">
+        <div class="container">
             <img src="{{ logo_url }}" class="logo" alt="Logo">
+            
             <div class="title">{{ email_title }}</div>
+            
             <p style="text-align: left; margin-bottom: 20px;">
-                {{ customer_name }} 様<br> {{ email_greeting }}
+                {{ customer_name }} 様<br>
+                {{ email_greeting }}
             </p>
+
             <div class="card">
-              <div class="date-block">
+            <div class="date-block">
                 {{ start_date }}<br>
                 {{ time_range }} 日本時間
-              </div>
-              <div class="info-block">
-                <p>{{ service_name }}</p>
-                <p>担当: {{ resource_name }}</p>
-                <p>ASMR Salon <span class="highlight">{{ tenant_name }}</span></p>
-              </div>
-              <a href="{{ button_link }}" class="btn">{{ button_text }}</a>
-              <div style="margin-top: 15px;">
-                 <a href="#" style="color: #d6c698; font-size: 12px; text-decoration: none;">予約確認・変更</a>
-              </div>
             </div>
+            
+            <div class="info-block">
+                <p style="margin: 5px 0;">{{ service_name }}</p>
+                <p style="margin: 5px 0;">担当: {{ resource_name }}</p>
+                <p style="margin: 5px 0;">{{ tenant_name }}</p>
+            </div>
+
+            <a href="{{ button_link }}" class="btn">{{ button_text }}</a>
+            
+            <div style="margin-top: 15px;">
+                <a href="#" style="color: #d6c698; font-size: 12px; text-decoration: none;">予約確認・変更</a>
+            </div>
+            </div>
+
             <div class="footer">
-              <div class="footer-head">{{ footer_title }}</div>
-              <p style="margin:0;">{{ footer_text }}</p>
+            <div class="footer-head">{{ footer_title }}</div>
+            <p style="margin:0;">{{ footer_text }}</p>
             </div>
-          </div>
+        </div>
         </body>
         </html>
         """

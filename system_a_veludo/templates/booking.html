@@ -645,27 +645,31 @@
             calendarInstance = new FullCalendar.Calendar(el, {
                 initialView: 'timeGridWeek',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-                height: 'auto',
+                height: '90vh', // 或者设定具体高度，例如 '600px'
                 locale: 'ja',
                 allDaySlot: false,
 
-                // --- [修正需求1] 限制日期范围 ---
+                // --- 限制日期范围 ---
                 validRange: {
-                    start: now,           // 之前的时间不可选
-                    end: oneMonthLater    // 一个月后的时间不可选
+                    start: now,            
+                    end: oneMonthLater    
                 },
                 
-                slotMinTime: '11:00:00',
-                slotMaxTime: '29:00:00',
+                // ✨✨✨ [核心修改] 时间轴设置 ✨✨✨
+                slotMinTime: '00:00:00', // 起始时间：0点
+                slotMaxTime: '24:00:00', // 结束时间：次日6点 (覆盖 24h+ 排班)
+                scrollTime:  '23:00:00', // 默认滚动到的位置：23点 (深夜档优化)
+                // ✨✨✨ [修改结束] ✨✨✨
+
                 slotDuration: '00:30:00', 
                 eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
                 events: `/accounts/api/availability/?resource_id=${resourceId}`,
                 buttonHints: {
-                    prev: '前の週',  // 鼠标移到 < 时的提示
-                    next: '次の週',  // 鼠标移到 > 时的提示
-                    today: '今日'    // 鼠标移到 today 时的提示
+                    prev: '前の週', 
+                    next: '次の週', 
+                    today: '今日'   
                 },
-                // 日历禁用过去的时间 (24小时内)
+                
                 datesSet: function() {
                     const todayBtn = document.querySelector('.fc-today-button');
                     if (todayBtn) {
@@ -1197,6 +1201,20 @@
             
             document.getElementById('modal-cast-name').innerText = currentCastName;
             document.getElementById('slot-range-display').innerText = formatTime24(start) + ' ~ ' + formatTime24(end) + ' (Selected)';
+
+            const avatarImg = document.getElementById('booking-cast-avatar');
+            const fallbackDiv = document.getElementById('booking-cast-avatar-fallback');
+            
+            if (avatarImg && fallbackDiv) {
+                if (currentCastAvatar && currentCastAvatar !== 'None' && currentCastAvatar !== '') {
+                    avatarImg.src = currentCastAvatar;
+                    avatarImg.classList.remove('hidden');
+                    fallbackDiv.classList.add('hidden');
+                } else {
+                    avatarImg.classList.add('hidden');
+                    fallbackDiv.classList.remove('hidden');
+                }
+            }
             
             // 下拉菜单赋值逻辑
             const selectEl = document.getElementById('input-start-time');

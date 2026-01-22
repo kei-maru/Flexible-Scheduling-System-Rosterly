@@ -643,9 +643,19 @@
             oneMonthLater.setMonth(now.getMonth() + 1);
 
             calendarInstance = new FullCalendar.Calendar(el, {
-                initialView: 'timeGridWeek',
+                views: {
+                    customWeek: {
+                        type: 'timeGrid',
+                        duration: { days: 7 }, // 一次显示7天
+                        buttonText: '7日間'
+                    }
+                },
+                initialView: 'customWeek', // 使用上面定义的视图
+                
+                // ✨✨✨ [核心修改 2] 强制日期递增步长为 1 天 ✨✨✨
+                dateIncrement: { days: 1 },
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-                height: '90vh', // 或者设定具体高度，例如 '600px'
+                height: 'auto', // 或者设定具体高度，例如 '600px'
                 locale: 'ja',
                 allDaySlot: false,
 

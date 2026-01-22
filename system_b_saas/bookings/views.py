@@ -99,7 +99,6 @@ def send_booking_emails(booking):
             margin-bottom: 30px; 
             color: #000; 
             font-size: 18px; 
-            font-weight: bold; 
             line-height: 1.6; 
         }
 
@@ -133,11 +132,6 @@ def send_booking_emails(booking):
             </div>
 
             <a href="{{ button_link }}" class="btn">{{ button_text }}</a>
-            
-            <div style="margin-top: 15px;">
-                <a href="#" style="color: #d6c698; font-size: 12px; text-decoration: none;">予約確認・変更</a>
-            </div>
-            </div>
 
             <div class="footer">
             <div class="footer-head">{{ footer_title }}</div>

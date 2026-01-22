@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'tenants',
     'resources',
     'bookings',
+    'dashboard',
 ]
 
 MIDDLEWARE = [
@@ -150,3 +151,17 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'm17621752319@gmail.com'
 EMAIL_HOST_PASSWORD = 'grsy mvtz uann nipw'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+# ====================================
+# Auth & Redirect Settings
+# ====================================
+
+# 1. 登录成功后，自动跳转到哪里？ -> 跳到 dashboard
+LOGIN_REDIRECT_URL = 'tenant_dashboard'
+
+# 2. 如果没登录就访问 dashboard，被踢到哪里？ -> 踢到 login
+LOGIN_URL = 'login'
+
+# 3. 登出后去哪里？ -> 登录页
+LOGOUT_REDIRECT_URL = 'login'

@@ -73,3 +73,45 @@ class RecurringPattern(models.Model):
     class Meta:
         # 确保同一资源、同一天不会有重复的规则（或者根据业务需求允许）
         unique_together = ('resource', 'day_of_week', 'start_time', 'end_time')
+
+class EmailTemplate(models.Model):
+    EVENT_CHOICES = [
+        ('BOOKING_CONFIRMED', 'Booking Confirmation'),
+        ('BOOKING_CANCELLED', 'Booking Cancellation'),
+    ]
+
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='email_templates')
+    event_type = models.CharField(max_length=50, choices=EVENT_CHOICES)
+
+    logo = models.ImageField(upload_to='tenant_logos/', blank=True, null=True, help_text="品牌Logo")
+    
+    # --- 新增：结构化字段 ---
+    email_title = models.CharField(max_length=200, default="予約が確定しました。", help_text="邮件的大标题")
+    email_greeting = models.TextField(default="以下の内容で予約を承りました。", help_text="开场问候语")
+
+    service_name = models.CharField(max_length=200, default="60分VRASMR施術コース (PCVR)", help_text="サービス名")
+
+    send_to_customer = models.BooleanField(default=True, help_text="お客様にメール送る")
+    send_to_cast = models.BooleanField(default=True, help_text="担当キャストにメール送る")
+    
+    # 按钮相关
+    button_text = models.CharField(max_length=50, default="詳細を見る", help_text="按钮上的文字")
+    button_link = models.CharField(max_length=255, default="https://vr-veludo.com/my-page", help_text="按钮跳转链接")
+    
+    # 页脚
+    footer_title = models.CharField(max_length=100, default="当社のキャンセルポリシー", help_text="页脚标题")
+    footer_text = models.TextField(default="ご予約の変更やキャンセルは 1日 前までにお願いいたします。", help_text="页脚正文")
+
+    # 保留 subject_template 用于邮件标题
+    subject_template = models.CharField(max_length=255, default="【予約確定】{{ resource_name }} との予約が確定しました")
+    
+    # body_html 现在作为只读的缓存，或者干脆不再使用，我们动态生成
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('tenant', 'event_type')
+
+    def __str__(self):
+        return f"{self.tenant.name} - {self.event_type}"

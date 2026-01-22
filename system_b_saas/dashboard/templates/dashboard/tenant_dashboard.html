@@ -1,0 +1,496 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Tenant Dashboard | System B</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#4F46E5', // Indigo 600
+                        'primary-hover': '#4338ca',
+                        'bg-main': '#F9FAFB', // Gray 50
+                        'surface': '#FFFFFF',
+                    },
+                    fontFamily: {
+                        sans: ['"Inter"', '"Noto Sans JP"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: "Noto Sans JP", sans-serif; background-color: #F9FAFB; color: #1F2937; }
+        .nav-item.active { 
+            background-color: #EEF2FF; 
+            color: #4F46E5; 
+            border-right: 3px solid #4F46E5;
+        }
+        .hidden-section { display: none; }
+        
+        /* Minimalist Table Styles */
+        .saas-table th { 
+            background-color: #F3F4F6; 
+            color: #6B7280; 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            padding: 0.75rem 1.5rem;
+            text-align: left;
+        }
+        .saas-table td { 
+            border-bottom: 1px solid #E5E7EB; 
+            padding: 1rem 1.5rem; 
+            font-size: 0.875rem;
+        }
+        .saas-table tr:last-child td { border-bottom: none; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20">
+        <div class="h-16 flex items-center px-8 border-b border-gray-200">
+            <div class="font-bold text-xl text-primary tracking-tight">System B <span class="text-gray-400 font-light">SaaS</span></div>
+        </div>
+
+        <nav class="flex-1 py-6 space-y-1">
+            <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <i class="fa-solid fa-chart-simple w-6"></i> Overview
+            </button>
+            <button onclick="switchTab('orders')" id="nav-orders" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <i class="fa-solid fa-receipt w-6"></i> Bookings
+            </button>
+            <button onclick="switchTab('email')" id="nav-email" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <i class="fa-solid fa-envelope-open-text w-6"></i> Email Templates
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-gray-200">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-primary font-bold text-xs">
+                    {{ request.user.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <div class="text-sm font-medium text-gray-900">{{ request.user.username }}</div>
+                    <div class="text-xs text-gray-500">Tenant Admin</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto bg-bg-main p-8">
+        
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900" id="page-title">Dashboard</h1>
+                <p class="text-sm text-gray-500 mt-1">Manage your bookings and configurations.</p>
+            </div>
+            <div>
+                <button onclick="location.reload()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 shadow-sm">
+                    <i class="fa-solid fa-sync mr-2 text-gray-400"></i> Refresh
+                </button>
+            </div>
+        </header>
+        
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for message in messages %}
+            <div class="p-4 rounded-md text-sm font-medium {% if message.tags == 'success' %}bg-green-50 text-green-700 border border-green-200{% else %}bg-red-50 text-red-700 border border-red-200{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div id="section-overview" class="space-y-6 animate-fade-in">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Total Bookings</div>
+                    <div class="text-3xl font-bold text-gray-900">{{ orders|length }}</div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Active Resources</div>
+                    <div class="text-3xl font-bold text-gray-900">{{ resources|length }}</div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Next 24h</div>
+                    <div class="text-3xl font-bold text-primary">--</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-900">Resource Status</h3>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {% for res in resources %}
+                        <div class="border rounded-md p-4 hover:shadow-md transition-shadow">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                                    <i class="fa-solid fa-user"></i>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-gray-900">{{ res.name }}</div>
+                                    <div class="text-xs text-gray-500">{{ res.email }}</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500 bg-gray-50 p-2 rounded text-center">
+                                <a href="#" class="text-primary hover:underline">View Calendar</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-orders" class="hidden-section">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 class="text-lg font-medium text-gray-900">Booking History</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full saas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Customer</th>
+                                <th>Resource</th>
+                                <th>Date & Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="font-mono text-xs text-gray-500">#{{ order.id|slice:":8" }}</td>
+                                <td>
+                                    <div class="font-medium text-gray-900">{{ order.customer_name }}</div>
+                                    <div class="text-xs text-gray-500">{{ order.customer_email }}</div>
+                                </td>
+                                <td class="text-gray-700">{{ order.resource.name }}</td>
+                                <td>
+                                    <div class="text-gray-900">{{ order.start_time|date:"Y/m/d" }}</div>
+                                    <div class="text-xs text-gray-500">{{ order.start_time|time:"H:i" }} - {{ order.end_time|time:"H:i" }}</div>
+                                </td>
+                                <td>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        {% if order.status == 'CONFIRMED' %}bg-green-100 text-green-800
+                                        {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ order.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-8 text-gray-500 italic">No bookings found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-email" class="hidden-section">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[800px]">
+                
+                <div class="lg:col-span-5 flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div class="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-800"><i class="fa-solid fa-pen-nib mr-2"></i>Email Editor</h3>
+                        
+                        <div class="flex bg-gray-200 rounded p-1">
+                            <button onclick="switchTemplateType('BOOKING_CONFIRMED')" id="btn-confirmed" class="text-xs px-3 py-1 rounded font-medium transition-colors bg-white shadow-sm text-indigo-600">Confirmation</button>
+                            <button onclick="switchTemplateType('BOOKING_CANCELLED')" id="btn-cancelled" class="text-xs px-3 py-1 rounded font-medium transition-colors text-gray-500 hover:bg-gray-100">Cancellation</button>
+                        </div>
+                    </div>
+                    
+                    <form method="post" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-5" id="email-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="save_template" value="true">
+                        <input type="hidden" id="in-event-type" name="event_type" value="BOOKING_CONFIRMED">
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Brand Logo</label>
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 border border-gray-200 rounded-full overflow-hidden flex items-center justify-center bg-gray-50">
+                                    <img id="logo-preview-icon" src="" class="w-full h-full object-cover hidden">
+                                    <i id="logo-placeholder" class="fa-regular fa-image text-gray-400"></i>
+                                </div>
+                                <input type="file" name="logo" id="in-logo" accept="image/*" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                            </div>
+                        </div>
+
+                        <hr class="border-gray-100">
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Recipients</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer border border-gray-200 rounded px-3 py-2 bg-gray-50 hover:bg-white transition-colors">
+                                    <input type="checkbox" id="in-send-customer" name="send_to_customer" class="accent-indigo-600">
+                                    <span class="text-sm text-gray-700">Send to Customer</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer border border-gray-200 rounded px-3 py-2 bg-gray-50 hover:bg-white transition-colors">
+                                    <input type="checkbox" id="in-send-cast" name="send_to_cast" class="accent-indigo-600">
+                                    <span class="text-sm text-gray-700">Send to Cast</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <hr class="border-gray-100">
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Subject Line</label>
+                            <input type="text" id="in-subject" name="subject" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Main Title</label>
+                            <input type="text" id="in-title" name="email_title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Greeting Message</label>
+                            <textarea id="in-greeting" name="email_greeting" class="w-full h-20 border border-gray-300 rounded px-3 py-2 text-sm outline-none resize-none"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Service Name</label>
+                            <input type="text" id="in-service-name" name="service_name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. 60分VRASMR...">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Button Text</label>
+                                <input type="text" id="in-btn-text" name="button_text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Button Link</label>
+                                <input type="text" id="in-btn-link" name="button_link" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none text-gray-400">
+                            </div>
+                        </div>
+
+                        <hr class="border-gray-100">
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Footer Policy Title</label>
+                            <input type="text" id="in-footer-title" name="footer_title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Footer Policy Text</label>
+                            <textarea id="in-footer-text" name="footer_text" class="w-full h-20 border border-gray-300 rounded px-3 py-2 text-sm outline-none resize-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded font-bold shadow hover:bg-indigo-700 transition-colors mt-4">
+                            SAVE SETTINGS
+                        </button>
+                    </form>
+                </div>
+
+                <div class="lg:col-span-7 flex flex-col h-full bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="p-3 bg-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-300">
+                        Live Preview (Mock Data)
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-8 flex justify-center bg-white">
+                        <div class="w-full max-w-[500px] border border-gray-100 shadow-xl rounded-lg overflow-hidden bg-white h-fit">
+                            
+                            <div class="p-8 text-center bg-white">
+                                <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                                    <img id="prev-logo" src="https://via.placeholder.com/80x80/d4af37/ffffff?text=Logo" class="w-full h-full object-contain rounded-full">
+                                </div>
+
+                                <h2 id="prev-title" class="text-2xl font-bold text-gray-800 mb-6 tracking-tight">
+                                    --
+                                </h2>
+                                
+                                <div class="text-left text-sm text-gray-600 mb-6 leading-relaxed">
+                                    <span class="font-bold">山田 太郎</span> 様<br>
+                                    <span id="prev-greeting" class="whitespace-pre-wrap">--</span>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-lg p-8 bg-white mb-6">
+                                    <div class="font-bold text-lg text-gray-800 mb-4 leading-snug">
+                                        2025年4月28日<br>
+                                        22:00 - 23:00 日本時間
+                                    </div>
+                                    
+                                    <div class="text-sm text-gray-500 mb-6 space-y-1">
+                                        <p id="prev-service-name">--</p>
+                                        <p>担当: レナ (RENA)</p>
+                                        <p>ASMR Salon <span class="bg-[#fceea7] px-1">Veludo</span></p>
+                                    </div>
+
+                                    <a href="#" class="inline-block bg-[#f0e6cc] text-[#5d5340] px-10 py-3 rounded font-bold text-sm hover:opacity-80 transition-opacity" id="prev-btn">
+                                        --
+                                    </a>
+                                    
+                                    <div class="mt-4">
+                                        <a href="#" class="text-[#d6c698] text-sm font-bold no-underline hover:underline">予約変更またはキャンセル</a>
+                                    </div>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-lg p-4 text-center bg-white">
+                                    <div id="prev-footer-title" class="font-bold text-xs text-gray-800 mb-1">--</div>
+                                    <p id="prev-footer-text" class="text-xs text-gray-500 m-0">--</p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- 1. Navigation Logic (Missing Function) ---
+        function switchTab(tabName) {
+            // Hide all sections
+            ['overview', 'orders', 'email'].forEach(t => {
+                document.getElementById('section-' + t).classList.add('hidden-section');
+                document.getElementById('nav-' + t).classList.remove('active', 'bg-indigo-50', 'text-primary');
+                document.getElementById('nav-' + t).classList.add('text-gray-600');
+            });
+            
+            // Show active section
+            document.getElementById('section-' + tabName).classList.remove('hidden-section');
+            const activeNav = document.getElementById('nav-' + tabName);
+            activeNav.classList.add('active');
+            activeNav.classList.remove('text-gray-600');
+            
+            // Update Title
+            const titles = {
+                'overview': 'Dashboard',
+                'orders': 'Bookings',
+                'email': 'Email Configuration'
+            };
+            document.getElementById('page-title').innerText = titles[tabName];
+        }
+
+        // --- 2. Email Editor Logic ---
+        
+        // Safely parse JSON from backend
+        // Note: Using a try-catch block for safety if templates_json is empty
+        let allTemplates = {};
+        try {
+            allTemplates = JSON.parse('{{ templates_json|escapejs }}');
+        } catch (e) {
+            console.error("Error parsing templates JSON:", e);
+            // Default fallback if parsing fails
+            allTemplates = {
+                'BOOKING_CONFIRMED': {},
+                'BOOKING_CANCELLED': {}
+            };
+        }
+
+        function switchTemplateType(type) {
+            // Update UI Button Styles
+            const btnConf = document.getElementById('btn-confirmed');
+            const btnCanc = document.getElementById('btn-cancelled');
+            
+            
+            if (type === 'BOOKING_CONFIRMED') {
+                btnConf.classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
+                btnConf.classList.remove('text-gray-500', 'hover:bg-gray-100');
+                btnCanc.classList.remove('bg-white', 'shadow-sm', 'text-indigo-600');
+                btnCanc.classList.add('text-gray-500', 'hover:bg-gray-100');
+            } else {
+                btnCanc.classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
+                btnCanc.classList.remove('text-gray-500', 'hover:bg-gray-100');
+                btnConf.classList.remove('bg-white', 'shadow-sm', 'text-indigo-600');
+                btnConf.classList.add('text-gray-500', 'hover:bg-gray-100');
+            }
+
+            // Fill Form Data
+            const data = allTemplates[type] || {};
+            document.getElementById('in-event-type').value = type;
+            document.getElementById('in-send-customer').checked = (data.send_to_customer !== false); // 默认 true
+            document.getElementById('in-send-cast').checked = (data.send_to_cast !== false);
+            document.getElementById('in-subject').value = data.subject || '';
+            document.getElementById('in-title').value = data.email_title || '';
+            document.getElementById('in-greeting').value = data.email_greeting || '';
+            document.getElementById('in-service-name').value = data.service_name || '';
+            document.getElementById('in-btn-text').value = data.button_text || '';
+            document.getElementById('in-btn-link').value = data.button_link || '';
+            document.getElementById('in-footer-title').value = data.footer_title || '';
+            document.getElementById('in-footer-text').value = data.footer_text || '';
+            
+
+            // Handle Logo Preview
+            const logoPreview = document.getElementById('logo-preview-icon');
+            const logoPlace = document.getElementById('logo-placeholder');
+            const prevLogo = document.getElementById('prev-logo');
+            
+            if (data.logo_url) {
+                logoPreview.src = data.logo_url;
+                logoPreview.classList.remove('hidden');
+                logoPlace.classList.add('hidden');
+                // Update large preview
+                prevLogo.src = data.logo_url;
+            } else {
+                logoPreview.classList.add('hidden');
+                logoPlace.classList.remove('hidden');
+                prevLogo.src = "https://via.placeholder.com/80x80/d4af37/ffffff?text=Logo";
+            }
+
+            // Trigger input events to update text preview
+            ['in-title', 'in-greeting', 'in-service-name', 'in-btn-text', 'in-footer-title', 'in-footer-text'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+        }
+
+        // 3. Live Preview Binding
+        document.addEventListener('DOMContentLoaded', function() {
+            const bindPreview = (inputId, previewId) => {
+                const input = document.getElementById(inputId);
+                const preview = document.getElementById(previewId);
+                if(input && preview) {
+                    input.addEventListener('input', () => { preview.innerText = input.value; });
+                }
+            };
+
+            bindPreview('in-title', 'prev-title');
+            bindPreview('in-greeting', 'prev-greeting');
+            bindPreview('in-service-name', 'prev-service-name');
+            bindPreview('in-btn-text', 'prev-btn');
+            bindPreview('in-footer-title', 'prev-footer-title');
+            bindPreview('in-footer-text', 'prev-footer-text');
+
+            // Logo Local Upload Preview
+            const logoInput = document.getElementById('in-logo');
+            if (logoInput) {
+                logoInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            // Update small icon
+                            const logoPreview = document.getElementById('logo-preview-icon');
+                            logoPreview.src = e.target.result;
+                            logoPreview.classList.remove('hidden');
+                            document.getElementById('logo-placeholder').classList.add('hidden');
+                            // Update large preview
+                            document.getElementById('prev-logo').src = e.target.result;
+                        }
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            // Initialize Confirmation Template
+            switchTemplateType('BOOKING_CONFIRMED');
+        });
+    </script>
+</body>
+</html>

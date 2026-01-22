@@ -132,6 +132,11 @@ def send_booking_emails(booking):
             </div>
 
             <a href="{{ button_link }}" class="btn">{{ button_text }}</a>
+            
+            <div style="margin-top: 15px;">
+                
+            </div>
+            </div>
 
             <div class="footer">
             <div class="footer-head">{{ footer_title }}</div>

@@ -50,7 +50,7 @@ def send_booking_emails(booking):
         
         # 处理 Logo 的绝对路径 (修复邮件裂图)
         # ⚠️ 注意：这里请替换成你真实的公网 IP 或域名
-        BASE_DOMAIN = "http://161.33.129.157:8001" # 或者 "https://vr-veludo.com"
+        BASE_DOMAIN = "http://161.33.129.157" # 或者 "https://vr-veludo.com"
         
         if tpl.logo:
             # 拼接完整 URL: http://.../media/...

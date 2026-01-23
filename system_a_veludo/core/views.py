@@ -9,10 +9,12 @@ class AccessPageView(TemplateView):
     template_name = 'access.html'
 
 import json
+from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from .models import UserActivity
+from casts.models import CastProfile
 
 @require_POST
 def track_activity(request):
@@ -45,3 +47,18 @@ def track_activity(request):
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+def index(request):
+    """
+    首页视图：负责渲染 index.html 并传递 Cast 数据给轮播图
+    """
+    # 1. 获取所有状态为“公开”的 Cast
+    # 2. 按后台设定的 display_order 排序
+    # 3. prefetch_related('medias') 是为了优化性能，因为模板里用到了 cast.medias.first
+    casts = CastProfile.objects.filter(is_active=True).order_by('display_order').prefetch_related('medias')
+    
+    context = {
+        'casts': casts, # 把数据传给模板
+    }
+    
+    return render(request, 'index.html', context)

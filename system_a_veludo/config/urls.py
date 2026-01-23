@@ -6,13 +6,14 @@ from django.views.generic import TemplateView
 
 # [修正] 从 accounts app 的 views 中导入
 from accounts.views import BookingPageView 
+from core import views as core_views
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
     # 首页及静态页面
-    path('', TemplateView.as_view(template_name='index.html'), name='index'),
+    path('', core_views.index, name='index'),
     path('service/', TemplateView.as_view(template_name='service.html'), name='service'), 
     path('access/', TemplateView.as_view(template_name='access.html'), name='access'),
     path('core/', include('core.urls')),

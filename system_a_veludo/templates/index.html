@@ -57,13 +57,23 @@
         /* =========================================
            全局基础设置
            ========================================= */
-        html { scroll-behavior: smooth; }
+        html, body { 
+            overflow-x: hidden; 
+            width: 100%;
+            position: relative; /* 确保定位参照物正确 */
+            margin: 0;
+            padding: 0;
+        }
+        
         body { 
             background-color: #F9F8F6; 
             color: #5a544b; 
-            letter-spacing: 0.1em; 
-            /* 默认使用日文字体，确保阅读体验 */
+            letter-spacing: 0.05em; 
             font-family: "Noto Serif JP", serif; 
+        }
+        
+        @media (min-width: 768px) {
+            body { letter-spacing: 0.1em; }
         }
 
         /* =========================================
@@ -111,7 +121,6 @@
             display: flex;
             align-items: center;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-            padding: 0 2rem; 
             /* 如果以后要换背景图，取消下面注释并填入URL */
             /* background-image: url('assets/img/header_bg.jpg'); background-size: cover; */
         }
@@ -123,6 +132,7 @@
             display: flex;
             justify-content: space-between; 
             align-items: center;
+            padding: 0 1.5rem;
         }
 
         /* 导航链接动画 */
@@ -326,6 +336,19 @@
         @media (max-width: 768px) {
             .bg-watermark { font-size: 6rem; }
         }
+        #mobile-menu {
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+        }
+        #mobile-menu.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        #mobile-menu.closed {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-100%);
+        }
     </style>
 </head>
 <body class="font-serif antialiased overflow-x-hidden">
@@ -336,20 +359,15 @@
     </div>
 
     <!-- 导航栏 -->
-    <nav class="fixed w-full z-[100] site-navbar transition-all duration-300">
-        <div class="navbar-container">
-            <!-- 左侧 Logo -->
-            <div class="flex items-center gap-4 flex-shrink-0">
-                <a href="{% url 'index' %}">
-                    <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Veludo Logo" class="h-14 w-auto object-contain hover:opacity-80 transition-opacity">
-                </a>
+    <nav class="fixed w-full z-[100] site-navbar transition-all duration-300 top-0 left-0"> <div class="w-full h-full flex justify-between items-center px-4 md:px-8 max-w-[1920px] mx-auto">
+            
+            <div class="flex items-center gap-2 md:gap-4 flex-shrink-0"> <a href="{% url 'index' %}">
+                    <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-10 md:h-14 w-auto object-contain hover:opacity-80 transition-opacity"> </a>
                 <div class="hidden lg:block h-8 w-[1px] bg-white/20"></div>
                 <span class="hidden lg:block text-[15px] tracking-[0.2em] font-light uppercase opacity-90 text-white">ASMR Salon</span>
             </div>
             
-            <!-- 右侧 Menu + Login -->
             <div class="hidden md:flex items-center gap-10">
-                <!-- [修改] 链接改为跳转到独立HTML文件 -->
                 <div class="flex space-x-8 nav-link text-white font-medium text-[15px] tracking-[0.25em]">
                     <a href="{% url 'index' %}">HOME</a>
                     <a href="{% url 'service' %}">SERVICE</a>
@@ -357,11 +375,8 @@
                     <a href="{% url 'access' %}">ACCESS</a>
                 </div>
 
-<!-- [修复] 登录状态逻辑升级 -->
                 {% if user.is_authenticated %}
-                    <!-- 已登录：显示用户 ID/Profile 入口 -->
                     <div class="relative group">
-                        <!-- 用户名/ID 按钮 -->
                         <a href="{% url 'profile' %}" class="flex items-center gap-3 px-4 py-2 border border-transparent hover:border-veludo-accent-gold/50 rounded-sm transition-all duration-300 group-hover:bg-white/5">
                             <div class="flex flex-col items-end">
                                 <span class="text-[10px] text-veludo-accent-gold tracking-widest uppercase">Welcome</span>
@@ -371,8 +386,6 @@
                                 <i class="fa-regular fa-user"></i>
                             </div>
                         </a>
-
-                        <!-- 下拉菜单 (Hover 显示) -->
                         <div class="absolute right-0 top-full mt-2 w-48 bg-[#9c8c74] shadow-xl rounded-sm overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50">
                             <a href="{% url 'profile' %}" class="block px-4 py-3 text-xs text-white hover:bg-black/10 tracking-widest border-b border-white/10">
                                 <i class="fa-solid fa-id-card mr-2"></i> マイページ
@@ -386,7 +399,6 @@
                         </div>
                     </div>
                 {% else %}
-                    <!-- 未登录 -->
                     <a href="{% url 'login' %}" class="group flex items-center gap-2 border border-white/40 px-6 py-2.5 text-[10px] tracking-widest text-white hover:border-veludo-accent-gold hover:bg-veludo-accent-gold hover:text-white transition-all duration-300 rounded-sm">
                         <i class="fa-regular fa-user group-hover:scale-110 transition-transform"></i> 
                         <span>LOGIN</span>
@@ -394,29 +406,57 @@
                 {% endif %}
             </div>
 
-            <!-- 手机端菜单按钮 -->
-            <div class="flex items-center gap-6 md:hidden text-white">
-                <a href="login.html" class="text-xs hover:text-veludo-accent-gold"><i class="fa-regular fa-user"></i></a>
-                <button class="text-xl hover:text-veludo-accent-gold transition-colors">
+            <div class="flex items-center gap-4 md:hidden text-white"> {% if user.is_authenticated %}
+                    <a href="{% url 'profile' %}" class="text-xs hover:text-veludo-accent-gold flex flex-col items-center">
+                        <i class="fa-solid fa-user-check text-xl text-veludo-accent-gold"></i>
+                    </a>
+                {% else %}
+                    <a href="{% url 'login' %}" class="text-xs hover:text-veludo-accent-gold flex flex-col items-center">
+                        <i class="fa-regular fa-user text-xl"></i>
+                    </a>
+                {% endif %}
+                
+                <button onclick="toggleMobileMenu()" class="text-2xl hover:text-veludo-accent-gold transition-colors p-1">
                     <i class="fa-solid fa-bars"></i>
                 </button>
+            </div>
+        </div>
+
+        <div id="mobile-menu" class="fixed inset-0 bg-[#a08977] z-[90] flex flex-col justify-center items-center opacity-0 invisible transition-all duration-500 transform translate-y-[-100%]">
+            <button onclick="toggleMobileMenu()" class="absolute top-6 right-8 text-white text-3xl hover:text-veludo-accent-gold transition-colors p-2">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex flex-col gap-8 text-center text-white font-english italic text-2xl tracking-[0.2em]">
+                <a href="{% url 'index' %}" onclick="toggleMobileMenu()" class="hover:text-veludo-accent-gold transition-colors">HOME</a>
+                <a href="{% url 'service' %}" onclick="toggleMobileMenu()" class="hover:text-veludo-accent-gold transition-colors">SERVICE</a>
+                <a href="{% url 'cast' %}" onclick="toggleMobileMenu()" class="hover:text-veludo-accent-gold transition-colors">CAST</a>
+                <a href="{% url 'access' %}" onclick="toggleMobileMenu()" class="hover:text-veludo-accent-gold transition-colors">ACCESS</a>
+                <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event); toggleMobileMenu();" class="mt-8 px-8 py-3 border border-white text-sm font-sans tracking-widest hover:bg-white hover:text-[#a08977] transition-all uppercase">
+                    予約ページ
+                </a>
             </div>
         </div>
     </nav>
 
     <!-- Hero Section (首屏) -->
-    <header class="relative w-full h-[100vh] flex items-center justify-center overflow-hidden bg-[#CFC8BC]">
-        <img src="../static/images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg" class="absolute w-full h-full object-cover opacity-100 mix-blend-multiply" alt="Hero">
+    <header class="relative w-full h-[100dvh] flex items-center justify-center overflow-hidden bg-[#CFC8BC]">
+        <img src="{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}" class="absolute w-full h-full object-cover opacity-100 mix-blend-multiply" alt="Hero">
         <div class="absolute inset-0 bg-black/15"></div>
         
         <div class="relative z-10 text-center text-white fade-in-up pb-10">
             <div class="mb-6 flex justify-center">
-                 <img src="../static/images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png" alt="Relaxation" class="h-24 md:h-32 w-auto object-contain drop-shadow-lg">
+                 <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Relaxation" class="h-24 md:h-32 w-auto object-contain drop-shadow-lg">
             </div>
             
             <div class="w-20 h-[2px] bg-veludo-accent-gold/80 mx-auto mb-6 shadow-[0_0_10px_rgba(227,192,112,0.5)]"></div>
-            <p class="text-sm md:text-lg tracking-[0.9em] font-light drop-shadow-sm text-veludo-light font-japanese">究極の癒しを、あなたに</p>
-            <p class="mt-4 text-[15px] tracking-[0.2em] opacity-90 text-veludo-accent-gold font-medium font-japanese">日本初のVR空間ASMR有料店舗</p>
+            
+            <p class="text-sm md:text-lg tracking-[0.2em] md:tracking-[0.9em] font-light drop-shadow-sm text-veludo-light font-japanese">
+                究極の癒しを、あなたに
+            </p>
+            
+            <p class="mt-4 text-[15px] tracking-[0.1em] md:tracking-[0.2em] opacity-90 text-veludo-accent-gold font-medium font-japanese">
+                日本初のVR空間ASMR有料店舗
+            </p>
         </div>
 
         <div class="scroll-indicator">
@@ -425,7 +465,7 @@
         </div>
 
         <div class="absolute bottom-12 right-6 md:right-16 md:bottom-20 z-20">
-            <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event)" class="block btn-gold-interactive text-white px-10 py-5 text-sm md:text-base tracking-[0.3em] shadow-2xl border border-white/20">
+            <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event)" class="block btn-gold-interactive text-white px-10 py-5 text-sm md:text-base tracking-[0.2em] md:tracking-[0.3em] shadow-2xl border border-white/20">
                 予約ページ
                 <i class="fa-solid fa-angle-right ml-2 text-xs"></i>
             </a>
@@ -457,123 +497,74 @@
 
             <!-- YouTube Video -->
             <div class="mt-16 relative w-full aspect-video bg-black shadow-2xl reveal-on-scroll">
-                <iframe width="850" height="520" src="https://www.youtube.com/embed/-kdaGEUIBSM?si=Ndc34WEUFG4vLhch" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                <iframe 
+                    class="absolute top-0 left-0 w-full h-full" 
+                    src="https://www.youtube.com/embed/-kdaGEUIBSM?si=Ndc34WEUFG4vLhch" 
+                    title="YouTube video player" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    referrerpolicy="strict-origin-when-cross-origin" 
+                    allowfullscreen>
+                </iframe>
             </div>
 
             <!-- X (Twitter) Link -->
             <div class="mt-12 text-center reveal-on-scroll">
-                <a href="https://x.com/vrasmr_veludo" class="inline-flex items-center gap-4 bg-black text-white px-10 py-4 text-xs tracking-[0.2em] hover:bg-[#333] hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 shadow-lg group">
+                <a href="https://x.com/vrasmr_veludo" onclick="trackEvent('CLICK_SOCIAL', 'Twitter_Home_Button')" class="inline-flex items-center gap-4 bg-black text-white px-10 py-4 text-xs tracking-[0.2em] hover:bg-[#333] hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 shadow-lg group">
                     <i class="fa-brands fa-x-twitter text-lg group-hover:text-veludo-accent-gold transition-colors"></i>
                     最新情報はこちらから
                 </a>
             </div>
 
              <!-- Cast Carousel -->
-             <div class="mt-24 w-full reveal-on-scroll">
+            <div class="mt-24 w-screen relative left-1/2 -ml-[50vw] reveal-on-scroll overflow-hidden">
                 <p class="text-center text-veludo-accent-gold text-xs tracking-[0.3em] mb-10 uppercase font-bold">Our Casts</p>
-                <div class="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden mask-linear-fade">
-                    <div class="carousel-track flex gap-6 px-6">
-                        <!-- 第一组图片 (Set 1) -->
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/Rin 3tai4①番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/しらとり 3tai4②番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/たかなし楓 3tai4③.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/2tail3tai4①.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/pass 3tai4.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/天藤ミント 3tai4①.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/てんしN3tai4 ③番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/ましろ 3tai4新③番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
-                            </div>
-                        </div>
+                
+                <div class="relative w-full overflow-hidden mask-linear-fade">
+                    <div class="carousel-track flex justify-start w-max gap-4 px-4">
+                        
+                        {% for i in "1234" %} 
+                            {% if casts %}
+                                {% for cast in casts %}
+                                    <div class="cast-card-mini w-32 md:w-48 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg border border-white/10 hover:-translate-y-1 transition-transform duration-300">
+                                        
+                                        <a href="{% url 'cast' %}" class="block w-full h-full relative">
+                                            <div class="w-full h-full bg-gray-900 relative">
+                                                {% if cast.medias.all %}
+                                                    {% for media in cast.medias.all %}
+                                                        {% if media.image_file %}
+                                                            <div class="carousel-slide absolute inset-0 {% if forloop.first %}active{% endif %}">
+                                                                <img src="{{ media.image_file.url }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="{{ cast.name }}" loading="lazy">
+                                                            </div>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <div class="carousel-slide active absolute inset-0">
+                                                        {% if cast.avatar %}
+                                                            <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="{{ cast.name }}" loading="lazy">
+                                                        {% else %}
+                                                            <div class="w-full h-full flex items-center justify-center text-gray-600"><i class="fa-solid fa-user text-2xl"></i></div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
 
-                        <!-- 第二组图片 (Set 2 - 完全复制 Set 1 以实现无缝循环) -->
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/Rin 3tai4①番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/しらとり 3tai4②番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/たかなし楓 3tai4③.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/2tail3tai4①.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/pass 3tai4.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Keimaru</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/天藤ミント 3tai4①.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Luna</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/てんしN3tai4 ③番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Ren</span>
-                            </div>
-                        </div>
-                        <div class="w-48 md:w-64 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg">
-                            <img src="../static/images/cast/ましろ 3tai4新③番号.png" class="w-full h-full object-cover">
-                            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                                <span class="text-xs tracking-widest block font-english italic">Mio</span>
-                            </div>
-                        </div>
+                                            <div class="absolute bottom-0 left-0 w-full p-3 bg-gradient-to-t from-black/90 to-transparent pointer-events-none z-20">
+                                                <span class="text-white font-english italic font-bold tracking-wider text-sm md:text-base">{{ cast.name }}</span>
+                                            </div>
+                                        </a>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="w-screen flex justify-center items-center h-32 text-gray-400 text-xs">
+                                    No Casts Available
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+
                     </div>
                 </div>
+                
                 <div class="text-center mt-8">
                     <a href="{% url 'cast' %}" class="text-[10px] text-veludo-accent-gold border-b border-veludo-accent-gold pb-1 hover:text-veludo-text transition-colors tracking-widest">VIEW ALL CASTS -></a>
                 </div>
@@ -650,7 +641,7 @@
             <p class="text-white text-sm md:text-base tracking-[0.2em] font-light mb-10 drop-shadow-md font-japanese">
                 サービス内容を動画でご確認いただける
             </p>
-            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" class="inline-block btn-gold-interactive text-white px-12 py-4 text-xs md:text-sm tracking-[0.3em] shadow-[0_0_20px_rgba(200,164,100,0.4)] border border-white/20">
+            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" onclick="trackEvent('CLICK_SOCIAL', 'YouTube_Home_Section')" class="inline-block btn-gold-interactive text-white px-12 py-4 text-xs md:text-sm tracking-[0.3em] shadow-[0_0_20px_rgba(200,164,100,0.4)] border border-white/20">
                 YouTubeチャンネルはこちらから
             </a>
         </div>
@@ -679,17 +670,17 @@
                         </a>
 
                         <div class="flex items-center gap-8 text-lg text-veludo-header/60">
-                            <a href="https://x.com/vrasmr_veludo" class="hover:text-veludo-accent-gold flex items-center">
+                            <a href="https://x.com/vrasmr_veludo" onclick="trackEvent('CLICK_SOCIAL', 'Twitter_Icon_Access')" class="hover:text-veludo-accent-gold flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/>
                                 </svg>
                             </a>
                             
-                            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" class="hover:text-veludo-accent-gold flex items-center">
+                            <a href="https://www.youtube.com/@ASMRSalon-Veludo--" onclick="trackEvent('CLICK_SOCIAL', 'YouTube_Icon_Access')" class="hover:text-veludo-accent-gold flex items-center">
                                 <i class="fa-brands fa-youtube"></i>
                             </a>
                             
-                            <a href="https://discord.gg/5MwQHAzjSu" class="hover:text-veludo-accent-gold flex items-center">
+                            <a href="https://discord.gg/5MwQHAzjSu" onclick="trackEvent('CLICK_SOCIAL', 'Discord_Icon_Access')" class="hover:text-veludo-accent-gold flex items-center">
                                 <i class="fa-brands fa-discord"></i>
                             </a>
                         </div>
@@ -722,6 +713,41 @@
 
     <!-- Scripts -->
     <script>
+        function trackEvent(action, target = '', meta = {}) {
+            const url = "/core/api/track/"; 
+            
+            if (!meta.page_url) { meta.page_url = window.location.pathname; }
+            if (!meta.page_title) { meta.page_title = document.title; }
+
+            // 使用 navigator.sendBeacon 保证在页面跳转/关闭时也能发送数据 (比 fetch 更可靠)
+            const data = new Blob([JSON.stringify({
+                action: action,
+                target: target,
+                meta: meta 
+            })], {type: 'application/json'});
+            
+            // 如果浏览器支持 sendBeacon，优先使用它
+            if (navigator.sendBeacon) {
+                const csrfToken = "{{ csrf_token }}"; // Beacon 难以设置 Header，通常需要在 View 豁免 CSRF 或使用 Cookie
+                // 这里为了简单演示仍用 fetch，生产环境建议处理 CSRF
+                fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify({ action, target, meta }),
+                    keepalive: true // 关键：允许请求在页面卸载后继续
+                }).catch(err => console.log("Tracking ignored:", err));
+            } else {
+                // 降级方案
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify({ action, target, meta })
+                });
+            }
+        }
         function handleReservationClick(event) {
             // 1. 获取 Django 传过来的登录状态 (字符串 "true" 或 "false")
             const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}";
@@ -740,6 +766,7 @@
             // 如果已登录 (isAuthenticated === 'true')，则不做干预，让 <a> 标签正常跳转
         }
         document.addEventListener('DOMContentLoaded', function() {
+            trackEvent('VIEW_PAGE', 'Home Page');
             // 页面加载转场控制
             const pageLoader = document.getElementById('page-loader');
             
@@ -769,6 +796,21 @@
             const elements = document.querySelectorAll('.reveal-on-scroll, .slide-in-left, .slide-in-right');
             elements.forEach(el => observer.observe(el));
         });
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            // 切换 class 来控制显示/隐藏
+            if (menu.classList.contains('invisible')) {
+                // 打开: 移除隐藏类，添加显示类
+                menu.classList.remove('invisible', 'opacity-0', 'translate-y-[-100%]');
+                menu.classList.add('opacity-100', 'translate-y-0');
+                document.body.style.overflow = 'hidden'; // 禁止背景滚动
+            } else {
+                // 关闭: 移除显示类，添加隐藏类
+                menu.classList.add('invisible', 'opacity-0', 'translate-y-[-100%]');
+                menu.classList.remove('opacity-100', 'translate-y-0');
+                document.body.style.overflow = ''; // 恢复滚动
+            }
+        }
     </script>
 </body>
 </html>

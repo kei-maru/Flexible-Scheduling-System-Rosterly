@@ -25,15 +25,20 @@ class User(AbstractUser):
 
 
 class UserActivity(models.Model):
+    # [关键修复] 补充所有前端用到的 Action 类型
     ACTION_CHOICES = [
-        ('VIEW_PAGE', 'View Page'),       # 访问页面
-        ('CLICK_CAST', 'Click Cast'),     # 点击 Cast 头像
-        ('FILTER_ROLE', 'Filter Role'),   # 筛选角色
-        ('VIEW_TAB', 'Switch Tab'),       # 切换标签页
-        ('VIEW_SHIFT', 'Check Schedule'), # 查看排班
-        ('LOGIN', 'User Login'),          # 登录
+        ('VIEW_PAGE', 'View Page'),           # 访问页面
+        ('CLICK_CAST', 'Click Cast'),         # 点击 Cast 头像
+        ('CLICK_SOCIAL', 'Click SNS/Video'),  # [新增] 点击社交链接/视频
+        ('CLICK_RESERVATION', 'Click Reserve'), # [新增] 点击预约按钮
+        ('CLICK_LINK', 'Click Link'),         # [新增] 点击普通链接 (如查看全部)
+        ('OPEN_MENU', 'Open Mobile Menu'),    # [新增] 打开手机菜单
+        ('FILTER_ROLE', 'Filter Role'),       
+        ('VIEW_TAB', 'Switch Tab'),           
+        ('VIEW_SHIFT', 'Check Schedule'),     
+        ('LOGIN', 'User Login'),              
         ('BOOKING_SUCCESS', 'Booking Success'), 
-        ('SWITCH_MODE', 'Switch Mode'),         
+        ('SWITCH_MODE', 'Switch Mode'),       
     ]
 
     user = models.ForeignKey(
@@ -43,15 +48,22 @@ class UserActivity(models.Model):
         blank=True,
         verbose_name="ユーザー"
     )
+    
+    # 字段定义
     action = models.CharField("操作タイプ", max_length=50, choices=ACTION_CHOICES)
-    target = models.CharField("ターゲット", max_length=100, blank=True, null=True, help_text="例: Cast名, ページ名")
-    meta_data = models.JSONField("メタデータ", default=dict, blank=True) # 存 IP, 浏览器信息等
+    
+    # [建议] 将 target 长度增加到 255，防止 URL 过长导致报错
+    target = models.CharField("ターゲット", max_length=255, blank=True, null=True, help_text="例: Cast名, ページ名")
+    
+    meta_data = models.JSONField("メタデータ", default=dict, blank=True) 
     timestamp = models.DateTimeField("日時", auto_now_add=True)
     
     class Meta:
-        verbose_name = "ユーザーアクティビティ"
+        verbose_name = "ユーザー履歴"
         verbose_name_plural = "アクティビティログ"
         ordering = ['-timestamp']
 
     def __str__(self):
-        return f"{self.user} - {self.action} - {self.timestamp}"
+        user_str = self.user.username if self.user else "Anonymous"
+        # 使用 get_action_display() 可以在后台显示可读的标签
+        return f"{user_str} - {self.get_action_display()} - {self.timestamp}"

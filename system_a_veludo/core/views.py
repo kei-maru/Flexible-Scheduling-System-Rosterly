@@ -24,8 +24,10 @@ def track_activity(request):
     """
     try:
         data = json.loads(request.body)
-        action = data.get('action')
-        target = data.get('target', '')
+        
+        # [修改] 增加默认值 'UNKNOWN_ACTION'，防止为空
+        action = data.get('action', 'UNKNOWN_ACTION') 
+        target = data.get('target', 'UNKNOWN_TARGET')
         meta = data.get('meta', {})
 
         # 获取 IP 地址
@@ -37,15 +39,19 @@ def track_activity(request):
         
         meta['ip'] = ip
         
+        # [新增] 打印调试信息到终端，方便你看有没有收到
+        print(f"--- TRACKING --- User: {request.user}, Action: {action}, Target: {target}")
+
         # 保存到数据库
         UserActivity.objects.create(
             user=request.user if request.user.is_authenticated else None,
-            action=action,
+            action=action, # 确保这里存进去了
             target=target,
             meta_data=meta
         )
         return JsonResponse({'status': 'success'})
     except Exception as e:
+        print(f"--- TRACKING ERROR --- {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 def index(request):

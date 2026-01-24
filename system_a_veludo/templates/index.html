@@ -238,7 +238,7 @@
         .carousel-track {
             display: flex;
             width: max-content; 
-            animation: scroll 190s linear infinite; /* 调整时间控制速度 */
+            animation: scroll 200s linear infinite; /* 调整时间控制速度 */
         }
         .carousel-track:hover {
             animation-play-state: paused; 
@@ -520,45 +520,57 @@
             <div class="mt-24 w-screen relative left-1/2 -ml-[50vw] reveal-on-scroll overflow-hidden">
                 <p class="text-center text-veludo-accent-gold text-xs tracking-[0.3em] mb-10 uppercase font-bold">Our Casts</p>
                 
+                <div class="mt-24 w-screen relative left-1/2 -ml-[50vw] reveal-on-scroll overflow-hidden">
+                <p class="text-center text-veludo-accent-gold text-xs tracking-[0.3em] mb-10 uppercase font-bold">Our Casts</p>
+                
                 <div class="relative w-full overflow-hidden mask-linear-fade">
                     <div class="carousel-track flex justify-start w-max gap-4 px-4">
                         
-                        {% for i in "1234" %} 
+                        {% for i in "123456789012" %} 
                             {% if casts %}
                                 {% for cast in casts %}
                                     <div class="cast-card-mini w-32 md:w-48 flex-shrink-0 aspect-[3/4] bg-gray-200 relative group overflow-hidden cursor-pointer shadow-lg border border-white/10 hover:-translate-y-1 transition-transform duration-300">
                                         
-                                        <a href="{% url 'cast' %}" class="block w-full h-full relative">
+                                        <a href="{% url 'cast' %}" 
+                                           onclick="trackEvent('CLICK_CAST', '{{ cast.name }}')"
+                                           class="block w-full h-full relative">
+                                            
                                             <div class="w-full h-full bg-gray-900 relative">
-                                                {% if cast.medias.all %}
-                                                    {% for media in cast.medias.all %}
-                                                        {% if media.image_file %}
-                                                            <div class="carousel-slide absolute inset-0 {% if forloop.first %}active{% endif %}">
-                                                                <img src="{{ media.image_file.url }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="{{ cast.name }}" loading="lazy">
-                                                            </div>
-                                                        {% endif %}
-                                                    {% endfor %}
-                                                {% else %}
-                                                    <div class="carousel-slide active absolute inset-0">
-                                                        {% if cast.avatar %}
-                                                            <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="{{ cast.name }}" loading="lazy">
-                                                        {% else %}
-                                                            <div class="w-full h-full flex items-center justify-center text-gray-600"><i class="fa-solid fa-user text-2xl"></i></div>
-                                                        {% endif %}
-                                                    </div>
-                                                {% endif %}
+                                                {% with first_media=cast.medias.all|first %}
+                                                    {% if first_media and first_media.image_file %}
+                                                        <img src="{{ first_media.image_file.url }}" 
+                                                             class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                                                             alt="{{ cast.name }}" 
+                                                             loading="lazy">
+                                                    
+                                                    {% elif cast.avatar %}
+                                                        <img src="{{ cast.avatar.url }}" 
+                                                             class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                                                             alt="{{ cast.name }}" 
+                                                             loading="lazy">
+                                                    
+                                                    {% else %}
+                                                        <div class="w-full h-full flex items-center justify-center text-gray-600">
+                                                            <i class="fa-solid fa-user text-2xl"></i>
+                                                        </div>
+                                                    {% endif %}
+                                                {% endwith %}
                                             </div>
 
                                             <div class="absolute bottom-0 left-0 w-full p-3 bg-gradient-to-t from-black/90 to-transparent pointer-events-none z-20">
-                                                <span class="text-white font-english italic font-bold tracking-wider text-sm md:text-base">{{ cast.name }}</span>
+                                                <span class="text-white font-english italic font-bold tracking-wider text-sm md:text-base">
+                                                    {{ cast.name }}
+                                                </span>
                                             </div>
                                         </a>
                                     </div>
                                 {% endfor %}
                             {% else %}
+                                {% if forloop.first %}
                                 <div class="w-screen flex justify-center items-center h-32 text-gray-400 text-xs">
                                     No Casts Available
                                 </div>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
 
@@ -566,7 +578,9 @@
                 </div>
                 
                 <div class="text-center mt-8">
-                    <a href="{% url 'cast' %}" class="text-[10px] text-veludo-accent-gold border-b border-veludo-accent-gold pb-1 hover:text-veludo-text transition-colors tracking-widest">VIEW ALL CASTS -></a>
+                    <a href="{% url 'cast' %}" onclick="trackEvent('CLICK_LINK', 'View All Casts')" class="text-[10px] text-veludo-accent-gold border-b border-veludo-accent-gold pb-1 hover:text-veludo-text transition-colors tracking-widest">
+                        VIEW ALL CASTS ->
+                    </a>
                 </div>
             </div>
         </div>
@@ -716,41 +730,49 @@
         function trackEvent(action, target = '', meta = {}) {
             const url = "/core/api/track/"; 
             
+            // 1. 自动填充页面信息
             if (!meta.page_url) { meta.page_url = window.location.pathname; }
             if (!meta.page_title) { meta.page_title = document.title; }
 
-            // 使用 navigator.sendBeacon 保证在页面跳转/关闭时也能发送数据 (比 fetch 更可靠)
-            const data = new Blob([JSON.stringify({
-                action: action,
-                target: target,
-                meta: meta 
-            })], {type: 'application/json'});
+            // [新增] 前端调试日志：按F12看控制台有没有这句话
+            console.log(`📡 Sending Event: [${action}] Target: ${target}`);
+
+            // 2. 准备数据包
+            const payload = {
+                action: action,  // 对应后端 data.get('action')
+                target: target,  // 对应后端 data.get('target')
+                meta: meta       // 对应后端 data.get('meta')
+            };
+
+            // 3. 发送请求 (优先使用 sendBeacon)
+            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
             
-            // 如果浏览器支持 sendBeacon，优先使用它
             if (navigator.sendBeacon) {
-                const csrfToken = "{{ csrf_token }}"; // Beacon 难以设置 Header，通常需要在 View 豁免 CSRF 或使用 Cookie
-                // 这里为了简单演示仍用 fetch，生产环境建议处理 CSRF
+                // sendBeacon 不支持自定义 Header (如 CSRF)，除非后端豁免
+                // 这里为了稳妥，我们改回用 fetch + keepalive，这是现代浏览器的标准做法
                 fetch(url, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "X-CSRFToken": "{{ csrf_token }}"
+                        "X-CSRFToken": "{{ csrf_token }}" 
                     },
-                    body: JSON.stringify({ action, target, meta }),
-                    keepalive: true // 关键：允许请求在页面卸载后继续
-                }).catch(err => console.log("Tracking ignored:", err));
+                    body: JSON.stringify(payload),
+                    keepalive: true 
+                }).catch(err => console.error("Tracking Error:", err));
             } else {
                 // 降级方案
                 fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-                    body: JSON.stringify({ action, target, meta })
+                    body: JSON.stringify(payload)
                 });
             }
         }
         function handleReservationClick(event) {
             // 1. 获取 Django 传过来的登录状态 (字符串 "true" 或 "false")
             const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}";
+
+            trackEvent('CLICK_RESERVATION', 'Hero Button', { authenticated: isAuthenticated });
             
             // 2. 如果未登录
             if (isAuthenticated === 'false') {

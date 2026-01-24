@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Schedule Management | Veludo</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
     <link rel="icon" type="image/png" href="/media/tenant_logos/veludo_logo.png">
@@ -30,9 +30,10 @@
             background-color: #000; 
             color: #e5e5e5; 
             font-family: "Noto Serif JP", serif;
-            /* 强制数字等高(lining)且等宽(tabular)，解决对齐问题 */
             font-variant-numeric: lining-nums tabular-nums; 
             -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            touch-action: manipulation;
         }
         .glass-panel {
             background: rgba(45, 45, 45, 0.95);
@@ -43,7 +44,21 @@
         
         /* FullCalendar Customization */
         .fc { border: none !important; font-family: "Noto Serif JP", sans-serif; }
-        .fc-toolbar-title { font-family: "Cormorant Garamond", serif; font-size: 1.8rem !important; color: #d4af37; letter-spacing: 0.05em; }
+        .fc-toolbar-title { 
+            font-family: "Cormorant Garamond", serif; 
+            font-size: 1.8rem !important; 
+            color: #d4af37; 
+            letter-spacing: 0.05em; 
+        }
+        /* Mobile Toolbar Adjustment */
+        @media (max-width: 768px) {
+            .fc-toolbar-title { font-size: 1.4rem !important; }
+            .fc-header-toolbar {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
         .fc-button { 
             background-color: transparent !important; 
             border: 1px solid #444 !important; 
@@ -58,25 +73,19 @@
         
         .fc-theme-standard td, .fc-theme-standard th { border-color: #333 !important; }
         
-        /* ---【修改 1】优化日历字体颜色，使其在深色背景下更明显 --- */
-        /* 时间轴左侧的时间 (如 10:00) 改为亮灰色 */
         .fc-timegrid-slot-label-cushion { 
             color: #e5e5e5 !important; 
             font-family: "Cormorant Garamond"; 
             font-size: 1em; 
             font-weight: 500;
         }
-        /* 顶部的日期 (如 Mon 1/15) 改为主题金，加粗 */
         .fc-col-header-cell-cushion {
-            color: #4b4225 !important; /* 金色 */
+            color: #4b4225 !important; 
             text-decoration: none !important;
             font-weight: bold;
             font-size: 1.1em;
         }
-        /* 去掉默认的链接下划线颜色 */
-        .fc-col-header-cell a {
-            text-decoration: none !important;
-        }
+        .fc-col-header-cell a { text-decoration: none !important; }
         
         /* Event Styling */
         .fc-event {
@@ -89,9 +98,6 @@
             overflow: hidden;   
             white-space: nowrap;
             text-overflow: ellipsis; 
-        }
-        .fc-timegrid-event-short .fc-event-main {
-            padding: 0;
         }
         .fc-event:hover {
             background-color: rgba(212, 175, 55, 0.4);
@@ -112,11 +118,11 @@
 <body class="min-h-screen bg-fixed bg-cover bg-center py-6 md:py-10"
       style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
     
-    <div class="absolute inset-0 bg-black/85 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-sm fixed"></div>
 
     <div class="relative z-10 w-full max-w-7xl mx-auto px-4">
         
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 md:gap-0">
             <div class="flex items-center gap-6">
                 <a href="{% url 'profile' %}" class="text-white/60 hover:text-veludo-accent-gold transition-colors text-xs tracking-[0.2em] flex items-center gap-2 font-serif">
                     <i class="fa-solid fa-arrow-left"></i> プロフィールに戻る
@@ -127,7 +133,7 @@
                 </a>
             </div>
 
-            <div id="status-indicator" class="text-xs font-mono text-gray-500">
+            <div id="status-indicator" class="text-xs font-mono text-gray-500 self-end md:self-auto">
                 <span class="w-2 h-2 rounded-full bg-gray-500 inline-block mr-1" id="status-dot"></span>
                 System B: <span id="status-text">Standing By</span>
             </div>
@@ -141,34 +147,35 @@
         {% else %}
 
         <div class="glass-panel p-4 md:p-6 rounded-sm shadow-2xl">
-            <div class="mb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-2 border-b border-white/10 pb-4">
+            <div class="mb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-white/10 pb-4">
                 <div>
-                    <h1 class="text-2xl md:text-3xl font-serif text-veludo-accent-gold tracking-widest mb-1">スケジュール＆シフト一覧</h1>
+                    <h1 class="text-xl md:text-3xl font-serif text-veludo-accent-gold tracking-widest mb-1">スケジュール＆シフト一覧</h1>
                     <p class="text-xs text-gray-400 font-sans tracking-wide">
                         <i class="fa-regular fa-hand-pointer mr-1"></i> ドラッグしてシフトを追加
-                        <span class="mx-2">|</span>
+                        <span class="mx-2 hidden md:inline">|</span>
+                        <br class="md:hidden">
                         <i class="fa-regular fa-trash-can mr-1"></i> クリックしてシフトを削除
                     </p>
                 </div>
                 
-                <div class="flex flex-col items-end gap-2">
-                    <button onclick="openRecurringModal()" class="bg-veludo-accent-gold/10 text-veludo-accent-gold border border-veludo-accent-gold px-4 py-2 text-xs uppercase tracking-widest hover:bg-veludo-accent-gold hover:text-black transition-colors">
+                <div class="flex flex-col items-end gap-2 w-full md:w-auto">
+                    <!-- 追踪周期编辑点击 -->
+                    <button onclick="trackEvent('CLICK_LINK', 'Recurring Edit Modal'); openRecurringModal()" class="w-full md:w-auto bg-veludo-accent-gold/10 text-veludo-accent-gold border border-veludo-accent-gold px-4 py-3 md:py-2 text-xs uppercase tracking-widest hover:bg-veludo-accent-gold hover:text-black transition-colors">
                         <i class="fa-solid fa-repeat mr-2"></i> 繰り返しスケジュール編集（周期）
                     </button>
 
-                    <div class="flex gap-4 text-xs">
+                    <div class="flex flex-wrap gap-2 md:gap-4 text-xs justify-end">
                         <div class="flex items-center gap-1">
                             <div class="w-3 h-3 bg-[#10b981]/30 border-l-2 border-[#10b981]"></div> 
-                            <span class="text-gray-400">空きシフト(一回のみ変更)</span>
+                            <span class="text-gray-400">単発</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> 
-                            <span class="text-gray-400">空きシフト(周期)</span>
+                            <span class="text-gray-400">周期</span>
                         </div>
-                        
                         <div class="flex items-center gap-1">
                             <div class="w-3 h-3 bg-red-900/40 border-l-2 border-red-500"></div> 
-                            <span class="text-gray-400">予約済み</span>
+                            <span class="text-gray-400">予約済</span>
                         </div>
                     </div>
                 </div>
@@ -180,34 +187,39 @@
         {% endif %}
     </div>
 
+    <!-- Recurring Modal -->
     <div id="recurringModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/90 backdrop-blur-sm" onclick="closeRecurringModal()"></div>
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl px-4">
+        <!-- 适配手机：宽95%，最大高度90vh，可滚动 -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[95%] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div class="glass-panel p-6 md:p-8 rounded-sm shadow-2xl relative">
-                <button onclick="closeRecurringModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+                <button onclick="closeRecurringModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white p-2">
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
-                <h2 class="text-xl font-serif text-veludo-accent-gold mb-6 border-l-4 border-veludo-accent-gold pl-3">
+                <h2 class="text-lg md:text-xl font-serif text-veludo-accent-gold mb-6 border-l-4 border-veludo-accent-gold pl-3">
                     繰り返しスケジュール編集（周期）
                 </h2>
                 <form id="recurringForm" class="space-y-6">
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">開始日付</label>
-                            <input type="date" name="range_start" required class="w-full bg-black/30 border border-white/10 text-white p-2 text-sm focus:border-veludo-accent-gold outline-none">
+                            <input type="date" name="range_start" required class="w-full bg-black/30 border border-white/10 text-white p-3 md:p-2 text-sm focus:border-veludo-accent-gold outline-none rounded-sm">
                         </div>
                         <div>
                             <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">終了日付</label>
-                            <input type="date" name="range_end" required class="w-full bg-black/30 border border-white/10 text-white p-2 text-sm focus:border-veludo-accent-gold outline-none">
+                            <input type="date" name="range_end" required class="w-full bg-black/30 border border-white/10 text-white p-3 md:p-2 text-sm focus:border-veludo-accent-gold outline-none rounded-sm">
                         </div>
                     </div>
-                    <div class="bg-black/20 p-4 rounded border border-white/5">
+                    
+                    <div class="bg-black/20 p-3 md:p-4 rounded border border-white/5">
                         <div class="grid grid-cols-1 gap-2">
+                            <!-- 容器：手机端使用 flex-wrap 自动换行 -->
                             <div id="week-rows" class="space-y-3"></div>
                         </div>
                     </div>
-                    <div class="text-xs text-gray-100 italic">* 一回のみ変更シフトのが優先されます</div>
-                    <button type="submit" class="w-full bg-veludo-accent-gold text-black py-3 font-bold uppercase tracking-widest hover:bg-white transition-colors">
+                    
+                    <div class="text-xs text-gray-400 italic">* 一回のみ変更シフトのが優先されます</div>
+                    <button type="submit" class="w-full bg-veludo-accent-gold text-black py-4 md:py-3 font-bold uppercase tracking-widest hover:bg-white transition-colors rounded-sm">
                         シフトを追加する
                     </button>
                 </form>
@@ -246,30 +258,57 @@
             if (!CURRENT_RESOURCE_ID) {
                 console.error("Missing SaaS Resource ID");
                 updateStatus('error');
-                alert("Configuration Error: Your account is not linked to the reservation system.");
                 return;
             }
 
+            // 检测手机端
             var isMobile = window.innerWidth < 768;
 
             // --- 初始化 FullCalendar ---
             window.calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: isMobile ? 'timeGridDay' : 'timeGrid',
-                duration: { days: 7 }, 
-                dateIncrement: { days: 1 }, 
+                // [优化] 定义特定视图的配置
+                views: {
+                    mobileThreeDay: {
+                        type: 'timeGrid',
+                        duration: { days: 3 }, // 手机: 3天
+                        buttonText: '3日',
+                        dateIncrement: { days: 1 }, // 手机: 翻1天
+                        dayHeaderFormat: { month: 'numeric', day: 'numeric', omitCommas: true } // 手机: 只显示月/日
+                    },
+                    pcWeek: {
+                        type: 'timeGrid',
+                        duration: { days: 7 }, // PC: 7天
+                        buttonText: '7日',
+                        dateIncrement: { days: 1 }, // PC: 翻1天
+                        dayHeaderFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true } // PC: 显示星期+日期
+                    },
+                    dayGridMonth: {
+                        buttonText: '月',
+                        // 月视图默认翻页1个月，无需设置 dateIncrement
+                        dayHeaderFormat: { weekday: 'short' } // 月视图表头只显示星期 (Mon, Tue...)
+                    }
+                },
+                
+                // 根据设备选择初始视图
+                initialView: isMobile ? 'mobileThreeDay' : 'pcWeek',
+                
                 height: 'auto',
                 slotMinTime: '00:00:00',
                 scrollTime: '20:00:00',
-                slotDuration: '01:00:00',
+                slotDuration: '01:00:00', 
                 nowIndicator: true,
                 locale: 'ja',
-                headerToolbar: { left: 'prev,next,today', center: 'title', right: 'today' },
-                dayHeaderFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true },
+                
+                // 手机端简化 Toolbar
+                headerToolbar: isMobile 
+                    ? { left: 'prev,next', center: 'title', right: 'today' }
+                    : { left: 'prev,next,today', center: 'title', right: 'dayGridMonth,pcWeek,mobileThreeDay' }, // 使用自定义视图名称
+
                 slotLabelFormat: { hour: 'numeric', minute: '2-digit', meridiem: false, hour12: false },
                 allDaySlot: false,
                 selectable: true,
                 selectMirror: true,
-                longPressDelay: 500,
+                longPressDelay: 300, 
 
                 // --- 1. 获取排班 (FETCH) ---
                 events: function(info, successCallback, failureCallback) {
@@ -287,32 +326,25 @@
                         })
                         .then(data => {
                             updateStatus('success');
-                            // 处理返回的事件数据
                             const events = Array.isArray(data) ? data.map(item => {
-                                // 兼容性读取：优先从 extendedProps 读，如果没有再从顶层读
                                 const props = item.extendedProps || {};
                                 const isBooked = props.is_booked !== undefined ? props.is_booked : item.is_booked;
                                 const isRecurring = props.is_recurring !== undefined ? props.is_recurring : item.is_recurring;
-                                const guestName = props.guest_name || item.guest_name || '';
 
-                                // [颜色与文字定义]
                                 let bgColor, borderColor, titleText, textColor;
 
                                 if (isBooked) {
-                                    // 预约：深红色
                                     titleText = '予約済み';
                                     bgColor = 'rgba(139, 0, 0, 0.6)'; 
                                     borderColor = '#ff4444';
                                     textColor = '#e5e5e5';
                                 } else if (isRecurring) {
-                                    // 周期：Veludo 金色
-                                    titleText = '空きシフト (周期)';
+                                    titleText = isMobile ? '周期' : '空きシフト (周期)';
                                     bgColor = 'rgba(212, 175, 55, 0.25)'; 
                                     borderColor = '#d4af37';
                                     textColor = '#d4af37';
                                 } else {
-                                    // 单次：翡翠绿色
-                                    titleText = '空きシフト ';
+                                    titleText = isMobile ? '単発' : '空きシフト ';
                                     bgColor = 'rgba(16, 185, 129, 0.25)'; 
                                     borderColor = '#10b981';
                                     textColor = '#4ade80';
@@ -327,7 +359,6 @@
                                     borderColor: borderColor,
                                     textColor: textColor,
                                     classNames: isBooked ? ['booked-slot'] : (isRecurring ? ['recurring-slot'] : ['single-slot']),
-                                    // 只有未预约的可以拖拽修改
                                     editable: !isBooked, 
                                     extendedProps: props
                                 };
@@ -341,11 +372,9 @@
                         });
                 },
 
-                // --- 2. 创建排班 (CREATE - 单次) ---
+                // --- 2. 创建排班 ---
                 select: function(arg) {
                     let allEvents = window.calendar.getEvents();
-                    
-                    // 检查重叠
                     let isInvalid = allEvents.some(event => {
                         const overlap = arg.start < event.end && arg.end > event.start;
                         const touching = (arg.start.getTime() === event.end.getTime()) || 
@@ -359,7 +388,6 @@
                         return;
                     }
 
-                    // 确认弹窗
                     if (!confirm(`【一回のみ変更シフト】を追加しますか？\n(Create Single Shift)\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
                         window.calendar.unselect();
                         return;
@@ -369,10 +397,7 @@
                     
                     fetch('/accounts/api/availability/', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                         body: JSON.stringify({
                             resource_id: CURRENT_RESOURCE_ID,
                             start: arg.startStr,
@@ -381,39 +406,30 @@
                     })
                     .then(async response => {
                         if (response.ok) {
-                            window.calendar.refetchEvents(); // 刷新后会显示为绿色
+                            window.calendar.refetchEvents();
                             updateStatus('success');
+                            // 追踪排班创建 (需要在后端 Action 中添加 CREATE_SHIFT 才有意义)
+                            // trackEvent('CREATE_SHIFT', 'Single Shift'); 
                         } else {
                             const errData = await response.json();
                             alert(`Failed: ${errData.error || 'Unknown error'}`);
                             updateStatus('error');
                         }
                     })
-                    .catch(err => {
-                        updateStatus('error');
-                        alert('System Error');
-                    })
+                    .catch(err => { updateStatus('error'); alert('System Error'); })
                     .finally(() => window.calendar.unselect());
                 },
 
-                // --- 3. 点击事件处理 (跳转详情 或 删除排班) ---
+                // --- 3. 删除排班 ---
                 eventClick: function(arg) {
                     const props = arg.event.extendedProps;
 
-                    // [需求2] 如果是已预约 (Booked) -> 跳转详情页
                     if (props && props.is_booked) {
-                        // 1. 获取 Django 解析出的基础 URL (不带参数)
                         const targetUrl = "{% url 'my_bookings' %}"; 
-                        
-                        // 2. 拼接 ID 参数 (可选)
-                        // 这样跳转后的地址会变成: /accounts/my-bookings/?highlight=xxxxxxxx-xxxx...
-                        // 虽然你的列表页目前可能还没处理这个参数，但这能帮你以后在列表里高亮显示这条记录
                         window.location.href = `${targetUrl}?highlight=${arg.event.id}`;
-                        
                         return; 
                     }
 
-                    // 如果是空闲排班 -> 执行删除逻辑 (保持不变)
                     if (!confirm('このシフトを削除しますか？\nDelete this slot?')) {
                         return;
                     }
@@ -421,10 +437,7 @@
                     updateStatus('loading');
                     fetch('/accounts/api/availability/', {
                         method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                         body: JSON.stringify({ id: arg.event.id })
                     })
                     .then(async response => {
@@ -436,10 +449,7 @@
                             alert(`Delete Failed: ${errData.error}`);
                         }
                     })
-                    .catch(err => {
-                        console.error(err);
-                        alert("Network Error");
-                    });
+                    .catch(err => { console.error(err); alert("Network Error"); });
                 }
             });
 
@@ -447,40 +457,39 @@
         });
 
         // ============================================================
-        // 周期排班 (Recurring Modal) 逻辑 - 包含自动回填功能
+        // 周期排班 (Recurring Modal) 逻辑
         // ============================================================
-        const days = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+        const days = ['日', '月', '火', '水', '木', '金', '土'];
         const weekRowsContainer = document.getElementById('week-rows');
 
-        // 1. 生成表单行
+        // 1. 生成表单行 (手机适配布局: flex-wrap + min-w-0防止溢出)
         if (weekRowsContainer) {
             days.forEach((day, index) => {
                 const row = document.createElement('div');
-                row.className = "flex items-center gap-4 p-2 hover:bg-white/5 rounded transition-colors";
+                // 使用 flex-wrap 并在小屏时自动换行
+                row.className = "flex flex-wrap items-center gap-2 p-3 hover:bg-white/5 rounded transition-colors border border-white/5 bg-black/20";
                 row.innerHTML = `
-                    <div class="w-8">
-                        <input type="checkbox" id="day-${index}-check" class="accent-veludo-accent-gold w-4 h-4 cursor-pointer" onchange="toggleDayRow(${index})">
+                    <div class="flex items-center gap-3 w-full sm:w-auto mb-2 sm:mb-0">
+                        <input type="checkbox" id="day-${index}-check" class="accent-veludo-accent-gold w-5 h-5 cursor-pointer" onchange="toggleDayRow(${index})">
+                        <div class="text-sm font-serif text-gray-300 font-bold w-12">${day}曜日</div>
                     </div>
-                    <div class="w-24 text-sm font-serif text-gray-300">${day}</div>
-                    <div class="flex-1 flex gap-2 items-center opacity-50 pointer-events-none transition-opacity" id="day-${index}-inputs">
-                        <input type="time" id="day-${index}-start" class="bg-black/50 border border-white/10 text-white px-2 py-1 text-sm w-full focus:border-veludo-accent-gold outline-none">
-                        <span class="text-gray-500">-</span>
-                        <input type="time" id="day-${index}-end" class="bg-black/50 border border-white/10 text-white px-2 py-1 text-sm w-full focus:border-veludo-accent-gold outline-none">
+                    
+                    <!-- 关键修复：添加 w-full sm:w-auto 和 gap-2，并在内部 input 加上 min-w-0 防止 flex 子元素溢出 -->
+                    <div class="flex-1 flex gap-2 items-center opacity-50 pointer-events-none transition-opacity w-full sm:w-auto" id="day-${index}-inputs">
+                        <input type="time" id="day-${index}-start" class="flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
+                        <span class="text-gray-500">~</span>
+                        <input type="time" id="day-${index}-end" class="flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
                     </div>
                 `;
                 weekRowsContainer.appendChild(row);
             });
         }
 
-        // 2. 切换行的状态 (支持强制设为 true/false)
+        // ... Toggle, Open, Fetch, Close, Submit functions ...
         function toggleDayRow(index, forceState = null) {
             const checkbox = document.getElementById(`day-${index}-check`);
             const inputsDiv = document.getElementById(`day-${index}-inputs`);
-            
-            if (forceState !== null) {
-                checkbox.checked = forceState;
-            }
-
+            if (forceState !== null) checkbox.checked = forceState;
             if (checkbox.checked) {
                 inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
                 if(!document.getElementById(`day-${index}-start`).value) {
@@ -489,104 +498,61 @@
                 }
             } else {
                 inputsDiv.classList.add('opacity-50', 'pointer-events-none');
-                // 取消勾选时，清空时间，避免混淆
                 document.getElementById(`day-${index}-start`).value = "";
                 document.getElementById(`day-${index}-end`).value = "";
             }
         }
 
-        // 3. 打开模态框 + 自动获取数据并回填
         function openRecurringModal() {
             const modal = document.getElementById('recurringModal');
             modal.classList.remove('hidden');
-
             const CURRENT_RESOURCE_ID = "{{ user.cast_profile.saas_resource_id|default:'' }}";
             
-            // --- A. 设置默认显示的日期 (作为兜底) ---
-            // 默认从 "明天" 开始，持续 7 天
             const today = new Date();
             const tomorrow = new Date(today);
             tomorrow.setDate(today.getDate() + 1);
-            
             const nextWeek = new Date(tomorrow);
             nextWeek.setDate(tomorrow.getDate() + 7);
-
-            // 格式化为 YYYY-MM-DD
             const defaultStart = tomorrow.toISOString().split('T')[0];
             const defaultEnd = nextWeek.toISOString().split('T')[0];
-
-            // 预填默认值 (防止接口慢的时候框是空的)
             const startInput = document.querySelector('input[name="range_start"]');
             const endInput = document.querySelector('input[name="range_end"]');
             if (startInput) startInput.value = defaultStart;
             if (endInput) endInput.value = defaultEnd;
 
-            // --- B. 调用 API 获取真实配置 ---
-            // 传入 resource_id 即可，不需要传日期，因为我们要问后端："现在库里存的是什么？"
             fetchAndPrefillRecurringSettings(CURRENT_RESOURCE_ID);
         }
 
-        // [核心逻辑] 获取数据并回填
         function fetchAndPrefillRecurringSettings(resourceId) {
-            // 请求 System A 的 Proxy 接口 (它会转发给 System B 的 RecurringConfigView)
             const url = new URL('/accounts/api/availability/recurring-config/', window.location.origin);
             url.searchParams.append('resource_id', resourceId);
+            for (let i = 0; i < 7; i++) { toggleDayRow(i, false); }
 
-            console.log(`[Prefill] Fetching recurring config...`);
-
-            // 1. 先重置表单（清空所有勾选）
-            for (let i = 0; i < 7; i++) {
-                toggleDayRow(i, false); 
-                document.getElementById(`day-${i}-start`).value = "";
-                document.getElementById(`day-${i}-end`).value = "";
-            }
-
-            fetch(url)
-                .then(res => {
-                    if (!res.ok) throw new Error("API Response not OK");
-                    return res.json();
-                })
-                .then(data => {
-                    console.log(`[Prefill] Got config from backend:`, data);
-                    
-                    const config = data.week_config;
-                    const range = data.range;
-
-                    // [修复 Bug 1] 如果后端有存储的日期范围，覆盖前端的默认值
-                    if (range && range.start && range.end) {
-                        console.log(`[Prefill] Overwriting dates: ${range.start} ~ ${range.end}`);
-                        const startInput = document.querySelector('input[name="range_start"]');
-                        const endInput = document.querySelector('input[name="range_end"]');
-                        if (startInput) startInput.value = range.start;
-                        if (endInput) endInput.value = range.end;
-                    }
-
-                    // [修复 Bug 2] 回填每一天的配置
-                    if (config) {
-                        // config 结构是 { "0": {enabled: true, start: "10:00", end: "18:00"}, ... }
-                        Object.keys(config).forEach(dayKey => {
-                            const dayCfg = config[dayKey];
-                            const dayIndex = parseInt(dayKey); // "0" -> 0
-
-                            if (dayCfg && dayCfg.enabled) {
-                                const checkbox = document.getElementById(`day-${dayIndex}-check`);
-                                const startInput = document.getElementById(`day-${dayIndex}-start`);
-                                const endInput = document.getElementById(`day-${dayIndex}-end`);
-
-                                if (checkbox) {
-                                    // 填入时间 (后端返回的就是 HH:MM)
-                                    startInput.value = dayCfg.start; 
-                                    endInput.value = dayCfg.end;
-                                    
-                                    // 勾选并激活输入框
-                                    toggleDayRow(dayIndex, true); 
-                                    console.log(`  -> Restored Day ${dayIndex}: ${dayCfg.start}-${dayCfg.end}`);
-                                }
+            fetch(url).then(res => res.json()).then(data => {
+                const config = data.week_config;
+                const range = data.range;
+                if (range && range.start && range.end) {
+                    const startInput = document.querySelector('input[name="range_start"]');
+                    const endInput = document.querySelector('input[name="range_end"]');
+                    if (startInput) startInput.value = range.start;
+                    if (endInput) endInput.value = range.end;
+                }
+                if (config) {
+                    Object.keys(config).forEach(dayKey => {
+                        const dayCfg = config[dayKey];
+                        const dayIndex = parseInt(dayKey);
+                        if (dayCfg && dayCfg.enabled) {
+                            const startInput = document.getElementById(`day-${dayIndex}-start`);
+                            const endInput = document.getElementById(`day-${dayIndex}-end`);
+                            if (startInput && endInput) {
+                                startInput.value = dayCfg.start; 
+                                endInput.value = dayCfg.end;
+                                toggleDayRow(dayIndex, true); 
                             }
-                        });
-                    }
-                })
-                .catch(err => console.error("[Prefill] Error:", err));
+                        }
+                    });
+                }
+            }).catch(err => console.error("[Prefill] Error:", err));
         }
 
         function closeRecurringModal() {
@@ -597,28 +563,23 @@
         if(recurringForm) {
             recurringForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                
                 const formData = new FormData(e.target);
                 const rangeStart = formData.get('range_start');
                 const rangeEnd = formData.get('range_end');
-                
                 let weekConfig = {};
-                
                 days.forEach((_, index) => {
                     const checked = document.getElementById(`day-${index}-check`).checked;
                     const start = document.getElementById(`day-${index}-start`).value;
                     const end = document.getElementById(`day-${index}-end`).value;
-
                     if (checked) {
-                        if (start && end) {
-                            weekConfig[index] = { enabled: true, start: start, end: end };
-                        }
+                        if (start && end) weekConfig[index] = { enabled: true, start: start, end: end };
                     } else {
                         weekConfig[index] = { enabled: false };
                     }
                 });
 
-                if (confirm(" 繰り返しスケジュール編集終わりますか?\n(チェック入れてない日の周期(黄色)スケジュールが削除されます)")) {
+                // [新增] 确认提交日期范围
+                if (confirm(`以下の期間でシフトを作成しますか？\n期間: ${rangeStart} ~ ${rangeEnd}\n(チェックを入れていない日の周期シフトは削除されます)`)) {
                     const btn = e.target.querySelector('button[type="submit"]');
                     const originalText = btn.innerText;
                     btn.innerText = "Processing...";
@@ -626,33 +587,26 @@
 
                     fetch('/accounts/api/availability/', { 
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                         body: JSON.stringify({
                             resource_id: "{{ user.cast_profile.saas_resource_id|default:'' }}",
                             range_start: rangeStart,
                             range_end: rangeEnd,
                             week_config: weekConfig
                         })
-                    })
-                    .then(async response => {
+                    }).then(async response => {
                         if (response.ok) {
                             const data = await response.json();
-                            alert(`周期スケジュール編集完了!\n増加シフト数: ${data.created}\n削除シフト数: ${data.deleted}\n被ってるシフト数(追加されてません): ${data.skipped}`);
+                            alert(`保存しました。\nAdded: ${data.created}, Deleted: ${data.deleted}`);
                             closeRecurringModal();
                             if(window.calendar) window.calendar.refetchEvents(); 
                         } else {
                             const err = await response.json();
                             alert(`Error: ${err.error || 'Unknown'}`);
                         }
-                    })
-                    .catch(err => {
+                    }).catch(err => {
                         alert("Network Error");
-                        console.error(err);
-                    })
-                    .finally(() => {
+                    }).finally(() => {
                         btn.innerText = originalText;
                         btn.disabled = false;
                     });
@@ -665,6 +619,83 @@
             const m = date.getMinutes().toString().padStart(2, '0');
             return `${h}:${m}`;
         }
+        function trackEvent(action, target = '', meta = {}) {
+            const url = "/core/api/track/"; 
+            
+            // --- 1. 基础页面信息 ---
+            if (!meta.page_url) meta.page_url = window.location.pathname;
+            if (!meta.page_title) meta.page_title = document.title;
+            meta.referrer = document.referrer || 'direct'; // 来源(是从Google来的还是直接输入的)
+
+            // --- 2. 设备与屏幕指纹 (UI优化神技) ---
+            meta.screen = {
+                width: window.screen.width,   // 屏幕物理宽度
+                height: window.screen.height, // 屏幕物理高度
+                dpr: window.devicePixelRatio  // 屏幕密度 (2=Retina, 1=普通, 3=超高清)
+            };
+            meta.viewport = {
+                width: window.innerWidth,     // 当前浏览器窗口宽度 (排查布局崩坏的关键)
+                height: window.innerHeight    // 当前浏览器窗口高度
+            };
+            meta.is_mobile = window.innerWidth < 768; // 简单判断
+
+            // --- 3. 用户环境上下文 ---
+            meta.language = navigator.language; // 语言 (ja-JP, en-US) -> 判断是否需要做多语言
+            meta.user_agent = navigator.userAgent; // 浏览器版本内核
+            meta.timezone_offset = new Date().getTimezoneOffset(); // 时区偏移 (分钟) -> 判断用户是否在海外
+
+            // --- 4. 行为现场 (点击发生时的状态) ---
+            meta.scroll_y = window.scrollY || window.pageYOffset; // 点击时页面滚动到了哪里 -> 判断用户看没看完
+            meta.timestamp_client = new Date().toISOString(); // 客户端时间 (对比服务端时间看延迟)
+            
+            // --- 5. 性能简报 (可选，检测加载慢不慢) ---
+            // performance.now() 返回页面加载到当前的时间(毫秒)
+            // 如果这个数字很大，说明用户打开页面很久才进行操作，或者页面加载卡顿
+            meta.time_since_load = Math.round(performance.now()); 
+
+            // --- 6. 网络状态 (实验性API，部分浏览器支持) ---
+            if (navigator.connection) {
+                meta.connection = {
+                    effectiveType: navigator.connection.effectiveType, // 4g, 3g, wifi
+                    rtt: navigator.connection.rtt // 往返延迟
+                };
+            }
+
+            // 发送数据
+            const payload = {
+                action: action,
+                target: target,
+                meta: meta
+            };
+
+            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+            if (navigator.sendBeacon) {
+                // sendBeacon 是最稳妥的，但不能自定义Header (除了Content-Type)
+                // 如果你的Django CSRF检查严格，sendBeacon可能会失败，除非你在View里豁免了CSRF
+                // 或者你的 CSRF 机制允许通过 Cookie 获取。
+                // 为了保险，这里还是用 fetch + keepalive，它是现代标准。
+                 fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                }).catch(err => console.error("Tracking Error:", err));
+            } else {
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify(payload)
+                });
+            }
+        }
+
+        // 自动追踪页面浏览 (Action: VIEW_SHIFT)
+        document.addEventListener('DOMContentLoaded', () => {
+            trackEvent('VIEW_SHIFT', 'Schedule Management Page');
+        });
     </script>
 </body>
 </html>

@@ -3,12 +3,13 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cast List | Veludo</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
 
     <link rel="icon" type="image/png" href="/media/tenant_logos/veludo_logo.png">
+    <link rel="apple-touch-icon" href="/media/tenant_logos/veludo_logo.png">
     
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
     
@@ -36,14 +37,22 @@
         }
     </script>
     <style>
-        body { background-color: #F9F8F6; font-family: "Noto Serif JP", serif; color: #5a544b; }
+        body { 
+            background-color: #F9F8F6; 
+            font-family: "Noto Serif JP", serif; 
+            color: #5a544b;
+            touch-action: manipulation;
+        }
         
         /* Navbar Styles */
         .site-navbar {
-            background-color: rgba(160, 137, 119, 0.95); /* #a08977 with opacity */
+            background-color: rgba(160, 137, 119, 0.95);
             backdrop-filter: blur(5px);
-            height: 5rem;
+            height: 4rem;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        @media (min-width: 768px) {
+            .site-navbar { height: 5rem; }
         }
         
         .nav-link a { position: relative; padding-bottom: 4px; text-decoration: none; transition: color 0.3s ease; }
@@ -81,11 +90,63 @@
 </head>
 <body class="overflow-x-hidden">
 
+    <!-- 植入增强版监控函数 (放在 body 开始处确保尽早加载) -->
+    <script>
+        function trackEvent(action, target = '', meta = {}) {
+            const url = "/core/api/track/"; 
+            
+            // 1. 自动填充页面信息
+            if (!meta.page_url) { meta.page_url = window.location.pathname; }
+            if (!meta.page_title) { meta.page_title = document.title; }
+
+            // 2. 准备数据包
+            const payload = {
+                action: action,  // 对应后端 UserActivity.ACTION_CHOICES
+                target: target,  // 对应后端 target 字段
+                meta: meta       // 对应后端 meta_data JSON字段
+            };
+
+            // 3. 发送请求 (优先使用 sendBeacon + Blob)
+            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+            
+            if (navigator.sendBeacon) {
+                // sendBeacon 是最稳妥的页面跳转追踪方式
+                // 注意：大部分浏览器 sendBeacon 不支持自定义 headers (如 CSRF)，
+                // 但如果后端允许，或者使用 fetch keepalive 作为替代。
+                // 鉴于 Django 需要 CSRF，我们优先尝试 fetch keepalive，如果不支持再降级。
+                fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}" 
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true 
+                }).catch(err => {
+                    // 如果 keepalive 失败，尝试降级
+                    console.warn("Track keepalive failed, retrying standard fetch", err);
+                });
+            } else {
+                // 降级方案 (可能会在页面跳转时丢失)
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify(payload)
+                });
+            }
+        }
+
+        // Auto track page view
+        document.addEventListener('DOMContentLoaded', () => {
+            trackEvent('VIEW_PAGE', 'Cast List');
+        });
+    </script>
+
     <nav class="fixed w-full z-[100] site-navbar transition-all duration-300">
-        <div class="w-full max-w-[120rem] mx-auto px-6 h-full flex justify-between items-center">
+        <div class="w-full max-w-[120rem] mx-auto px-4 md:px-6 h-full flex justify-between items-center">
             <div class="flex items-center gap-4 flex-shrink-0">
                 <a href="{% url 'index' %}">
-                    <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-14 w-auto object-contain hover:opacity-80 transition-opacity">
+                    <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-10 md:h-14 w-auto object-contain hover:opacity-80 transition-opacity">
                 </a>
                 <div class="hidden lg:block h-8 w-[1px] bg-white/20"></div>
                 <span class="hidden lg:block text-[15px] tracking-[0.2em] font-light uppercase opacity-90 text-white">ASMR Salon</span>
@@ -130,9 +191,13 @@
                 {% endif %}
             </div>
 
-            <div class="flex items-center gap-6 md:hidden text-white">
-                <a href="{% url 'login' %}" class="text-xs hover:text-veludo-accent-gold"><i class="fa-regular fa-user"></i></a>
-                <button id="mobile-menu-btn" class="text-xl hover:text-veludo-accent-gold transition-colors">
+            <div class="flex items-center gap-4 md:hidden text-white">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'profile' %}" class="text-xs text-veludo-accent-gold"><i class="fa-regular fa-user text-lg"></i></a>
+                {% else %}
+                    <a href="{% url 'login' %}" class="text-xs hover:text-veludo-accent-gold"><i class="fa-regular fa-user text-lg"></i></a>
+                {% endif %}
+                <button id="mobile-menu-btn" class="text-2xl hover:text-veludo-accent-gold transition-colors p-2">
                     <i class="fa-solid fa-bars"></i>
                 </button>
             </div>
@@ -144,25 +209,40 @@
                 <a href="{% url 'service' %}" class="hover:text-veludo-accent-gold">SERVICE</a>
                 <a href="{% url 'cast' %}" class="text-veludo-accent-gold">CAST</a>
                 <a href="{% url 'access' %}" class="hover:text-veludo-accent-gold">ACCESS</a>
+                {% if user.is_authenticated %}
+                    <hr class="border-white/20">
+                    <a href="{% url 'my_bookings' %}" class="hover:text-veludo-accent-gold">RESERVATIONS</a>
+                    <a href="{% url 'logout' %}" class="text-red-200">LOGOUT</a>
+                {% endif %}
             </div>
         </div>
     </nav>
 
-    <div class="pt-32 pb-16 bg-veludo-bg text-center fade-in-up">
-        <h1 class="font-english italic text-6xl md:text-7xl text-veludo-header mb-4">Cast List</h1>
-        <p class="text-sm md:text-base text-[#5a544b] tracking-[0.1em] font-light font-japanese">
+    <!-- Header / Hero Section -->
+    <div class="pt-24 md:pt-32 pb-12 md:pb-16 bg-veludo-bg text-center fade-in-up px-4">
+        <h1 class="font-english italic text-4xl md:text-6xl lg:text-7xl text-veludo-header mb-2 md:mb-4">Cast List</h1>
+        <p class="text-xs md:text-base text-[#5a544b] tracking-[0.1em] font-light font-japanese">
             VRASMRのプロである多彩なキャストをご紹介します。
         </p>
-        <div class="w-12 h-[1px] bg-veludo-accent-gold mx-auto mt-8"></div>
+        <div class="w-8 md:w-12 h-[1px] bg-veludo-accent-gold mx-auto mt-6 md:mt-8"></div>
     </div>
 
-    <main class="max-w-[120rem] mx-auto px-6 pb-32">
+    <!-- Main Content -->
+    <main class="max-w-[120rem] mx-auto px-4 md:px-6 pb-20 md:pb-32">
         {% if casts %}
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+            <!-- Grid Layout: Mobile 1 col, PC 2-4 cols -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-10">
                 
                 {% for cast in casts %}
-                <div class="cast-card bg-paper-bg shadow-xl overflow-hidden relative border border-white/50 group hover:-translate-y-2 transition-transform duration-500 fade-in-up flex flex-col" style="animation-delay: {{ forloop.counter0|add:1 }}00ms;">
+                <!-- 
+                    Track Card Click:
+                    使用 CLICK_CAST (匹配 Model ACTION_CHOICES)
+                -->
+                <div onclick="trackEvent('CLICK_CAST', '{{ cast.name }}', { cast_id: '{{ cast.id }}' })" 
+                     class="cast-card bg-paper-bg shadow-xl overflow-hidden relative border border-white/50 group hover:-translate-y-2 transition-transform duration-500 fade-in-up flex flex-col cursor-pointer" 
+                     style="animation-delay: {{ forloop.counter0|add:1 }}00ms;">
                     
+                    <!-- Carousel Image Section -->
                     <div class="relative w-full aspect-[4/3] bg-gray-900 overflow-hidden carousel-container flex-shrink-0">
                         {% if cast.medias.all %}
                             {% for media in cast.medias.all %}
@@ -194,9 +274,10 @@
                         {% endif %}
                     </div>
 
-                    <div class="p-6 text-left flex flex-col items-start relative bg-[#fcfaf7] flex-grow">
+                    <!-- Info Section -->
+                    <div class="p-5 md:p-6 text-left flex flex-col items-start relative bg-[#fcfaf7] flex-grow">
     
-                        <div class="absolute -top-8 left-6 w-16 h-16 rounded-full border-4 border-paper-bg overflow-hidden shadow-md z-20 bg-gray-200">
+                        <div class="absolute -top-8 left-5 md:left-6 w-14 h-14 md:w-16 md:h-16 rounded-full border-4 border-paper-bg overflow-hidden shadow-md z-20 bg-gray-200">
                             {% if cast.avatar %}
                                 <img src="{{ cast.avatar.url }}" class="w-full h-full object-cover">
                             {% else %}
@@ -204,13 +285,13 @@
                             {% endif %}
                         </div>
 
-                        <h2 class="text-3xl font-english text-veludo-header mt-10 mb-3 font-bold tracking-wide">
+                        <h2 class="text-2xl md:text-3xl font-english text-veludo-header mt-8 md:mt-10 mb-2 md:mb-3 font-bold tracking-wide">
                             {{ cast.name }}
                         </h2>
 
-                        <div class="flex flex-wrap justify-start gap-2 mb-5">
+                        <div class="flex flex-wrap justify-start gap-2 mb-4 md:mb-5">
                             {% for tag in cast.tags %}
-                                <span class="text-xs border border-[#a8947d] text-[#a8947d] px-3 py-1 rounded-sm">
+                                <span class="text-[10px] md:text-xs border border-[#a8947d] text-[#a8947d] px-2 py-0.5 md:px-3 md:py-1 rounded-sm">
                                     {{ tag }}
                                 </span>
                             {% empty %}
@@ -218,14 +299,30 @@
                             {% endfor %}
                         </div>
 
-                        <div class="text-sm text-[#5d5555] leading-relaxed mb-8 whitespace-pre-wrap flex-grow font-japanese">{{ cast.intro|default:"紹介文がありません。" }}</div>
+                        <div class="text-xs md:text-sm text-[#5d5555] leading-relaxed mb-6 md:mb-8 whitespace-pre-wrap flex-grow font-japanese">{{ cast.intro|default:"紹介文がありません。" }}</div>
 
+                        <!-- Buttons Area -->
                         <div class="space-y-3 mt-auto w-full">
-                            <a href="{% url 'booking_page' %}?cast_id={{ cast.id }}" class="block w-full bg-veludo-header text-white py-3 text-sm tracking-[0.2em] hover:bg-veludo-accent-gold transition-colors text-center">
+                            <!-- 
+                                [修复] 预约按钮:
+                                使用 CLICK_RESERVATION (匹配 Model)
+                                event.stopPropagation() 防止冒泡
+                            -->
+                            <a href="{% url 'booking_page' %}?cast_id={{ cast.id }}" 
+                               onclick="event.stopPropagation(); trackEvent('CLICK_RESERVATION', '{{ cast.name }}')" 
+                               class="block w-full bg-veludo-header text-white py-3 text-sm tracking-[0.2em] hover:bg-veludo-accent-gold transition-colors text-center">
                                 RESERVATION
                             </a>
+                            
                             {% if cast.youtube_url %}
-                                <a href="{{ cast.youtube_url }}" target="_blank" class="block w-full border border-veludo-header text-veludo-header py-3 text-sm tracking-[0.2em] hover:bg-veludo-header hover:text-white transition-colors text-center">
+                                <!-- 
+                                    [修复] 视频按钮:
+                                    使用 CLICK_SOCIAL (匹配 Model)
+                                    event.stopPropagation() 防止冒泡
+                                -->
+                                <a href="{{ cast.youtube_url }}" target="_blank" 
+                                   onclick="event.stopPropagation(); trackEvent('CLICK_SOCIAL', '{{ cast.name }}', { type: 'YouTube' })" 
+                                   class="block w-full border border-veludo-header text-veludo-header py-3 text-sm tracking-[0.2em] hover:bg-veludo-header hover:text-white transition-colors text-center">
                                     <i class="fa-brands fa-youtube mr-2"></i>WATCH VIDEO
                                 </a>
                             {% endif %}
@@ -244,13 +341,13 @@
 
     <footer class="site-footer reveal-on-scroll">
         <div class="max-w-2xl mx-auto px-6 flex flex-col items-center">
-            <div class="mb-10 flex justify-center">
-                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-12 w-auto object-contain">
+            <div class="mb-8 md:mb-10 flex justify-center">
+                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-10 md:h-12 w-auto object-contain">
             </div>
             
-            <div class="text-[12px] md:text-xs leading-loose opacity-80 font-light mb-12 space-y-4 font-japanese text-white text-center">
-                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br>VRChat公認の商用利用店舗です。</p>
-                <p class="text-[11px] text-white/60">
+            <div class="text-[10px] md:text-xs leading-loose opacity-80 font-light mb-8 md:mb-12 space-y-4 font-japanese text-white text-center">
+                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br class="hidden md:block">VRChat公認の商用利用店舗です。</p>
+                <p class="text-[9px] md:text-[11px] text-white/60">
                     ©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant<br>
                     ©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ<br>
                     ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri<br>
@@ -258,7 +355,7 @@
                     VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん
                 </p>
             </div>
-            <div class="text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
+            <div class="text-[9px] md:text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
         </div>
     </footer>
 
@@ -273,7 +370,7 @@
                 });
             }
 
-            // Scroll Animation Observer (for footer fade-in)
+            // Scroll Animation Observer
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {

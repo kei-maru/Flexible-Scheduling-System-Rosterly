@@ -613,14 +613,75 @@
     <script>
         function trackEvent(action, target = '', meta = {}) {
             const url = "/core/api/track/"; 
-            if (!meta.page_url) meta.page_url = window.location.pathname; 
-            if (!meta.page_title) meta.page_title = document.title; 
+            
+            // --- 1. 基础页面信息 ---
+            if (!meta.page_url) meta.page_url = window.location.pathname;
+            if (!meta.page_title) meta.page_title = document.title;
+            meta.referrer = document.referrer || 'direct'; // 来源(是从Google来的还是直接输入的)
 
-            fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-                body: JSON.stringify({ action: action, target: target, meta: meta })
-            }).catch(err => console.log("Tracking ignored:", err));
+            // --- 2. 设备与屏幕指纹 (UI优化神技) ---
+            meta.screen = {
+                width: window.screen.width,   // 屏幕物理宽度
+                height: window.screen.height, // 屏幕物理高度
+                dpr: window.devicePixelRatio  // 屏幕密度 (2=Retina, 1=普通, 3=超高清)
+            };
+            meta.viewport = {
+                width: window.innerWidth,     // 当前浏览器窗口宽度 (排查布局崩坏的关键)
+                height: window.innerHeight    // 当前浏览器窗口高度
+            };
+            meta.is_mobile = window.innerWidth < 768; // 简单判断
+
+            // --- 3. 用户环境上下文 ---
+            meta.language = navigator.language; // 语言 (ja-JP, en-US) -> 判断是否需要做多语言
+            meta.user_agent = navigator.userAgent; // 浏览器版本内核
+            meta.timezone_offset = new Date().getTimezoneOffset(); // 时区偏移 (分钟) -> 判断用户是否在海外
+
+            // --- 4. 行为现场 (点击发生时的状态) ---
+            meta.scroll_y = window.scrollY || window.pageYOffset; // 点击时页面滚动到了哪里 -> 判断用户看没看完
+            meta.timestamp_client = new Date().toISOString(); // 客户端时间 (对比服务端时间看延迟)
+            
+            // --- 5. 性能简报 (可选，检测加载慢不慢) ---
+            // performance.now() 返回页面加载到当前的时间(毫秒)
+            // 如果这个数字很大，说明用户打开页面很久才进行操作，或者页面加载卡顿
+            meta.time_since_load = Math.round(performance.now()); 
+
+            // --- 6. 网络状态 (实验性API，部分浏览器支持) ---
+            if (navigator.connection) {
+                meta.connection = {
+                    effectiveType: navigator.connection.effectiveType, // 4g, 3g, wifi
+                    rtt: navigator.connection.rtt // 往返延迟
+                };
+            }
+
+            // 发送数据
+            const payload = {
+                action: action,
+                target: target,
+                meta: meta
+            };
+
+            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+            if (navigator.sendBeacon) {
+                // sendBeacon 是最稳妥的，但不能自定义Header (除了Content-Type)
+                // 如果你的Django CSRF检查严格，sendBeacon可能会失败，除非你在View里豁免了CSRF
+                // 或者你的 CSRF 机制允许通过 Cookie 获取。
+                // 为了保险，这里还是用 fetch + keepalive，它是现代标准。
+                 fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                }).catch(err => console.error("Tracking Error:", err));
+            } else {
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify(payload)
+                });
+            }
         }
 
         trackEvent('VIEW_PAGE', 'Reservation Page');

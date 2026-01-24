@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>My Page | ASMR Salon Veludo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> <title>My Page | ASMR Salon Veludo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" type="image/png" href="/media/tenant_logos/veludo_logo.png">
     <link rel="apple-touch-icon" href="/media/tenant_logos/veludo_logo.png">
@@ -24,59 +24,76 @@
     </script>
     <style>
         body { background-color: #1a1a1a; color: #e5e5e5; font-family: "Noto Serif JP", serif; }
+        
         .glass-panel {
             background: rgba(45, 45, 45, 0.85); 
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
-        /* 强制覆盖 Django 默认 input 样式 */
-        .input-field {
+
+        /* Input 样式优化 */
+        .input-field, input[type="text"], input[type="email"], select, textarea {
             width: 100%; 
             background: rgba(0,0,0,0.2) !important; 
             border: 1px solid #444 !important; 
             color: white !important; 
-            padding: 8px 12px !important; 
+            padding: 10px 12px !important; /* [修改] 增加点击区域 */
             margin-bottom: 5px;
             font-family: sans-serif;
-            border-radius: 2px;
+            border-radius: 4px; /* [修改] 圆角稍微大一点，更现代 */
+            font-size: 16px; /* [修改] 防止iOS自动放大 */
         }
-        .input-field:focus { border-color: #d4af37 !important; outline: none; }
         
+        /* 聚焦状态 */
+        .input-field:focus, input:focus, select:focus, textarea:focus { 
+            border-color: #d4af37 !important; 
+            outline: none; 
+            background: rgba(0,0,0,0.4) !important;
+        }
+        
+        /* Checkbox 样式优化 */
+        input[type="checkbox"] {
+            accent-color: #d4af37;
+            width: 18px;
+            height: 18px;
+        }
+
         /* 文件上传按钮美化 */
+        input[type="file"] {
+            font-size: 14px;
+        }
         input[type="file"]::file-selector-button {
             background-color: #444;
             color: #d4af37;
             border: 1px solid #555;
-            padding: 5px 10px;
+            padding: 8px 12px;
             margin-right: 15px;
             cursor: pointer;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             transition: all 0.3s;
-        }
-        input[type="file"]::file-selector-button:hover {
-            background-color: #d4af37;
-            color: #000;
+            border-radius: 4px;
         }
     </style>
 </head>
-<body class="min-h-screen bg-fixed bg-cover bg-center flex items-center justify-center py-20"
+<body class="bg-fixed bg-cover bg-center overflow-x-hidden"
       style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
     
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-0"></div>
 
-    <div class="relative z-10 w-full max-w-5xl mx-auto px-6">
+    <div class="relative z-10 w-full max-w-5xl mx-auto px-4 py-8 md:py-20 md:px-6">
         
-        <div class="flex justify-between items-center mb-8">
-            <a href="{% url 'index' %}" class="text-white/60 hover:text-white transition-colors text-xs tracking-widest flex items-center gap-2">
+        <div class="flex justify-between items-center mb-6 md:mb-8">
+            <a href="{% url 'index' %}" class="text-white/60 hover:text-white transition-colors text-xs tracking-widest flex items-center gap-2 px-2 py-2">
                 <i class="fa-solid fa-arrow-left"></i> BACK TO HOME
             </a>
         </div>
 
-        <div class="glass-panel p-8 md:p-12 rounded-sm grid grid-cols-1 md:grid-cols-12 gap-12">
+        <div class="glass-panel p-6 md:p-12 rounded-lg grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
             
-            <div class="md:col-span-4 border-b md:border-b-0 md:border-r border-white/10 pb-8 md:pb-0 md:pr-8 text-center">
-                <div class="w-32 h-32 rounded-full bg-[#333] mx-auto mb-6 flex items-center justify-center text-4xl text-white border-4 border-veludo-accent-gold/20 shadow-xl overflow-hidden relative group">
+            <div class="md:col-span-4 border-b md:border-b-0 md:border-r border-white/10 pb-8 md:pb-0 md:pr-8 text-center flex flex-col items-center">
+                
+                <div class="w-24 h-24 md:w-32 md:h-32 rounded-full bg-[#333] mb-4 md:mb-6 flex items-center justify-center text-4xl text-white border-4 border-veludo-accent-gold/20 shadow-xl overflow-hidden relative group">
                     {% if user.avatar %}  
                         <img src="{{ user.avatar.url }}" class="w-full h-full object-cover">
                     {% elif cast_profile and cast_profile.avatar %}
@@ -86,48 +103,49 @@
                     {% endif %}
                 </div>
                 
-                <h2 class="text-2xl font-serif text-white mb-2">
+                <h2 class="text-xl md:text-2xl font-serif text-white mb-1 break-all">
                     {% if user.vrc_id %}
                         {{ user.vrc_id }}
                     {% else %}
                         {{ user.username }}
                     {% endif %}
                 </h2>
-                <p class="text-xs text-veludo-accent-gold mb-8 tracking-widest uppercase">
+                
+                <p class="text-[10px] md:text-xs text-veludo-accent-gold mb-6 md:mb-8 tracking-widest uppercase">
                     {% if is_admin %} Administrator {% elif is_cast %} Cast Member {% else %} Member {% endif %}
                 </p>
 
-                <div class="space-y-4">
+                <div class="w-full space-y-3">
                     {% if is_cast %}
-                        <a href="{% url 'schedule' %}" class="block w-full bg-veludo-accent-gold text-black py-3 text-xs font-bold tracking-widest hover:bg-white transition-colors text-center">
-                            <i class="fa-regular fa-calendar-check mr-2"></i> スケジュール＆シフト一覧
+                        <a href="{% url 'schedule' %}" class="block w-full bg-veludo-accent-gold text-black py-3 text-xs font-bold tracking-widest hover:bg-white transition-colors text-center rounded-sm">
+                            <i class="fa-regular fa-calendar-check mr-2"></i> スケジュール＆シフト
                         </a>
                     {% endif %}
                     
                     {% if is_admin %}
-                    <a href="{% url 'admin_dashboard' %}" target="_blank" class="block w-full bg-red-900/40 text-red-200 border border-red-500/30 py-3 text-xs tracking-widest hover:bg-red-900/60 transition-colors text-center">
+                    <a href="{% url 'admin_dashboard' %}" target="_blank" class="block w-full bg-red-900/40 text-red-200 border border-red-500/30 py-3 text-xs tracking-widest hover:bg-red-900/60 transition-colors text-center rounded-sm">
                         <i class="fa-solid fa-screwdriver-wrench mr-2"></i> 管理者ダッシュボード
                     </a>
                     {% endif %}
                 </div>
                 
-                <div class="mt-8 pt-8 border-t border-white/10">
-                     <a href="{% url 'logout' %}" class="text-xs text-white/40 hover:text-white transition-colors">LOGOUT</a>
+                <div class="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/10 w-full">
+                     <a href="{% url 'logout' %}" class="text-xs text-white/40 hover:text-white transition-colors block py-2">LOGOUT</a>
                 </div>
             </div>
 
             <div class="md:col-span-8">
-                <h3 class="text-xl font-serif text-white border-b border-white/10 pb-4 mb-6 flex justify-between items-end">
+                <h3 class="text-lg md:text-xl font-serif text-white border-b border-white/10 pb-4 mb-6 flex justify-between items-end">
                     <span>プロフィール</span>
-                    <span class="text-xs text-gray-500 font-sans tracking-wide">基本情報の変更</span>
+                    <span class="text-[10px] md:text-xs text-gray-500 font-sans tracking-wide">基本情報の変更</span>
                 </h3>
 
-                <form method="post" enctype="multipart/form-data">
+                <form method="post" enctype="multipart/form-data" class="space-y-6">
                     {% csrf_token %}
                     
                     {% if form.errors %}
-                        <div class="mb-6 p-3 bg-red-900/20 border border-red-500/30 text-red-300 text-xs rounded-sm">
-                            <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 保存できませんでした:</p>
+                        <div class="p-3 bg-red-900/20 border border-red-500/30 text-red-300 text-xs rounded-sm">
+                            <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 入力エラー:</p>
                             <ul class="list-disc pl-5">
                             {% for field in form %}
                                 {% for error in field.errors %}
@@ -138,13 +156,13 @@
                         </div>
                     {% endif %}
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
                                 {{ form.vrc_id.label }} <span class="text-red-500">*</span>
                             </label>
                             {{ form.vrc_id }}
-                            <span class="text-[10px] text-gray-300">*VRChat上の表示名(予約の時に必要になります)</span>
+                            <span class="text-[10px] text-gray-400 block mt-1 leading-tight">*VRChat上の表示名(必須)</span>
                         </div>
                         
                         <div>
@@ -152,70 +170,77 @@
                                 メールアドレス
                             </label>
                             {{ form.email }}
-                            <span class="text-[10px] text-gray-300">※任意</span>
+                            <span class="text-[10px] text-gray-400 block mt-1">※任意</span>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
-                                <i class="fa-brands fa-discord mr-1"></i> {{ form.discord_id.label }}
+                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider flex items-center">
+                                <i class="fa-brands fa-discord mr-2 text-indigo-400"></i> {{ form.discord_id.label }}
                             </label>
                             {{ form.discord_id }}
-                            <span class="text-[10px] text-gray-300">※自動連携（変更不可）</span>
+                            <span class="text-[10px] text-gray-500 block mt-1">※自動連携（変更不可）</span>
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
-                                <i class="fa-brands fa-x-twitter mr-1"></i> {{ form.twitter_id.label }}
+                            <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider flex items-center">
+                                <i class="fa-brands fa-x-twitter mr-2 text-white"></i> {{ form.twitter_id.label }}
                             </label>
                             {{ form.twitter_id }}
-                            <span class="text-[10px] text-gray-300">※任意</span>
+                            <span class="text-[10px] text-gray-400 block mt-1">※任意 (IDのみ入力)</span>
                         </div>
                     </div>
 
-                    <div class="mb-8 p-4 bg-white/5 border border-white/10 rounded-sm">
-                        <label class="block text-xs text-gray-400 mb-3 uppercase tracking-wider">アイコンの変更</label>
+                    <div class="p-4 bg-white/5 border border-white/10 rounded-md">
+                        <label class="block text-xs text-gray-400 mb-3 uppercase tracking-wider">
+                            <i class="fa-regular fa-image mr-1"></i> アイコンの変更
+                        </label>
                         {{ form.avatar }}
-                        <p class="mt-2 text-[10px] text-gray-300">推奨サイズ: 500x500px, Max 2MB. (JPG/PNG)</p>
-                    </div>
-
-                    <div class="flex justify-end">
-                        <button type="submit" id="save-btn" class="bg-white/5 text-gray-400 border border-white/10 px-10 py-3 text-xs tracking-widest font-bold transition-all duration-300 pointer-events-none opacity-50">
-                            保存する
-                        </button>
+                        <p class="mt-2 text-[10px] text-gray-400">推奨: 500x500px, Max 2MB. (JPG/PNG)</p>
                     </div>
 
                     {% if is_cast %}
-                    <div class="mt-8 pt-8 border-t border-white/10">
-                        <h3 class="text-lg text-veludo-gold mb-4 font-english italic">施術可能コース</h3>
-                        <div class="flex gap-10">
-                            <label class="flex items-center space-x-2 cursor-pointer whitespace-nowrap">
+                    <div class="pt-6 border-t border-white/10">
+                        <h3 class="text-sm text-veludo-accent-gold mb-4 font-english italic tracking-wider">Available Courses</h3>
+                        <div class="flex flex-wrap gap-4 md:gap-8">
+                            <label class="flex items-center space-x-3 cursor-pointer bg-black/20 px-4 py-2 rounded-full border border-white/5 hover:border-veludo-accent-gold/50 transition-colors">
                                 {{ form.allow_30_min }}
-                                <span class="text-sm text-gray-300">30分コース</span>
+                                <span class="text-sm text-gray-300">30分</span>
                             </label>
-                            <label class="flex items-center space-x-2 cursor-pointer whitespace-nowrap">
+                            <label class="flex items-center space-x-3 cursor-pointer bg-black/20 px-4 py-2 rounded-full border border-white/5 hover:border-veludo-accent-gold/50 transition-colors">
                                 {{ form.allow_60_min }}
-                                <span class="text-sm text-gray-300">60分コース</span>
+                                <span class="text-sm text-gray-300">60分</span>
                             </label>
-                            <label class="flex items-center space-x-2 cursor-pointer whitespace-nowrap">
+                            <label class="flex items-center space-x-3 cursor-pointer bg-black/20 px-4 py-2 rounded-full border border-white/5 hover:border-veludo-accent-gold/50 transition-colors">
                                 {{ form.allow_120_min }}
-                                <span class="text-sm text-gray-300">120分コース</span>
+                                <span class="text-sm text-gray-300">120分</span>
                             </label>
                         </div>
                     </div>
                     {% endif %}
+
+                    <div class="pt-4 flex justify-end sticky bottom-0 md:static bg-[#2d2d2d]/95 md:bg-transparent p-4 md:p-0 -mx-6 md:mx-0 border-t border-white/10 md:border-0 backdrop-blur md:backdrop-filter-none z-20">
+                        <button type="submit" id="save-btn" class="w-full md:w-auto bg-white/10 text-gray-400 border border-white/10 px-8 py-3 text-sm tracking-widest font-bold transition-all duration-300 pointer-events-none opacity-50 rounded-sm">
+                            変更を保存
+                        </button>
+                    </div>
                 </form>
 
                 {% if messages %}
-                <div class="mt-6 p-4 bg-green-900/30 border border-green-500/30 text-green-300 text-xs tracking-wide">
+                <div class="mt-6 space-y-2">
                     {% for message in messages %}
-                        <i class="fa-solid fa-check-circle mr-2"></i> {{ message }}
+                        <div class="p-4 bg-green-900/30 border border-green-500/30 text-green-300 text-xs tracking-wide rounded-sm flex items-center">
+                            <i class="fa-solid fa-check-circle mr-2 text-lg"></i> {{ message }}
+                        </div>
                     {% endfor %}
                 </div>
                 {% endif %}
             </div>
         </div>
+        
+        <div class="h-20 md:h-0"></div>
     </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('form');
@@ -240,22 +265,14 @@
                 let hasChanges = false;
 
                 inputs.forEach(input => {
-                    if (hasChanges) return; // 只要发现一个变了，就不需要继续检查
+                    if (hasChanges) return; 
 
                     if (input.type === 'checkbox' || input.type === 'radio') {
-                        // 对比布尔值字符串
-                        if (input.checked.toString() !== input.dataset.initial) {
-                            hasChanges = true;
-                        }
+                        if (input.checked.toString() !== input.dataset.initial) hasChanges = true;
                     } else if (input.type === 'file') {
-                        // 文件上传框只要有文件被选中，就算变更
-                        if (input.files.length > 0) {
-                            hasChanges = true;
-                        }
+                        if (input.files.length > 0) hasChanges = true;
                     } else {
-                        if (input.value !== input.dataset.initial) {
-                            hasChanges = true;
-                        }
+                        if (input.value !== input.dataset.initial) hasChanges = true;
                     }
                 });
 
@@ -265,17 +282,15 @@
             // 3. 更新按钮样式
             function updateSaveButton(hasChanges) {
                 if (hasChanges) {
-                    // [变亮模式] 金色背景，黑色文字，可点击，有阴影
-                    saveBtn.className = "bg-veludo-accent-gold text-black border border-veludo-accent-gold px-10 py-3 text-xs tracking-widest font-bold transition-all duration-300 shadow-[0_0_15px_rgba(212,175,55,0.4)] transform scale-105 cursor-pointer";
+                    saveBtn.className = "w-full md:w-auto bg-veludo-accent-gold text-black border border-veludo-accent-gold px-8 py-3 text-sm tracking-widest font-bold transition-all duration-300 shadow-[0_0_15px_rgba(212,175,55,0.4)] transform md:scale-105 cursor-pointer rounded-sm";
                     saveBtn.style.pointerEvents = "auto";
                     saveBtn.style.opacity = "1";
-                    saveBtn.innerHTML = '<i class="fa-solid fa-check mr-2"></i>変更を保存';
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> 変更を保存';
                 } else {
-                    // [暗淡模式] 灰色背景，灰色文字，不可点击
-                    saveBtn.className = "bg-white/5 text-gray-500 border border-white/10 px-10 py-3 text-xs tracking-widest font-bold transition-all duration-300";
+                    saveBtn.className = "w-full md:w-auto bg-white/5 text-gray-500 border border-white/10 px-8 py-3 text-sm tracking-widest font-bold transition-all duration-300 rounded-sm";
                     saveBtn.style.pointerEvents = "none";
                     saveBtn.style.opacity = "0.5";
-                    saveBtn.innerHTML = '保存する';
+                    saveBtn.innerHTML = '変更はありません';
                 }
             }
 

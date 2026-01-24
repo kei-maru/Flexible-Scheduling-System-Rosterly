@@ -238,7 +238,7 @@
         .carousel-track {
             display: flex;
             width: max-content; 
-            animation: scroll 200s linear infinite; /* 调整时间控制速度 */
+            animation: scroll 300s linear infinite; /* 调整时间控制速度 */
         }
         .carousel-track:hover {
             animation-play-state: paused; 
@@ -433,6 +433,9 @@
                 <a href="{% url 'access' %}" onclick="toggleMobileMenu()" class="hover:text-veludo-accent-gold transition-colors">ACCESS</a>
                 <a href="{% url 'booking_page' %}" onclick="handleReservationClick(event); toggleMobileMenu();" class="mt-8 px-8 py-3 border border-white text-sm font-sans tracking-widest hover:bg-white hover:text-[#a08977] transition-all uppercase">
                     予約ページ
+                </a>
+                <a href="{% url 'my_bookings' %}" class="mt-8 px-8 py-3 border border-white text-sm font-sans tracking-widest hover:bg-white hover:text-[#a08977] transition-all uppercase">
+                    予約一覧
                 </a>
             </div>
         </div>
@@ -733,9 +736,6 @@
             // 1. 自动填充页面信息
             if (!meta.page_url) { meta.page_url = window.location.pathname; }
             if (!meta.page_title) { meta.page_title = document.title; }
-
-            // [新增] 前端调试日志：按F12看控制台有没有这句话
-            console.log(`📡 Sending Event: [${action}] Target: ${target}`);
 
             // 2. 准备数据包
             const payload = {

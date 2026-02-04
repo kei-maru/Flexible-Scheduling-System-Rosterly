@@ -2,22 +2,20 @@ version: '3.8'
 
 services:
   # ==========================================
-  # System A (Veludo Main)
+  # System A (Web 主系统)
   # ==========================================
   system_a:
     build: .
     container_name: veludo_system_a
     restart: always
-    # 👇【核心修改】智能启动脚本
-    # 逻辑：如果 .env 里 DEBUG=True，就用 runserver (解决本地图片/CSS不显示问题)
-    #      如果 DEBUG=False，就用 gunicorn (服务器高性能模式)
+    # 👇 限制工作线程，由 4 改为 2，省内存
     command: >
       sh -c "if [ '$DEBUG' = 'True' ]; then
                echo '🟢 Local Mode: Starting runserver...';
                python system_a_veludo/manage.py runserver 0.0.0.0:8000;
              else
                echo '🚀 Production Mode: Starting Gunicorn...';
-               gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo --workers 2 --worker-class=gthread --threads 4;
+               gunicorn config.wsgi:application --bind 0.0.0.0:8000 --chdir system_a_veludo --workers 2 --threads 2 --worker-class=gthread --timeout 60;
              fi"
     volumes:
       - .:/app
@@ -30,22 +28,51 @@ services:
       - redis
     env_file:
       - .env
+    # 👇【关键】内存限制：超过 300M 就重启，防止拖死宿主机
+    deploy:
+      resources:
+        limits:
+          memory: 300M
 
   # ==========================================
-  # System B (SaaS)
+  # 🆕 新增：Celery Worker (处理后台同步任务)
   # ==========================================
-  system-b:
+  worker:
+    build: .
+    container_name: veludo_worker
+    restart: always
+    # 👇 必须进入到 Django 项目目录
+    working_dir: /app/system_a_veludo
+    # 👇 --concurrency=1 是重点！1G内存只能允许单线程处理任务
+    command: celery -A config worker -l info --concurrency=1
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    # 👇 只要跑后台任务，给 200M 足够了
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+  # ==========================================
+  # System B (SaaS 子系统)
+  # ==========================================
+  system_b:
     build: .
     container_name: veludo_system_b
     restart: always
-    # 👇【核心修改】System B 同理，支持智能切换
+    # 👇 同样减少线程数
     command: >
       sh -c "if [ '$DEBUG' = 'True' ]; then
                echo '🟢 Local Mode: Starting runserver...';
                python system_b_saas/manage.py runserver 0.0.0.0:8001;
              else
                echo '🚀 Production Mode: Starting Gunicorn...';
-               gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas --workers 2 --worker-class=gthread --threads 4;
+               gunicorn config.wsgi:application --bind 0.0.0.0:8001 --chdir system_b_saas --workers 2 --threads 2 --worker-class=gthread;
              fi"
     volumes:
       - .:/app
@@ -58,13 +85,14 @@ services:
       - redis
     env_file:
       - .env
-    # 👇【关键配置】强制覆盖环境变量，确保连对数据库
     environment:
       - DB_NAME=saas_db
       - DB_HOST=db
-      # 注意：如果 .env 里的 USER/PASSWORD 对 saas_db 不适用，请取消下面注释并修改
-      # - DB_USER=dev_user
-      # - DB_PASSWORD=dev_password
+    # 👇 SaaS 系统访问量小，限制更严格一点
+    deploy:
+      resources:
+        limits:
+          memory: 250M
 
   # ==========================================
   # Database (PostgreSQL)
@@ -77,16 +105,18 @@ services:
       POSTGRES_USER: ${DB_USER:-dev_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
       POSTGRES_DB: ${DB_NAME:-veludo_db}
+    # 👇【优化】限制共享缓存和最大连接数，适应 1G 内存
+    command: postgres -c 'shared_buffers=64MB' -c 'max_connections=50'
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init_sql:/docker-entrypoint-initdb.d
-    # 👇【可选优化】限制内存（建议在服务器上打开，本地开发可以注释掉）
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 512M
+    # 👇 数据库是内存大户，给它留点空间，但也别太多
+    deploy:
+      resources:
+        limits:
+          memory: 200M
 
   # ==========================================
   # Redis
@@ -97,6 +127,11 @@ services:
     restart: always
     ports:
       - "6379:6379"
+    # 👇 Redis 很省内存，50M 足够处理任务队列
+    deploy:
+      resources:
+        limits:
+          memory: 50M
 
 volumes:
   postgres_data:

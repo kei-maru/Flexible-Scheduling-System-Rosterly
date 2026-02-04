@@ -23,6 +23,7 @@ ALLOWED_HOSTS = [
     'system_b',             # docker-compose 服务名
     'system-b',             # 兼容 host 名
     'veludo_system_b',      # 容器名
+    'veludo-system-b',
     
     # 本地
     'localhost',

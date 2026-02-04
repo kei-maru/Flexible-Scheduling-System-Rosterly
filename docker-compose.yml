@@ -63,7 +63,7 @@ services:
   # ==========================================
   system-b:
     build: .
-    container_name: veludo_system_b
+    container_name: veludo-system-b
     restart: always
     # 👇 同样减少线程数
     command: >

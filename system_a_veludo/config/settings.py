@@ -167,3 +167,21 @@ SOCIALACCOUNT_PROVIDERS = {
         'VERIFIED_EMAIL': True,
     }
 }
+
+# =========================================================
+# 3. Celery 异步任务配置 (必须添加！)
+# =========================================================
+# 告诉 Celery 去哪里找 Redis。
+# 'veludo_redis' 是 docker-compose.yml 里的 container_name，Docker 内部会自动解析这个名字
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://veludo_redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://veludo_redis:6379/0')
+
+# 时区设置，跟 Django 保持一致
+CELERY_TIMEZONE = 'Asia/Tokyo'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# (可选) 防止任务死锁的超时设置
+CELERY_TASK_SOFT_TIME_LIMIT = 300 
+CELERY_TASK_TIME_LIMIT = 360

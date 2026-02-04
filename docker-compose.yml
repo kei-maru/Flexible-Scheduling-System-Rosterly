@@ -61,7 +61,7 @@ services:
   # ==========================================
   # System B (SaaS 子系统)
   # ==========================================
-  system_b:
+  system-b:
     build: .
     container_name: veludo_system_b
     restart: always

@@ -42,6 +42,9 @@ class UserProfileForm(forms.ModelForm):
             self.fields['discord_id'].widget.attrs['readonly'] = True
             self.fields['discord_id'].widget.attrs['class'] += ' opacity-50 cursor-not-allowed'
 
+        if 'email' in self.fields:
+            self.fields['email'].required = False
+
 class VeludoLoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(attrs={
         'class': 'input-field', 'id': 'username', 'autocomplete': 'username'
@@ -124,7 +127,8 @@ class ProfileEditForm(forms.ModelForm):
 
             # Email: 任意入力（Discordからは取得しないので空欄になります）
             'email': forms.EmailInput(attrs={
-                'placeholder': 'contact@example.com (任意)'
+                'placeholder': 'contact@example.com (任意: 手動入力)',
+                'autocomplete': 'email'
             }),
             
             # Twitter: 任意
@@ -140,6 +144,9 @@ class ProfileEditForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        if 'email' in self.fields:
+            self.fields['email'].required = False
         
         # キャスト設定の読み込み（変更なし）
         if hasattr(self.instance, 'cast_profile'):

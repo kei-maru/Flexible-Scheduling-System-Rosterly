@@ -36,9 +36,19 @@
         <!-- Header: flex-col (手机) -> flex-row (PC) -->
         <div class="flex flex-col md:flex-row justify-between md:items-end mb-8 md:mb-12 border-b border-white/10 pb-6 gap-4 md:gap-0">
             <div>
-                <a href="{% url 'index' %}" class="text-xs text-gray-500 hover:text-veludo-gold mb-2 md:mb-4 block"><i class="fa-solid fa-arrow-left mr-2"></i> HOME</a>
+                <div class="flex items-center gap-4 mb-2 md:mb-4">
+                    <a href="{% url 'index' %}" class="text-xs text-gray-400 hover:text-veludo-gold transition-colors flex items-center">
+                        <i class="fa-solid fa-arrow-left mr-2"></i> HOME
+                    </a>
+
+                    <span class="text-white/10 text-[10px]">|</span>
+
+                    <a href="{% url 'booking_page' %}" class="text-xs text-gray-400 hover:text-veludo-gold transition-colors flex items-center">
+                        <i class="fa-solid fa-calendar-days mr-2"></i> 予約ページへ
+                    </a>
+                </div>
                 <!-- 调整字体大小: text-3xl (手机) -> text-4xl (PC) -->
-                <h1 class="text-3xl md:text-4xl font-english text-veludo-gold italic">予約ページ</h1>
+                <h1 class="text-3xl md:text-4xl font-english text-veludo-gold italic">予約確認ページ</h1>
                 <p class="text-xs text-gray-400 mt-2 tracking-widest uppercase">ご予約履歴一覧</p>
             </div>
             <!-- 对齐方式: text-left (手机) -> text-right (PC) -->

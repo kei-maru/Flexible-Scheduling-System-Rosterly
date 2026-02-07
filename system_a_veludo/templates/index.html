@@ -382,8 +382,12 @@
                                 <span class="text-[10px] text-veludo-accent-gold tracking-widest uppercase">Welcome</span>
                                 <span class="text-xs text-white font-english tracking-wider">{{ user.vrc_id|default:user.username }}</span>
                             </div>
-                            <div class="w-8 h-8 rounded-full bg-veludo-accent-gold text-veludo-header flex items-center justify-center border border-white/20">
-                                <i class="fa-regular fa-user"></i>
+                            <div class="w-8 h-8 rounded-full bg-veludo-accent-gold text-veludo-header flex items-center justify-center border border-white/20 overflow-hidden">
+                                {% if user.avatar %}
+                                    <img src="{{ user.avatar.url }}" alt="Avatar" class="w-full h-full object-cover">
+                                {% else %}
+                                    <i class="fa-regular fa-user"></i>
+                                {% endif %}
                             </div>
                         </a>
                         <div class="absolute right-0 top-full mt-2 w-48 bg-[#9c8c74] shadow-xl rounded-sm overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50">

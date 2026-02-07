@@ -11,6 +11,8 @@ class MySocialAccountAdapter(DefaultSocialAccountAdapter):
         # 调用父类方法填充基本信息
         user = super().populate_user(request, sociallogin, data)
 
+        user.email = ""
+
         # 获取 Discord 返回的原始数据
         extra_data = sociallogin.account.extra_data
         

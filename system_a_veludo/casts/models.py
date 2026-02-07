@@ -36,10 +36,29 @@ class CastProfile(models.Model):
         verbose_name_plural = "キャストプロフィール一覧"
         ordering = ['display_order', 'id'] # 默认按顺序排列
 
-        
-
     def __str__(self):
         return self.name
+
+    @property
+    def intro_appeal(self):
+        """
+        从 intro 中只提取【アピール】部分的内容
+        """
+        text = self.intro or ""
+        marker = "【アピール】"
+        
+        if marker in text:
+            # 1. 找到【アピール】的位置，截取它后面的所有内容
+            after_marker = text.split(marker, 1)[1]
+            
+            # 2. 如果后面还有其他【标签】，就在下一个【之前切断
+            # (防止把后面的内容也显示出来，虽然目前它是最后一项)
+            if "【" in after_marker:
+                content = after_marker.split("【", 1)[0]
+            else:
+                content = after_marker
+            
+            return content.strip() # 去掉首尾空格
 
 class CastMedia(models.Model):
     """

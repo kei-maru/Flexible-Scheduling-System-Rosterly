@@ -20,6 +20,7 @@ ALLOWED_HOSTS = [
     '161.33.129.157',      # 你的公网 IP
     'vr-veludo.com',       # 你的域名 (预留)
     'www.vr-veludo.com',
+    '138.3.221.225',
     
     # --- Docker 内部 ---
     'system_a',            # Docker 服务名
@@ -28,6 +29,7 @@ ALLOWED_HOSTS = [
     # --- 本地环境 ---
     'localhost',
     '127.0.0.1',
+    
 ]
 
 # =========================================================
@@ -39,6 +41,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://161.33.129.157',
     'http://vr-veludo.com',
     'https://vr-veludo.com',
+    'https://www.vr-veludo.com',   # 👈 必须加 https://www.
     'http://localhost:8000',      # 本地开发
     'http://127.0.0.1:8000',
 ]

@@ -52,6 +52,7 @@ services:
       - DB_HOST=rosterly-db
       - DB_PORT=5432
       - DB_NAME=saas_db
+      - ALLOWED_HOSTS=*
       - CELERY_BROKER_URL=redis://rosterly-redis:6379/0
       - CELERY_RESULT_BACKEND=redis://rosterly-redis:6379/0
 

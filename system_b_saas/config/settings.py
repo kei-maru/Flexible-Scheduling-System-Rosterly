@@ -16,6 +16,7 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 # =========================================================
 ALLOWED_HOSTS = [
     '161.33.129.157',       # 你的公网 IP
+    '138.3.221.225',
     'vr-veludo.com',
     'saas.vr-veludo.com',
     

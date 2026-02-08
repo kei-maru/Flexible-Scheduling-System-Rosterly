@@ -37,7 +37,7 @@ services:
       - DB_NAME=veludo_db       # System A 的数据库名
       
       # 🚀 重点：Redis 也指向 Server B
-      - CELERY_BROKER_URL=redis://140.xxx.xxx.xxx:6379/0
+      - CELERY_BROKER_URL=redis://138.3.221.225:6379/0
       
     deploy:
       resources:

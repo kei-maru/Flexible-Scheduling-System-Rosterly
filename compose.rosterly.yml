@@ -38,12 +38,12 @@ services:
     restart: always
     command: >
       sh -c "echo '🚀 Starting Rosterly API...' &&
-             gunicorn config.wsgi:application 
-             --bind 0.0.0.0:8001 
-             --chdir system_b_saas 
-             --workers 4 
-             --threads 4 
-             --worker-class=gthread 
+             gunicorn config.wsgi:application \
+             --bind 0.0.0.0:8001 \
+             --chdir system_b_saas \
+             --workers 4 \
+             --threads 4 \
+             --worker-class=gthread \
              --access-logfile -"
     volumes:
       - .:/app

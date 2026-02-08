@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 1. Rosterly Database (核心数据库)
+  # ==========================================
+  rosterly-db:
+    image: postgres:15-alpine
+    container_name: rosterly_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-dev_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+    # 🚀 ARM 12GB 专属高性能配置
+    command: postgres -c 'shared_buffers=2GB' -c 'max_connections=200' -c 'work_mem=16MB'
+    ports:
+      - "5432:5432"  # 开放给 Server A
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_sql:/docker-entrypoint-initdb.d
+
+  # ==========================================
+  # 2. Rosterly Cache (Redis)
+  # ==========================================
+  rosterly-redis:
+    image: redis:7-alpine
+    container_name: rosterly_redis
+    restart: always
+    ports:
+      - "6379:6379"  # 开放给 Server A
+
+  # ==========================================
+  # 3. Rosterly Core (API 后端)
+  # ==========================================
+  rosterly-core:
+    build: .
+    container_name: rosterly_api
+    restart: always
+    command: >
+      sh -c "echo '🚀 Starting Rosterly API...' &&
+             gunicorn config.wsgi:application 
+             --bind 0.0.0.0:8001 
+             --chdir system_b_saas 
+             --workers 4 
+             --threads 4 
+             --worker-class=gthread 
+             --access-logfile -"
+    volumes:
+      - .:/app
+      - ./static_root_saas:/app/static_root
+      - ./media:/app/media
+    ports:
+      - "8001:8001"
+    depends_on:
+      - rosterly-db
+      - rosterly-redis
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=rosterly-db
+      - DB_PORT=5432
+      - DB_NAME=saas_db
+      - CELERY_BROKER_URL=redis://rosterly-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://rosterly-redis:6379/0
+
+  # ==========================================
+  # 4. Rosterly Worker (后台任务)
+  # ==========================================
+  rosterly-worker:
+    build: .
+    container_name: rosterly_worker
+    restart: always
+    working_dir: /app/system_b_saas
+    command: celery -A config worker -l info -P solo
+    volumes:
+      - .:/app
+    depends_on:
+      - rosterly-db
+      - rosterly-redis
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=rosterly-db
+      - DB_NAME=saas_db
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=redis://rosterly-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://rosterly-redis:6379/0
+
+volumes:
+  postgres_data:

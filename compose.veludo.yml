@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # System A (Web 前端 - Veludo Portal)
+  # ==========================================
+  system_a:
+    build: .
+    container_name: veludo_system_a
+    restart: always
+    # 生产环境启动命令
+    command: >
+      gunicorn config.wsgi:application 
+      --bind 0.0.0.0:8000 
+      --chdir system_a_veludo 
+      --workers 2 
+      --threads 2 
+      --worker-class=gthread 
+      --timeout 60
+    
+    volumes:
+      - .:/app
+      - ./static_root:/app/static_root
+      # ✅【修正】必须挂载！System A 的用户头像等会存在 Server A 的硬盘上
+      - ./media:/app/media
+    
+    ports:
+      - "8000:8000"
+    
+    env_file:
+      - .env
+    
+    environment:
+      # 🚀 重点：数据库指向 Server B 的 IP
+      - DB_HOST=140.xxx.xxx.xxx  # 填 Server B 的公网 IP
+      - DB_PORT=5432
+      - DB_NAME=veludo_db       # System A 的数据库名
+      
+      # 🚀 重点：Redis 也指向 Server B
+      - CELERY_BROKER_URL=redis://140.xxx.xxx.xxx:6379/0
+      
+    deploy:
+      resources:
+        limits:
+          memory: 450M # 给它多一点点，因为不跑数据库了，宽裕了
+
+# ❌ 注意：这里没有任何 db 或 redis 服务
+# 因为 1GB 内存带不动它们，全部蹭 Server B 的用

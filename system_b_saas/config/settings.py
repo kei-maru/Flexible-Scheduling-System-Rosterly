@@ -149,8 +149,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'm17621752319@gmail.com'
-EMAIL_HOST_PASSWORD = 'grsy mvtz uann nipw'
+EMAIL_HOST_USER = 'keimarustudio@gmail.com'
+EMAIL_HOST_PASSWORD = 'tmrh pdor cxjm zssu'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
@@ -166,3 +166,6 @@ LOGIN_URL = 'login'
 
 # 3. 登出后去哪里？ -> 登录页
 LOGOUT_REDIRECT_URL = 'login'
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')

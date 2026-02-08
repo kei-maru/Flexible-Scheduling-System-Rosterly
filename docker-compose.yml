@@ -2,13 +2,12 @@ version: '3.8'
 
 services:
   # ==========================================
-  # System A (Web 主系统)
+  # System A (Web 主系统 - 前端/客户端)
   # ==========================================
   system_a:
     build: .
     container_name: veludo_system_a
     restart: always
-    # 👇 限制工作线程，由 4 改为 2，省内存
     command: >
       sh -c "if [ '$DEBUG' = 'True' ]; then
                echo '🟢 Local Mode: Starting runserver...';
@@ -28,44 +27,18 @@ services:
       - redis
     env_file:
       - .env
-    # 👇【关键】内存限制：超过 300M 就重启，防止拖死宿主机
     deploy:
       resources:
         limits:
           memory: 300M
 
   # ==========================================
-  # 🆕 新增：Celery Worker (处理后台同步任务)
-  # ==========================================
-  worker:
-    build: .
-    container_name: veludo_worker
-    restart: always
-    # 👇 必须进入到 Django 项目目录
-    working_dir: /app/system_a_veludo
-    # 👇 --concurrency=1 是重点！1G内存只能允许单线程处理任务
-    command: celery -A config worker -l info --concurrency=1
-    volumes:
-      - .:/app
-    depends_on:
-      - db
-      - redis
-    env_file:
-      - .env
-    # 👇 只要跑后台任务，给 200M 足够了
-    deploy:
-      resources:
-        limits:
-          memory: 200M
-
-  # ==========================================
-  # System B (SaaS 子系统)
+  # System B (SaaS 子系统 - 后端/API)
   # ==========================================
   system-b:
     build: .
     container_name: veludo-system-b
     restart: always
-    # 👇 同样减少线程数
     command: >
       sh -c "if [ '$DEBUG' = 'True' ]; then
                echo '🟢 Local Mode: Starting runserver...';
@@ -88,7 +61,40 @@ services:
     environment:
       - DB_NAME=saas_db
       - DB_HOST=db
-    # 👇 SaaS 系统访问量小，限制更严格一点
+      # 👇 告诉 System B Redis 在哪里 (Docker内部名)
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  # ==========================================
+  # Worker (后台任务 - 邮件/Webhook)
+  # ==========================================
+  worker:
+    build: .
+    container_name: veludo_worker
+    restart: always
+    # 👇【关键修正】你的任务代码在 System B，所以必须指向 System B 的目录
+    working_dir: /app/system_b_saas
+    # 👇 启动 Celery，加载 config (对应 system_b_saas/config)
+    command: celery -A config worker -l info -P solo
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - DB_NAME=saas_db
+      # 👇 确保 Django 加载的是 System B 的 settings
+      - DJANGO_SETTINGS_MODULE=config.settings
+      # 👇 告诉 Worker Redis 在哪里
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     deploy:
       resources:
         limits:
@@ -105,21 +111,19 @@ services:
       POSTGRES_USER: ${DB_USER:-dev_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
       POSTGRES_DB: ${DB_NAME:-veludo_db}
-    # 👇【优化】限制共享缓存和最大连接数，适应 1G 内存
     command: postgres -c 'shared_buffers=64MB' -c 'max_connections=50'
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init_sql:/docker-entrypoint-initdb.d
-    # 👇 数据库是内存大户，给它留点空间，但也别太多
     deploy:
       resources:
         limits:
           memory: 200M
 
   # ==========================================
-  # Redis
+  # Redis (缓存 & 消息队列)
   # ==========================================
   redis:
     image: redis:7-alpine
@@ -127,7 +131,6 @@ services:
     restart: always
     ports:
       - "6379:6379"
-    # 👇 Redis 很省内存，50M 足够处理任务队列
     deploy:
       resources:
         limits:

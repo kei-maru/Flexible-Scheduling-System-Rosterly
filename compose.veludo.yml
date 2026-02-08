@@ -32,7 +32,7 @@ services:
     
     environment:
       # 🚀 重点：数据库指向 Server B 的 IP
-      - DB_HOST=140.xxx.xxx.xxx  # 填 Server B 的公网 IP
+      - DB_HOST=138.3.221.225  # 填 Server B 的公网 IP
       - DB_PORT=5432
       - DB_NAME=veludo_db       # System A 的数据库名
       

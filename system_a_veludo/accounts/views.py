@@ -280,6 +280,51 @@ def recurring_config_proxy(request):
         print(f"[System A] Proxy Exception: {e}") # Debug 4: 捕获报错
         return JsonResponse({})
 
+class IntegrationAvailabilityProxyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """获取模版列表"""
+        requested_resource_id = request.GET.get('resource_id')
+        
+        # 【安全检查】确保当前登录用户就是这个 resource 的主人
+        # 假设 request.user.cast_profile.saas_resource_id 存了当前用户的 ID
+        current_user_resource_id = getattr(request.user.cast_profile, 'saas_resource_id', None)
+
+        if str(requested_resource_id) != str(current_user_resource_id):
+            return Response({'error': 'Permission Denied: You cannot view other people\'s templates'}, status=403)
+
+        # 检查通过，才放行
+        client = SaaSClient()
+        resource_id = request.GET.get('resource_id')
+        
+        if not resource_id:
+            return Response({'error': 'resource_id required'}, status=400)
+
+        # 调用 Client 方法
+        templates = client.get_schedule_templates(resource_id)
+        
+        # 无论结果如何都返回 200 (空列表也是一种结果)
+        # 如果 client 内部报错返回 None/空列表，前端也只会看到空
+        return Response(templates, status=200)
+
+    def post(self, request):
+        """保存模版"""
+        client = SaaSClient()
+        resource_id = request.data.get('resource_id')
+        name = request.data.get('name')
+        week_config = request.data.get('week_config')
+        
+        if not all([resource_id, name, week_config]):
+            return Response({'error': 'Missing fields'}, status=400)
+
+        # 调用 Client 方法
+        result = client.save_schedule_template(resource_id, name, week_config)
+        
+        if result:
+            return Response(result, status=201)
+        else:
+            return Response({'error': 'Failed to save template'}, status=500)
 # --- 7. 预约页面视图 ---
 class BookingPageView(LoginRequiredMixin, TemplateView):
     template_name = 'booking.html'

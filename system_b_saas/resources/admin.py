@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Resource, Availability, RecurringPattern, EmailTemplate
+from .models import Resource, Availability, RecurringPattern, EmailTemplate, ScheduleTemplate
 
 class AvailabilityInline(admin.TabularInline):
     model = Availability
@@ -36,3 +36,10 @@ class RecurringPatternAdmin(admin.ModelAdmin):
     list_display = ('id', 'resource', 'day_of_week', 'start_time', 'end_time', 'valid_from', 'valid_until')
     list_filter = ('day_of_week', 'resource')
     ordering = ('resource', 'day_of_week', 'start_time')
+
+@admin.register(ScheduleTemplate)
+class ScheduleTemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'resource', 'created_at') # 列表页显示的字段
+    list_filter = ('created_at',) # 侧边栏筛选
+    search_fields = ('name', 'resource__name') # 搜索框
+    ordering = ('-created_at',)

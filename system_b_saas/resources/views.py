@@ -8,7 +8,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from datetime import datetime, timedelta
 from tenants.permissions import IsTenantAuthorized
-from .models import Resource, Availability, RecurringPattern
+from .models import Resource, Availability, RecurringPattern, ScheduleTemplate
 from bookings.models import Booking
 import threading
 from django.core.mail import send_mail
@@ -636,6 +636,80 @@ class RecurringConfigView(APIView):
         except Exception as e:
             print(f"[System B] Error in RecurringConfigView: {e}")
             return Response({'error': str(e)}, status=500)
+
+class ScheduleTemplateView(APIView):
+    permission_classes = [IsTenantAuthorized]
+
+    # 获取模版列表
+    def get(self, request):
+        resource_id_raw = request.query_params.get('resource_id')
+        if not resource_id_raw:
+            return Response({'error': 'resource_id required'}, status=400)
+
+        try:
+            # 兼容 UUID 和 External ID (复用你现有的逻辑)
+            try:
+                uuid_obj = UUID(resource_id_raw)
+                resource = Resource.objects.get(id=uuid_obj, tenant=request.tenant)
+            except ValueError:
+                resource = Resource.objects.get(external_id=resource_id_raw, tenant=request.tenant)
+        except Resource.DoesNotExist:
+            return Response({'error': 'Resource not found'}, status=404)
+
+        templates = ScheduleTemplate.objects.filter(resource=resource)
+        data = [
+            {
+                'id': str(t.id),
+                'name': t.name,
+                'week_config': t.week_config
+            } 
+            for t in templates
+        ]
+        return Response(data)
+
+    # 保存/更新模版
+    def post(self, request):
+        resource_id_raw = request.data.get('resource_id')
+        name = request.data.get('name')
+        week_config = request.data.get('week_config')
+
+        if not all([resource_id_raw, name, week_config]):
+            return Response({'error': 'Missing fields'}, status=400)
+
+        try:
+            try:
+                uuid_obj = UUID(resource_id_raw)
+                resource = Resource.objects.get(id=uuid_obj, tenant=request.tenant)
+            except ValueError:
+                resource = Resource.objects.get(external_id=resource_id_raw, tenant=request.tenant)
+
+            template, created = ScheduleTemplate.objects.update_or_create(
+                resource=resource,
+                name=name,
+                defaults={'week_config': week_config}
+            )
+            
+            return Response({'id': str(template.id), 'status': 'saved'}, status=201)
+
+        except Resource.DoesNotExist:
+            return Response({'error': 'Resource not found'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    # 删除模版
+    def delete(self, request):
+        template_id = request.data.get('id')
+        if not template_id:
+            return Response({'error': 'id required'}, status=400)
+        
+        try:
+            ScheduleTemplate.objects.filter(
+                id=template_id, 
+                resource__tenant=request.tenant
+            ).delete()
+            return Response(status=204)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
 
 
 # ---------------------------------------------------------

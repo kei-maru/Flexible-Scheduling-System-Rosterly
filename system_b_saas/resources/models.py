@@ -74,6 +74,34 @@ class RecurringPattern(models.Model):
         # 确保同一资源、同一天不会有重复的规则（或者根据业务需求允许）
         unique_together = ('resource', 'day_of_week', 'start_time', 'end_time')
 
+class ScheduleTemplate(models.Model):
+    """
+    排班模版（Pattern）：用于保存用户的常用排班配置，供快速调用
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # 关联到 Resource (每个 Cast 可以有自己的模版)
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='schedule_templates')
+    
+    # 模版名称 (例如: "平日深夜", "週末全天", "考试周")
+    name = models.CharField("テンプレート名", max_length=100)
+    
+    # 直接存储前端传来的 week_config JSON 对象
+    # 格式示例: { "1": {"enabled": true, "start": "22:00", "end": "01:00"}, ... }
+    week_config = models.JSONField("設定データ") 
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # 防止同一个 Cast 起重名的模版
+        unique_together = ('resource', 'name')
+        ordering = ['-created_at']
+        verbose_name = "シフトテンプレート"
+        verbose_name_plural = "シフトテンプレート一覧"
+
+    def __str__(self):
+        return f"{self.name} ({self.resource.name})"
+
 class EmailTemplate(models.Model):
     EVENT_CHOICES = [
         ('BOOKING_CONFIRMED', 'Booking Confirmation'),

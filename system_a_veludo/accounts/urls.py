@@ -12,6 +12,7 @@ urlpatterns = [
     path('my-bookings/', views.MyBookingsPageView.as_view(), name='my_bookings'),
     path('schedule/', views.ScheduleView.as_view(), name='schedule'),
     
+    
     # --- 管理员面板 ---
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
 
@@ -23,6 +24,7 @@ urlpatterns = [
     path('api/availability/recurring-config/', views.recurring_config_proxy, name='api_recurring_config'),
     # [修正] 这里的路径不能和上面一样，加个后缀区分
     path('api/availability/proxy/', views.availability_proxy, name='api_availability_proxy'),
+    path('api/availability/templates/', views.IntegrationAvailabilityProxyView.as_view(), name='saas_templates_proxy'),
     
     path('api/booking/submit/', views.BookingActionAPI.as_view(), name='api_booking_submit'),
     path('api/cast/search/', views.CastSearchAPI.as_view(), name='api_cast_search'),

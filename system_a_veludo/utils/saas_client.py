@@ -185,6 +185,51 @@ class SaaSClient:
             return []
 
     # ========================================================
+    # Template (模版管理) - 新增
+    # ========================================================
+
+    def get_schedule_templates(self, resource_id):
+        """
+        [获取模版列表]
+        API: GET /availability/templates/
+        """
+        # 注意: 这里不需要加 /api/v1/integration，因为 self.api_base_url 已经包含了
+        url = f"{self.api_base_url}/availability/templates/"
+        params = {'resource_id': resource_id}
+        
+        try:
+            print(f"[SaaSClient] Getting Templates from: {url}")
+            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"[SaaSClient] Get Templates Error: {e}")
+            if e.response: print(f"Detail: {e.response.text}")
+            return []
+
+    def save_schedule_template(self, resource_id, name, week_config):
+        """
+        [保存模版]
+        API: POST /availability/templates/
+        """
+        url = f"{self.api_base_url}/availability/templates/"
+        data = {
+            'resource_id': resource_id,
+            'name': name,
+            'week_config': week_config
+        }
+        
+        try:
+            print(f"[SaaSClient] Saving Template to: {url}")
+            response = requests.post(url, headers=self.headers, json=data, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"[SaaSClient] Save Template Error: {e}")
+            if e.response: print(f"Detail: {e.response.text}")
+            return None
+
+    # ========================================================
     # Booking (预约管理)
     # ========================================================
 

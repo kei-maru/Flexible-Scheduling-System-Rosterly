@@ -200,6 +200,29 @@
                     繰り返しスケジュール編集（周期）
                 </h2>
                 <form id="recurringForm" class="space-y-6">
+                    <div class="mb-6 p-4 bg-white/5 border border-white/10 rounded-sm">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-serif text-veludo-accent-gold">
+                                <i class="fa-solid fa-bookmark mr-1"></i> テンプレート読込・保存
+                            </h3>
+                        </div>
+
+                        <div class="flex gap-2 mb-3">
+                            <select id="template-select" class="flex-1 bg-black/50 border border-white/20 text-white text-xs p-2 rounded-sm focus:border-veludo-accent-gold outline-none">
+                                <option value="">-- テンプレートを選択 --</option>
+                                </select>
+                            <button type="button" onclick="loadSelectedTemplate()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 text-xs rounded-sm border border-gray-600">
+                                読込
+                            </button>
+                        </div>
+
+                        <div class="flex gap-2 items-center border-t border-white/10 pt-3">
+                            <input type="text" id="new-template-name" placeholder="新しいテンプレート名 (例: 平日深夜)" class="flex-1 bg-black/50 border border-white/20 text-white text-xs p-2 rounded-sm focus:border-veludo-accent-gold outline-none">
+                            <button type="button" onclick="saveCurrentAsTemplate()" class="bg-veludo-accent-gold/20 text-veludo-accent-gold hover:bg-veludo-accent-gold hover:text-black border border-veludo-accent-gold px-3 py-1 text-xs rounded-sm transition-colors">
+                                保存
+                            </button>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">開始日付</label>
@@ -565,6 +588,7 @@
             if (endInput) endInput.value = defaultEnd;
 
             fetchAndPrefillRecurringSettings(CURRENT_RESOURCE_ID);
+            fetchTemplatesList(CURRENT_RESOURCE_ID);
         }
 
         function fetchAndPrefillRecurringSettings(resourceId) {
@@ -740,6 +764,145 @@
         document.addEventListener('DOMContentLoaded', () => {
             trackEvent('VIEW_SHIFT', 'Schedule Management Page');
         });
+        // ==========================================
+// 新增：模版管理逻辑
+// ==========================================
+
+// 1. 获取模版列表并填充下拉菜单
+function fetchTemplatesList(resourceId) {
+    const select = document.getElementById('template-select');
+    select.innerHTML = '<option value="">Loading...</option>';
+
+    // 注意：这里假设你的 System A 已经配置了 Nginx 转发，或者 URL 映射正确
+    // 如果 404，请确认 urls.py 里的路径是否是 api/availability/templates/
+    const url = new URL('/accounts/api/availability/templates/', window.location.origin);
+    url.searchParams.append('resource_id', resourceId);
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            select.innerHTML = '<option value="">-- テンプレートを選択 --</option>';
+            if (Array.isArray(data)) {
+                data.forEach(tpl => {
+                    const option = document.createElement('option');
+                    option.value = tpl.id; // 这里存 ID
+                    option.textContent = tpl.name;
+                    // 把配置数据藏在 dataset 里，避免再次请求
+                    option.dataset.config = JSON.stringify(tpl.week_config);
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            select.innerHTML = '<option value="">Error loading templates</option>';
+        });
+}
+
+// 2. 点击“读取”按钮：将选中的模版应用到表单
+function loadSelectedTemplate() {
+    const select = document.getElementById('template-select');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (!selectedOption.value) {
+        alert("テンプレートを選択してください。");
+        return;
+    }
+
+    try {
+        const config = JSON.parse(selectedOption.dataset.config);
+        
+        // 先清空当前表单
+        for (let i = 0; i < 7; i++) { toggleDayRow(i, false); }
+
+        // 填入数据
+        Object.keys(config).forEach(dayKey => {
+            const dayCfg = config[dayKey];
+            const dayIndex = parseInt(dayKey); // 确保是数字
+            if (dayCfg && dayCfg.enabled) {
+                const startInput = document.getElementById(`day-${dayIndex}-start`);
+                const endInput = document.getElementById(`day-${dayIndex}-end`);
+                if (startInput && endInput) {
+                    startInput.value = dayCfg.start;
+                    endInput.value = dayCfg.end;
+                    toggleDayRow(dayIndex, true);
+                }
+            }
+        });
+        alert(`テンプレート「${selectedOption.text}」を読み込みました。`);
+    } catch (e) {
+        console.error(e);
+        alert("模版数据损坏");
+    }
+}
+
+// 3. 点击“保存”按钮：将当前表单存为新模版
+function saveCurrentAsTemplate() {
+    const nameInput = document.getElementById('new-template-name');
+    const name = nameInput.value.trim();
+    if (!name) {
+        alert("テンプレート名を入力してください。");
+        return;
+    }
+
+    const CURRENT_RESOURCE_ID = "{{ user.cast_profile.saas_resource_id|default:'' }}";
+    
+    // 收集当前表单数据 (复用 submit 逻辑)
+    let weekConfig = {};
+    const days = ['日', '月', '火', '水', '木', '金', '土'];
+    let hasData = false;
+    
+    days.forEach((_, index) => {
+        const checked = document.getElementById(`day-${index}-check`).checked;
+        const start = document.getElementById(`day-${index}-start`).value;
+        const end = document.getElementById(`day-${index}-end`).value;
+        if (checked && start && end) {
+            weekConfig[index] = { enabled: true, start: start, end: end };
+            hasData = true;
+        } else {
+            weekConfig[index] = { enabled: false };
+        }
+    });
+
+    if (!hasData) {
+        alert("保存するシフト設定がありません。（少なくとも1日分を入力してください）");
+        return;
+    }
+
+    // 发送请求
+    const btn = event.target; // 获取点击的按钮
+    const originalText = btn.innerText;
+    btn.innerText = "...";
+    btn.disabled = true;
+
+    fetch('/accounts/api/availability/templates/', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            resource_id: CURRENT_RESOURCE_ID,
+            name: name,
+            week_config: weekConfig
+        })
+    })
+    .then(async res => {
+        if (res.ok) {
+            alert("テンプレートを保存しました！");
+            nameInput.value = ""; // 清空输入框
+            fetchTemplatesList(CURRENT_RESOURCE_ID); // 刷新列表
+        } else {
+            const err = await res.json();
+            alert(`保存失敗: ${err.error}`);
+        }
+    })
+    .catch(err => alert("Network Error"))
+    .finally(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    });
+}
     </script>
 </body>
 </html>

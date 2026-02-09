@@ -253,20 +253,40 @@ class SaaSClient:
             if e.response: print(f"Detail: {e.response.text}")
             return None
 
-    def get_my_bookings(self, email=None, resource_id=None):
-        """查询预约 (Guest/Cast)"""
+    def get_my_bookings(self, email=None, resource_id=None, customer_name=None):
+        """
+        查询预约 (Guest/Cast)
+        ✅ 修复：增加 customer_name 支持，且增加安全熔断，防止查出所有数据。
+        """
         url = f"{self.api_base_url}/bookings/"
         params = {}
-        if resource_id: params['resource_id'] = resource_id
-        elif email: params['customer_email'] = email
+
+        # 1. 如果是 Cast，用 Resource ID 查
+        if resource_id:
+            params['resource_id'] = resource_id
+        
+        # 2. 如果是 Guest (普通用户)
+        else:
+            # 优先策略：有邮箱传邮箱，有名字传名字
+            if email:
+                params['customer_email'] = email
             
+            # ✅ 新增：把名字传给 System B，解决无邮箱用户查不到自己订单的问题
+            if customer_name:
+                params['customer_name'] = customer_name
+
+            # 🛑【安全熔断】核心修复
+            # 如果既没有 resource_id，也没有 email，也没有 name
+            # 绝对不能发请求！否则 System B 会返回所有订单！
+            if not params:
+                print("[SaaSClient] ⚠️ Security Warning: No parameters provided for booking query. Aborting.")
+                return []
+
         try:
             print(f"[SaaSClient] Requesting: {url} with params {params}")
             response = requests.get(url, headers=self.headers, params=params, timeout=5)
             
-            # [新增调试] 打印原始响应文本
-            print(f"[SaaSClient] Raw Response Status: {response.status_code}")
-            print(f"[SaaSClient] Raw Response Text: {response.text[:500]}...") # 只打印前500字符
+            # print(f"[SaaSClient] Raw Response Status: {response.status_code}")
             
             response.raise_for_status()
             return response.json()

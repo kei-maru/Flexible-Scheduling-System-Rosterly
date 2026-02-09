@@ -470,7 +470,11 @@ class MyBookingsPageView(LoginRequiredMixin, TemplateView):
                 bookings = []
                 print("DEBUG: Current user is Cast but has no saas_resource_id")
         else:
-            bookings = client.get_my_bookings(email=user.email)
+            # SaaSClient 会根据这些参数智能判断，且如果所有参数为空会自动熔断
+            bookings = client.get_my_bookings(
+                email=user.email,
+                customer_name=user.username  
+            )
 
         # 2. [核心修复] 补充 Discord ID 并转换时间格式
         for booking in bookings:

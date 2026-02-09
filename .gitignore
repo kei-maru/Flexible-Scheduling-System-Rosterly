@@ -6,3 +6,18 @@ __pycache__/
 .DS_Store
 system_a_veludo/media/
 /media/
+
+# 忽略数据库备份
+*.sql
+
+# 忽略压缩包
+*.tar.gz
+*.zip
+*.rar
+
+# 忽略 Django 收集的静态文件目录 (也就是 Nginx 读取的目录)
+static_root_saas/
+staticfiles/
+
+# 忽略媒体上传目录 (用户头像等)
+media/

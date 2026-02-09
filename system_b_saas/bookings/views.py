@@ -96,7 +96,7 @@ class IntegrationBookingView(APIView):
         print(f"Params: ID={query_id}, Name={query_name}, SyncAll={sync_all}")
 
         # 2. 初始化 Queryset
-        queryset = Booking.objects.filter(tenant=request.tenant).order_by('-start_time')
+        queryset = Booking.objects.filter(tenant=request.tenant).select_related('resource').order_by('-start_time')
         
         # 3. 构建混合查询条件 (User Identity: ID OR Name)
         # 我们希望：(customer_id == query_id) OR (customer_name == query_name)
@@ -148,6 +148,7 @@ class IntegrationBookingView(APIView):
         """辅助方法：序列化数据"""
         data = [{
             'id': str(b.id),
+            'resource_id': b.resource.external_id if hasattr(b.resource, 'external_id') else None,
             'resource_name': b.resource.name,
             'customer_name': b.customer_name,
             'customer_email': b.customer_email,

@@ -103,10 +103,6 @@ class IntegrationBookingView(APIView):
         if email is not None:
             # 即使是空字符串也要 filter，因为数据库里存的可能是空字符串
             queryset = queryset.filter(customer_email=email)
-            
-        if name:
-            # ✅ 支持按名字查找 (解决无邮箱用户的痛点)
-            queryset = queryset.filter(customer_name=name)
 
         if resource_id:
             try:

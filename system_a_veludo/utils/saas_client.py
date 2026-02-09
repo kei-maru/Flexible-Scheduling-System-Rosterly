@@ -278,9 +278,10 @@ class SaaSClient:
 
             if email:
                 params['customer_email'] = email
-            if not params:
-                print("[SaaSClient] ⚠️ Security Warning: No parameters provided for booking query. Aborting.")
-                return []
+        
+        if not params and not admin_sync:
+            print("[SaaSClient] ⚠️ Security Warning: No parameters provided. Aborting.")
+            return []
 
         try:
             print(f"[SaaSClient] Requesting: {url} with params {params}")

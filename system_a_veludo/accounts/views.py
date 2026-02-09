@@ -750,7 +750,7 @@ def admin_dashboard(request):
     print(f"--- [Dashboard] Total Shifts Loaded: {len(processed_shifts)}")
     
     # --- B. 处理订单数据 (Orders) ---
-    raw_orders = client.get_my_bookings()
+    raw_orders = client.get_my_bookings(admin_sync=True)
     processed_orders = []
 
     print(f"--- [SaaS Orders Debug] Count: {len(raw_orders) if raw_orders else 0}")

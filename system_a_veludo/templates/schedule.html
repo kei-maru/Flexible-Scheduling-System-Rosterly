@@ -302,8 +302,52 @@
                 // 手机端简化 Toolbar
                 headerToolbar: isMobile 
                     ? { left: 'prev,next', center: 'title', right: 'today' }
-                    : { left: 'prev,next,today', center: 'title', right: 'dayGridMonth,pcWeek,mobileThreeDay' }, // 使用自定义视图名称
+                    : { left: 'prevWeek,prevCustom,nextCustom,nextWeek today', center: 'title', right: 'dayGridMonth,pcWeek,mobileThreeDay' }, // 使用自定义视图名称
+                
+                customButtons: {
+                    prevWeek: {
+                        text: '≪', // 设置图标
+                        hint: '前週', // 悬停时的提示文字 (FullCalendar 6支持)
+                        click: function() {
+                            window.calendar.incrementDate({ weeks: -1 });
+                        }
+                    },
+                    prevCustom: { // 重新定义 prev 以便统一控制 title
+                        text: '＜',
+                        hint: '前日',
+                        click: function() {
+                            window.calendar.prev();
+                        }
+                    },
+                    nextCustom: { // 重新定义 next
+                        text: '＞',
+                        hint: '次日',
+                        click: function() {
+                            window.calendar.next();
+                        }
+                    },
+                    nextWeek: {
+                        text: '≫', // 设置图标
+                        hint: '次週',
+                        click: function() {
+                            window.calendar.incrementDate({ weeks: 1 });
+                        }
+                    }
+                },
+                datesSet: function() {
+                    // 获取左侧按钮组
+                    const btnMap = {
+                        '.fc-prevWeek-button': '前週',
+                        '.fc-prevCustom-button': '前日',
+                        '.fc-nextCustom-button': '次日',
+                        '.fc-nextWeek-button': '次週'
+                    };
 
+                    Object.keys(btnMap).forEach(selector => {
+                        const el = document.querySelector(selector);
+                        if (el) el.setAttribute('title', btnMap[selector]);
+                    });
+                },
                 slotLabelFormat: { hour: 'numeric', minute: '2-digit', meridiem: false, hour12: false },
                 allDaySlot: false,
                 selectable: true,

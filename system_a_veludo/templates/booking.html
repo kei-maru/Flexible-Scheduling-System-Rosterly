@@ -500,7 +500,21 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="md:col-span-2">
-                        <label class="block text-[13px] text-gray-400 uppercase tracking-widest mb-2">開始時間 (24H)</label>
+                        <div class="mb-1 md:mb-2">
+                                <label class="block text-[10px] text-gray-300 uppercase tracking-widest mb-0.5">
+                                    予約日 / DATE
+                                </label>
+                                <div class="flex items-center gap-3 border-b border-white/10 pb-1.5">
+                                    <i class="fa-regular fa-calendar text-veludo-gold text-lg"></i>
+                                    <div id="modal-booking-date-display" class="text-xl md:text-2xl text-white font-english tracking-wider">
+                                        --/--/--
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label class="block text-[13px] text-gray-400 uppercase tracking-widest mb-1.5">
+                                開始時間 (24H)
+                            </label>
                         <div class="relative bg-white/5 border border-white/10 hover:border-veludo-gold transition-colors">
                             <select id="input-start-time" class="w-full bg-transparent text-white text-xl md:text-2xl p-3 appearance-none cursor-pointer font-mono outline-none" onchange="calculateEndTime()">
                                 </select>
@@ -510,6 +524,13 @@
                             <span>予約可能時間:</span>
                             <span id="slot-range-display" class="text-white font-mono">--:-- ~ --:--</span>
                         </p>
+                        <div class="mt-3 p-2 bg-veludo-gold/5 border border-veludo-gold/20 rounded flex items-start gap-2">
+                        <i class="fa-solid fa-circle-info text-veludo-gold mt-0.5 text-[10px] shrink-0"></i>
+                        <p class="text-[10px] text-gray-400 leading-relaxed">
+                            <span class="text-veludo-gold">24:00以降</span>は、<span class="text-white underline decoration-white/30 underline-offset-2">翌日の未明（深夜）</span>となります。
+                            <span class="text-[9px] text-gray-500 font-mono tracking-wider">(Ex: 25:00 = 翌日 AM 1:00)</span>
+                        </p>
+                    </div>
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-[10px] text-gray-400 uppercase tracking-widest mb-2">コース選択</label>
@@ -956,6 +977,14 @@
             
             document.getElementById('modal-cast-name').innerText = currentCastName;
             document.getElementById('slot-range-display').innerText = formatTime24(selectedSlot.start) + ' ~ ' + formatTime24(selectedSlot.end);
+
+            const dateStr = event.start.toLocaleDateString('ja-JP', {
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                weekday: 'short'
+            });
+            document.getElementById('modal-booking-date-display').innerText = dateStr;
             
             const avatarImg = document.getElementById('booking-cast-avatar');
             const fallbackDiv = document.getElementById('booking-cast-avatar-fallback');

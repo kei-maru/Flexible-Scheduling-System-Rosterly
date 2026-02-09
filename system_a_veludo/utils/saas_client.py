@@ -274,9 +274,6 @@ class SaaSClient:
             if customer_name:
                 params['customer_name'] = resource_id
 
-            if email:
-                params['customer_email'] = email
-
             # 🛑【安全熔断】核心修复
             # 如果既没有 resource_id，也没有 email，也没有 name
             # 绝对不能发请求！否则 System B 会返回所有订单！

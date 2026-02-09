@@ -279,6 +279,9 @@ class SaaSClient:
             if email:
                 params['customer_email'] = email
         
+        if admin_sync:
+            params['sync_all'] = 'true'
+        
         if not params and not admin_sync:
             print("[SaaSClient] ⚠️ Security Warning: No parameters provided. Aborting.")
             return []

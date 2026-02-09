@@ -80,20 +80,26 @@ class IntegrationBookingView(APIView):
 
     def get(self, request):
         """
-        最终修复版：兼容旧数据 (OR 逻辑)
+        最终修复版：
+        1. 兼容旧数据 (ID OR Name)
+        2. 支持资源查询 (Resource ID)
+        3. 支持管理员全量同步 (sync_all)
         """
+        # 1. 获取参数
         query_id = request.query_params.get('customer_id') 
         query_name = request.query_params.get('customer_name')
-        # ... 其他参数 ...
+        email = request.query_params.get('customer_email')
+        resource_id = request.query_params.get('resource_id')
+        sync_all = request.query_params.get('sync_all') # ✅ 关键：获取管理员通行证
 
         print(f"\n========== SYSTEM B DEBUG ==========")
-        print(f"Params: ID={query_id}, Name={query_name}")
+        print(f"Params: ID={query_id}, Name={query_name}, SyncAll={sync_all}")
 
+        # 2. 初始化 Queryset
         queryset = Booking.objects.filter(tenant=request.tenant).order_by('-start_time')
         
-        # 1. 构建混合查询条件 (OR Logic)
+        # 3. 构建混合查询条件 (User Identity: ID OR Name)
         # 我们希望：(customer_id == query_id) OR (customer_name == query_name)
-        
         filter_condition = Q() # 初始化一个空的查询对象
         
         if query_id:
@@ -104,28 +110,38 @@ class IntegrationBookingView(APIView):
             # 如果有 Name，也添加到条件中 (用 | 代表 OR)
             filter_condition |= Q(customer_name=query_name)
             
-        # 2. 应用筛选
+        # 4. 应用 User 筛选
         if filter_condition:
             print(f"Applying Q Filter: {filter_condition}")
             queryset = queryset.filter(filter_condition)
         
-        # 3. 处理其他筛选 (Resource / Email)
-        # 注意：这里的逻辑是 AND 关系 (上面的 OR 结果 AND 下面的条件)
-        # 但通常 resource_id 和 user 是互斥的，所以可以用 if/else 分开
-        if not filter_condition:
-             # 如果上面没查用户，再看是不是查资源
-             resource_id = request.query_params.get('resource_id')
-             if resource_id:
-                 # ... 资源查询逻辑 ...
+        # 5. 如果没有查 User，则检查其他条件 (互斥逻辑)
+        else:
+            # --- 分支 A: 查资源 (Cast) ---
+            if resource_id:
+                 try:
+                    uuid_obj = UUID(resource_id)
+                    queryset = queryset.filter(resource__id=uuid_obj)
+                 except ValueError:
+                    queryset = queryset.filter(resource__external_id=resource_id)
+            
+            # --- 分支 B: 查邮箱 (降级) ---
+            elif email:
+                 queryset = queryset.filter(customer_email=email)
+            
+            # --- 分支 C: 管理员全量同步 (关键修复) ---
+            elif sync_all == 'true':
+                 print("Applying Admin Sync (All Data)")
+                 # 不做任何过滤，直接返回全量数据
                  pass
-             elif request.query_params.get('customer_email'):
-                 # ... 邮箱查询逻辑 ...
-                 queryset = queryset.filter(customer_email=request.query_params.get('customer_email'))
-             else:
-                 # 没有任何有效条件
+                 
+            # --- 分支 D: 没有任何有效条件 -> 拒绝返回 ---
+            else:
+                 print("No valid filter params -> returning empty list.")
                  return Response([])
 
         print(f"Result Count: {queryset.count()}")
+        print(f"========== SYSTEM B DEBUG END ==========\n")
         return self._serialize_response(queryset)
 
     def _serialize_response(self, queryset):

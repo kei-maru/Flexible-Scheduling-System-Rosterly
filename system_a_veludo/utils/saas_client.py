@@ -253,7 +253,7 @@ class SaaSClient:
             if e.response: print(f"Detail: {e.response.text}")
             return None
 
-    def get_my_bookings(self, email=None, resource_id=None, customer_name=None, customer_id=None):
+    def get_my_bookings(self, email=None, resource_id=None, customer_name=None, customer_id=None, admin_sync=False):
         """
         查询预约 (Guest/Cast)
         ✅ 修复：增加 customer_name 支持，且增加安全熔断，防止查出所有数据。

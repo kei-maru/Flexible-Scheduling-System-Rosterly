@@ -29,7 +29,7 @@
 <body class="min-h-screen bg-black text-white font-serif bg-fixed bg-cover" 
       style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
     
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm fixed"></div>
+    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-0"></div>
 
     <!-- 调整 padding: px-4 py-8 (手机) -> px-6 py-12 (PC) -->
     <div class="relative z-10 max-w-4xl mx-auto px-4 py-8 md:px-6 md:py-12">
@@ -238,7 +238,7 @@
             document.getElementById('modal-name').innerText = displayName;
 
             // [核心修改 2] Label 逻辑
-            document.getElementById('modal-label-role').innerText = IS_CAST ? 'GUEST' : 'CAST';
+            document.getElementById('modal-label-role').innerText = IS_CAST ? 'GUEST' : 'Staff';
 
             // [核心修改 3] Discord ID 显示逻辑
             const discordBox = document.getElementById('modal-discord-box');

@@ -253,7 +253,7 @@ class SaaSClient:
             if e.response: print(f"Detail: {e.response.text}")
             return None
 
-    def get_my_bookings(self, email=None, resource_id=None, customer_name=None):
+    def get_my_bookings(self, email=None, resource_id=None, customer_name=None, customer_id=None):
         """
         查询预约 (Guest/Cast)
         ✅ 修复：增加 customer_name 支持，且增加安全熔断，防止查出所有数据。
@@ -267,16 +267,17 @@ class SaaSClient:
         
         # 2. 如果是 Guest (普通用户)
         else:
-            # 优先策略：有邮箱传邮箱，有名字传名字
-            
-            
-            # ✅ 新增：把名字传给 System B，解决无邮箱用户查不到自己订单的问题
+            if customer_id:
+                params['customer_id'] = str(customer_id)
+                
+            # 3. 同时也传入 VRCID (keimaru22)
+            # 为什么？因为你 System B 里现存的老数据没有 ID，只有 Name。
+            # 传入这个可以让 System B 在查不到 ID 的时候，回落去查 Name。
             if customer_name:
-                params['customer_name'] = resource_id
+                params['customer_name'] = customer_name
 
-            # 🛑【安全熔断】核心修复
-            # 如果既没有 resource_id，也没有 email，也没有 name
-            # 绝对不能发请求！否则 System B 会返回所有订单！
+            if email:
+                params['customer_email'] = email
             if not params:
                 print("[SaaSClient] ⚠️ Security Warning: No parameters provided for booking query. Aborting.")
                 return []

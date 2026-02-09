@@ -455,9 +455,14 @@ class MyBookingsPageView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         print(f"\n========== DEBUG START: User {self.request.user.username} (Class View) ==========")
         
+        
         context = super().get_context_data(**kwargs)
         user = self.request.user
         
+        print(f"DEBUG Check User: {user.id}")
+        print(f" - username: {user.username}")     # <--- 看看这里是不是 Discord ID (数字)
+        print(f" - discord_id: {user.discord_id}") # <--- 看看这里是不是空的？
+        print(f" - email: {user.email}")
         client = SaaSClient()
         is_cast = getattr(user, 'is_cast', False)
         context['is_cast'] = is_cast
@@ -472,8 +477,9 @@ class MyBookingsPageView(LoginRequiredMixin, TemplateView):
         else:
             # SaaSClient 会根据这些参数智能判断，且如果所有参数为空会自动熔断
             bookings = client.get_my_bookings(
-                email=user.email,
-                customer_name=user.username  
+                customer_id=user.username,       # usamaru6090 (用来查新数据)
+                customer_name=user.vrc_id,       # keimaru22 (用来查旧数据)
+                email=user.email
             )
 
         # 2. [核心修复] 补充 Discord ID 并转换时间格式

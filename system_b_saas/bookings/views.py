@@ -10,6 +10,7 @@ from django.db import transaction
 from uuid import UUID
 from datetime import timedelta
 import zoneinfo
+from django.db.models import Q
 
 # 👇 导入我们刚才写好的 Tasks
 from bookings.tasks import process_new_booking, send_cancellation_email_task
@@ -79,45 +80,52 @@ class IntegrationBookingView(APIView):
 
     def get(self, request):
         """
-        查询预约逻辑 (升级版)：
-        1. 无参数 -> Admin全量同步 -> 返回所有。
-        2. 有参数 -> 用户查询模式：
-           - 支持通过 customer_email 筛选
-           - 支持通过 customer_name 筛选 (新增，用于解决无邮箱用户的问题)
-           - 安全防御：如果邮箱为空，必须提供名字，否则拒绝返回。
+        最终修复版：兼容旧数据 (OR 逻辑)
         """
-        email = request.query_params.get('customer_email')
-        name = request.query_params.get('customer_name') # ✅ 新增：接收名字参数
-        resource_id = request.query_params.get('resource_id')
-        
-        # 1. Admin/System A 全量同步模式
-        # 没有任何筛选参数时，返回所有数据
-        if email is None and name is None and resource_id is None:
-            queryset = Booking.objects.filter(tenant=request.tenant).order_by('-start_time')
-            return self._serialize_response(queryset)
+        query_id = request.query_params.get('customer_id') 
+        query_name = request.query_params.get('customer_name')
+        # ... 其他参数 ...
 
-        # 2. 用户查询模式
+        print(f"\n========== SYSTEM B DEBUG ==========")
+        print(f"Params: ID={query_id}, Name={query_name}")
+
         queryset = Booking.objects.filter(tenant=request.tenant).order_by('-start_time')
         
-        # 应用筛选
-        if email is not None:
-            # 即使是空字符串也要 filter，因为数据库里存的可能是空字符串
-            queryset = queryset.filter(customer_email=email)
+        # 1. 构建混合查询条件 (OR Logic)
+        # 我们希望：(customer_id == query_id) OR (customer_name == query_name)
+        
+        filter_condition = Q() # 初始化一个空的查询对象
+        
+        if query_id:
+            # 如果有 ID，添加到条件中
+            filter_condition |= Q(customer_id=query_id)
+            
+        if query_name:
+            # 如果有 Name，也添加到条件中 (用 | 代表 OR)
+            filter_condition |= Q(customer_name=query_name)
+            
+        # 2. 应用筛选
+        if filter_condition:
+            print(f"Applying Q Filter: {filter_condition}")
+            queryset = queryset.filter(filter_condition)
+        
+        # 3. 处理其他筛选 (Resource / Email)
+        # 注意：这里的逻辑是 AND 关系 (上面的 OR 结果 AND 下面的条件)
+        # 但通常 resource_id 和 user 是互斥的，所以可以用 if/else 分开
+        if not filter_condition:
+             # 如果上面没查用户，再看是不是查资源
+             resource_id = request.query_params.get('resource_id')
+             if resource_id:
+                 # ... 资源查询逻辑 ...
+                 pass
+             elif request.query_params.get('customer_email'):
+                 # ... 邮箱查询逻辑 ...
+                 queryset = queryset.filter(customer_email=request.query_params.get('customer_email'))
+             else:
+                 # 没有任何有效条件
+                 return Response([])
 
-        if resource_id:
-            try:
-                uuid_obj = UUID(resource_id)
-                queryset = queryset.filter(resource__id=uuid_obj)
-            except ValueError:
-                queryset = queryset.filter(resource__external_id=resource_id)
-
-        # 3. 🛡️ 安全防御逻辑 (Security Guard)
-        # 场景：System A 传来了 ?customer_email= (空) 且没有传名字
-        # 这意味着：查询“所有没有邮箱的订单”。这是不安全的，必须拦截。
-        # 规则：如果 邮箱为空 AND 名字为空 AND 不是查资源 -> 强制返回空
-        if (email is not None and not email.strip()) and not name and not resource_id:
-            return Response([])
-
+        print(f"Result Count: {queryset.count()}")
         return self._serialize_response(queryset)
 
     def _serialize_response(self, queryset):

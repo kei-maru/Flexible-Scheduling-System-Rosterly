@@ -268,12 +268,14 @@ class SaaSClient:
         # 2. 如果是 Guest (普通用户)
         else:
             # 优先策略：有邮箱传邮箱，有名字传名字
-            if email:
-                params['customer_email'] = email
+            
             
             # ✅ 新增：把名字传给 System B，解决无邮箱用户查不到自己订单的问题
             if customer_name:
-                params['customer_name'] = customer_name
+                params['customer_name'] = resource_id
+
+            if email:
+                params['customer_email'] = email
 
             # 🛑【安全熔断】核心修复
             # 如果既没有 resource_id，也没有 email，也没有 name

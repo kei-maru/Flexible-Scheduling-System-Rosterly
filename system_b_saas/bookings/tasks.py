@@ -8,6 +8,8 @@ from django.utils.html import strip_tags
 from django.utils import timezone
 import pytz
 import requests
+import os  
+from email.mime.image import MIMEImage 
 
 from resources.models import EmailTemplate
 from bookings.models import Booking
@@ -79,11 +81,10 @@ def send_cancellation_email_task(resource_email, resource_name, customer_name, s
 # =========================================================
 
 def _send_booking_emails_logic(booking):
-    """具体的邮件构建与发送逻辑"""
+    """具体的邮件构建与发送逻辑 (CID 嵌入版)"""
     try:
         tpl = EmailTemplate.objects.get(tenant=booking.tenant, event_type='BOOKING_CONFIRMED')
         
-        # 基础配置
         t_btn_text = tpl.button_text
         t_btn_link = tpl.button_link
         t_footer_title = tpl.footer_title
@@ -91,26 +92,25 @@ def _send_booking_emails_logic(booking):
         raw_subject = tpl.subject_template
         service_name = tpl.service_name
 
-        # 处理 Logo
-        BASE_DOMAIN = "http://161.33.129.157" 
-        if tpl.logo:
-            logo_url = f"{BASE_DOMAIN}{tpl.logo.url}"
-        else:
-            logo_url = "https://via.placeholder.com/80x80/d4af37/ffffff?text=Veludo"
+        # --- Logo 路径逻辑 ---
+        # 1. 获取本地文件系统的绝对路径 (用于 open 读取)
+        # 例如: /app/media/tenants/logos/shop.png
+        logo_fs_path = tpl.logo.path if tpl.logo else None
 
     except EmailTemplate.DoesNotExist:
         print("[Email Warning] No EmailTemplate found.")
         return
 
-    # 时区处理
     jst = pytz.timezone('Asia/Tokyo')
     start_jst = booking.start_time.astimezone(jst)
     end_jst = booking.end_time.astimezone(jst)
     date_str = start_jst.strftime('%Y年%m月%d日')
     time_range_str = f"{start_jst.strftime('%H:%M')} - {end_jst.strftime('%H:%M')}"
 
-    # 定义内部发送函数
     def _send_single(recipient_email, recipient_name, email_title, email_greeting, is_cast=False):
+
+        logo_src = "cid:shop_logo" if logo_fs_path else "https://via.placeholder.com/80x80/d4af37/ffffff?text=Veludo"
+
         ctx = {
             'customer_name': recipient_name,
             'resource_name': booking.resource.name,
@@ -124,9 +124,10 @@ def _send_booking_emails_logic(booking):
             'button_link': t_btn_link,
             'footer_title': t_footer_title,
             'footer_text': t_footer_text,
-            'logo_url': logo_url,
+            'logo_url': logo_src, # ✅ 关键：这里传的是 CID 字符串
         }
         
+        # HTML 模板保持原样，不用动
         html_template = """
         <!DOCTYPE html>
         <html>
@@ -138,15 +139,7 @@ def _send_booking_emails_logic(booking):
         .title { font-size: 24px; font-weight: bold; margin-bottom: 30px; letter-spacing: 0.05em; color: #000; }
         .card { border: 1px solid #e5e5e5; padding: 40px 30px; border-radius: 8px; background: #fff; margin-bottom: 30px; text-align: center; }
         .date-block { font-weight: bold; font-size: 18px; margin-bottom: 20px; line-height: 1.6; color: #000; }
-        
-        /* 👇 【修改了这里】字体变大(18px)、加粗(bold)、颜色变深(#000) */
-        .info-block { 
-            margin-bottom: 30px; 
-            color: #000; 
-            font-size: 18px; 
-            line-height: 1.6; 
-        }
-
+        .info-block { margin-bottom: 30px; color: #000; font-size: 18px; line-height: 1.6; }
         .highlight { background-color: #fceea7; padding: 0 4px; }
         .btn { display: inline-block; background-color: #f0e6cc; color: #5d5340; padding: 14px 50px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 10px; }
         .footer { border: 1px solid #e5e5e5; padding: 20px; border-radius: 8px; font-size: 12px; text-align: center; color: #666; }
@@ -178,9 +171,7 @@ def _send_booking_emails_logic(booking):
 
             <a href="{{ button_link }}" class="btn">{{ button_text }}</a>
             
-            <div style="margin-top: 15px;">
-                
-            </div>
+            <div style="margin-top: 15px;"></div>
             </div>
 
             <div class="footer">
@@ -199,16 +190,37 @@ def _send_booking_emails_logic(booking):
 
         msg = EmailMultiAlternatives(final_subject, text_content, settings.DEFAULT_FROM_EMAIL, [recipient_email])
         msg.attach_alternative(final_html, "text/html")
+        
+        # 3. 读取本地文件并作为附件嵌入
+        if logo_fs_path:
+            try:
+                with open(logo_fs_path, 'rb') as f:
+                    logo_data = f.read()
+                
+                logo_image = MIMEImage(logo_data)
+                
+                # 核心：给图片贴上身份证号，HTML里的 src="cid:shop_logo" 才能找到它
+                logo_image.add_header('Content-ID', '<shop_logo>')
+                logo_image.add_header('Content-Disposition', 'inline', filename='logo.png')
+                
+                msg.attach(logo_image)
+                # print(f"[Email Debug] Attached local logo: {logo_fs_path}")
+            
+            except FileNotFoundError:
+                print(f"[Email Error] Logo file not found: {logo_fs_path} (Check Docker volumes!)")
+            except Exception as e:
+                print(f"[Email Error] Failed to attach logo: {e}")
+
         msg.send()
         print(f"[Email] Sent to {recipient_name} ({recipient_email})")
 
-    # 执行发送
     if tpl.send_to_customer:
         _send_single(booking.customer_email, booking.customer_name, tpl.email_title, tpl.email_greeting, is_cast=False)
     
     if tpl.send_to_cast and booking.resource.email:
         cast_greeting = f"お客様（{booking.customer_name} 様）より新しい予約が入りました。"
         _send_single(booking.resource.email, booking.resource.name, "新着予約通知", cast_greeting, is_cast=True)
+
 
 def _trigger_webhook_logic(booking):
     """具体的 Webhook 逻辑"""

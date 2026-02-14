@@ -2,12 +2,15 @@ version: '3.8'
 
 services:
   # ==========================================
-  # System A (Web 主系统 - 前端/客户端)
+  # System A (Web 主系统 - 使用默认 veludo_db)
   # ==========================================
   system_a:
     build: .
     container_name: veludo_system_a
     restart: always
+    # 👇 这里的 env_file 读取到的 DB_NAME 现在是 veludo_db
+    env_file:
+      - .env
     command: >
       sh -c "if [ '$DEBUG' = 'True' ]; then
                echo '🟢 Local Mode: Starting runserver...';
@@ -25,20 +28,26 @@ services:
     depends_on:
       - db
       - redis
-    env_file:
-      - .env
     deploy:
       resources:
         limits:
           memory: 300M
 
   # ==========================================
-  # System B (SaaS 子系统 - 后端/API)
+  # System B (SaaS 子系统 - 强制 saas_db)
   # ==========================================
   system-b:
     build: .
     container_name: veludo-system-b
     restart: always
+    env_file:
+      - .env
+    # 👇 关键：覆盖环境变量，强制指向 SaaS 专用库
+    environment:
+      - DB_NAME=saas_db
+      - DB_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     command: >
       sh -c "if [ '$DEBUG' = 'True' ]; then
                echo '🟢 Local Mode: Starting runserver...';
@@ -56,29 +65,19 @@ services:
     depends_on:
       - db
       - redis
-    env_file:
-      - .env
-    environment:
-      - DB_NAME=saas_db
-      - DB_HOST=db
-      # 👇 告诉 System B Redis 在哪里 (Docker内部名)
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     deploy:
       resources:
         limits:
           memory: 300M
 
   # ==========================================
-  # Worker (后台任务 - 邮件/Webhook)
+  # Worker (后台任务 - 强制 saas_db)
   # ==========================================
   worker:
     build: .
     container_name: veludo_worker
     restart: always
-    # 👇【关键修正】你的任务代码在 System B，所以必须指向 System B 的目录
     working_dir: /app/system_b_saas
-    # 👇 启动 Celery，加载 config (对应 system_b_saas/config)
     command: celery -A config worker -l info -P solo
     volumes:
       - .:/app
@@ -87,12 +86,11 @@ services:
       - redis
     env_file:
       - .env
+    # 👇 关键：Worker 也必须指向 SaaS 专用库
     environment:
       - DB_HOST=db
       - DB_NAME=saas_db
-      # 👇 确保 Django 加载的是 System B 的 settings
       - DJANGO_SETTINGS_MODULE=config.settings
-      # 👇 告诉 Worker Redis 在哪里
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     deploy:
@@ -108,22 +106,22 @@ services:
     container_name: veludo_postgres
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-dev_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+      POSTGRES_USER: ${DB_USER:-veludo_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zym02060}
+      # 👇 这里读取 .env，默认创建 veludo_db
       POSTGRES_DB: ${DB_NAME:-veludo_db}
     command: postgres -c 'shared_buffers=64MB' -c 'max_connections=50'
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init_sql:/docker-entrypoint-initdb.d
     deploy:
       resources:
         limits:
           memory: 200M
 
   # ==========================================
-  # Redis (缓存 & 消息队列)
+  # Redis
   # ==========================================
   redis:
     image: redis:7-alpine
@@ -138,5 +136,3 @@ services:
 
 volumes:
   postgres_data:
-  static_volume:
-  media_volume:

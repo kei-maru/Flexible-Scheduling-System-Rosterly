@@ -745,7 +745,87 @@
                 });
             }
         }
+        // 【新增】根据排班范围和所选时长，动态生成时间选项
+        function populateTimeSelect(durationMinutes) {
+            if (!selectedSlot) return;
 
+            const selectEl = document.getElementById('input-start-time');
+            const currentVal = selectEl.value; // 暂存当前选中的值
+            selectEl.innerHTML = ''; // 清空选项
+
+            const slotStart = new Date(selectedSlot.start);
+            const slotEnd = new Date(selectedSlot.end);
+            
+            // 循环步进：10分钟
+            let iterator = new Date(slotStart);
+            
+            // 循环直到：当前时间点 + 套餐时长 > 排班结束时间
+            while (new Date(iterator.getTime() + durationMinutes * 60000) <= slotEnd) {
+                const h = iterator.getHours();
+                const m = iterator.getMinutes();
+                
+                // 格式化 HH:mm (例如 25:00 的处理逻辑保留你原本的风格，或者直接用标准时间)
+                // 这里为了简单和准确，使用标准 HH:mm，如果需要 25:00 格式可自行转换
+                const displayH = String(h).padStart(2, '0');
+                const displayM = String(m).padStart(2, '0');
+                const val = `${displayH}:${displayM}`;
+                
+                // 构造显示的文本 (处理跨天显示，如 25:00)
+                // 这里的逻辑是：如果 iterator日期 > slotStart日期，小时数+24
+                let textH = h;
+                if (iterator.getDate() !== slotStart.getDate()) {
+                    textH += 24;
+                }
+                const text = `${String(textH).padStart(2, '0')}:${displayM}`;
+
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.text = text;
+                selectEl.appendChild(opt);
+
+                // 增加10分钟
+                iterator.setMinutes(iterator.getMinutes() + 10);
+            }
+
+            // 尝试恢复之前选中的值（如果该值在新列表中还存在）
+            // 如果不存在（比如切到长套餐导致时间不够了），默认选第一个
+            let hasValue = Array.from(selectEl.options).some(o => o.value === currentVal);
+            if (hasValue) {
+                selectEl.value = currentVal;
+            } else if (selectEl.options.length > 0) {
+                selectEl.value = selectEl.options[0].value;
+            }
+        }
+
+        // 【新增】检查用户自身订单冲突
+        async function checkUserBookingOverlap(newStart, newEnd) {
+            try {
+                const res = await fetch('/accounts/api/my-bookings/'); 
+                if (!res.ok) throw new Error("Failed to fetch bookings");
+                
+                const bookings = await res.json();
+                
+                const newS = newStart.getTime();
+                const newE = newEnd.getTime();
+
+                // 过滤掉已取消的订单，只检查 CONFIRMED 或 PENDING
+                const activeBookings = bookings.filter(b => b.status !== 'CANCELLED');
+
+                for (let b of activeBookings) {
+                    const existS = new Date(b.start).getTime();
+                    const existE = new Date(b.end).getTime();
+
+                    // 时间重叠判断公式：(StartA < EndB) && (EndA > StartB)
+                    if (newS < existE && newE > existS) {
+                        return true; // 存在冲突
+                    }
+                }
+                return false; // 无冲突
+            } catch (err) {
+                console.error("Check overlap failed:", err);
+                return false; // 接口报错时默认放行，或者你可以选择 return true 来阻断
+            }
+        }
         trackEvent('VIEW_PAGE', 'Reservation Page');
         const hasVrcId = {{ user.vrc_id|yesno:"true,false" }};
         let currentCastName = '';
@@ -943,7 +1023,13 @@
             btn.classList.remove('bg-white/5', 'text-gray-300', 'border-white/10');
             btn.classList.add('bg-veludo-gold', 'text-black', 'border-transparent');
             
-            if (!isSearchMode) calculateEndTime();
+            if (!isSearchMode) {
+                // --- 关键修改：时长变更时，重新计算下拉框 ---
+                // 因为时长变长可能导致尾部的时间不可用
+                populateTimeSelect(mins);
+                
+                calculateEndTime();
+            }
         }
         
         window.selectSearchDuration = function(mins, btn) {
@@ -1000,25 +1086,26 @@
                 }
             }
 
-            const selectEl = document.getElementById('input-start-time');
-            selectEl.innerHTML = ''; 
+            // 获取当前默认时长
+            const defaultDuration = parseInt(document.getElementById('input-duration').value) || 60;
             
-            for (let h = 0; h < 30; h++) {
-                ['00', '10', '20', '30', '40', '50'].forEach(m => {
-                    const displayH = h % 24; 
-                    const val = `${String(displayH).padStart(2,'0')}:${m}`;
-                    const opt = document.createElement('option');
-                    opt.value = val;
-                    const textH = h < 24 ? String(h).padStart(2,'0') : String(h);
-                    opt.text = `${textH}:${m}`;
-                    selectEl.appendChild(opt);
-                });
-            }
-
+            // 生成只包含可用时间的选项
+            populateTimeSelect(defaultDuration);
+            
+            // 设置默认选中时间（点击日历时的具体时间点）
+            const selectEl = document.getElementById('input-start-time');
             const clickedH = event.start.getHours();
             const clickedM = Math.floor(event.start.getMinutes() / 10) * 10;
             const defaultVal = `${String(clickedH).padStart(2,'0')}:${String(clickedM).padStart(2,'0')}`;
-            selectEl.value = defaultVal;
+            
+            // 尝试选中点击的时间，如果该时间不在生成列表中（比如太靠后不够时长），populateTimeSelect 会默认选第一个
+            // 这里我们再尝试强制匹配一下
+            let optionExists = Array.from(selectEl.options).some(o => o.value === defaultVal);
+            if(optionExists) {
+                selectEl.value = defaultVal;
+            }
+            // --- 关键修改结束 ---
+
 
             let modal = document.getElementById('booking-modal');
             let content = document.getElementById('modal-content');
@@ -1092,13 +1179,32 @@
             }, 300);
         }
 
-        window.openFinalConfirmModal = function() {
+        window.openFinalConfirmModal = async function() {
             if (!hasVrcId) { alert("VRCID Required"); return; }
             
             let data = calculateEndTime();
             if(!data || !data.isValid) { 
                 alert("選択された時間は予約可能な範囲外です。\nSelected time is out of range."); 
                 return; 
+            }
+
+            // --- 关键修改：检查订单冲突 ---
+            const btn = document.getElementById('btn-next-step');
+            const originalText = btn.innerText;
+            
+            // 增加 Loading 状态，防止重复点击
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Checking...';
+
+            const hasOverlap = await checkUserBookingOverlap(data.start, data.end);
+            
+            // 恢复按钮状态
+            btn.disabled = false;
+            btn.innerText = originalText;
+
+            if (hasOverlap) {
+                alert("エラー：同じ時間帯に既に他の予約が入っています。\nError: You already have a booking at this time.");
+                return; // 阻止弹窗打开
             }
 
             const dateStr = data.start.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short'});

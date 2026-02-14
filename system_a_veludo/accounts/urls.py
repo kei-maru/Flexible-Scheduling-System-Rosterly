@@ -18,6 +18,7 @@ urlpatterns = [
 
     # --- 预约流程 ---
     path('booking/', views.BookingPageView.as_view(), name='booking_page'),
+    path('api/my-bookings/', views.my_bookings_api, name='api_my_bookings'),
 
     # --- API 接口 ---
     path('api/availability/', views.AvailabilityAPIView.as_view(), name='api_availability'),

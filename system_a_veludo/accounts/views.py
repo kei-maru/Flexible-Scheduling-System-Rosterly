@@ -10,6 +10,7 @@ from django.views.generic import TemplateView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.dateparse import parse_datetime
+from django.views.decorators.http import require_GET, require_POST
 from django import forms
 from django.contrib import messages
 from django.db.models import Q
@@ -448,6 +449,50 @@ class CastSearchAPI(APIView):
 
         print(f"========== DEBUG END: Found {len(available_casts)} casts ==========\n")
         return Response({'casts': available_casts})
+
+@login_required
+@require_GET
+def my_bookings_api(request):
+    """
+    专门为前端 JS 提供的 API，用于检查订单冲突。
+    逻辑完全复刻 MyBookingsPageView.get_context_data
+    """
+    user = request.user
+    client = SaaSClient()
+    
+    # 判断是否为 Cast (保持逻辑一致性)
+    is_cast = getattr(user, 'is_cast', False)
+    
+    bookings = []
+
+    # 1. 获取 System B 的数据 (完全复刻 View 的逻辑)
+    if is_cast:
+        if hasattr(user, 'cast_profile') and user.cast_profile.saas_resource_id:
+            bookings = client.get_my_bookings(resource_id=user.cast_profile.saas_resource_id)
+    else:
+        # ✅ 关键点：这里必须和 MyBookingsPageView 一模一样
+        # 否则会出现“主页能看到订单，但预约时却检测不到冲突”的 Bug
+        bookings = client.get_my_bookings(
+            customer_id=user.username,       # System A 的 ID (查新数据)
+            customer_name=user.vrc_id,       # VRCID (查旧数据)
+            email=user.email                 # Email (兜底)
+        )
+
+    # 2. 提取前端仅需的字段 (时间与状态)
+    data = []
+    for b in bookings:
+        # 兼容 System B 可能返回的不同键名 ('start' 或 'start_time')
+        start_str = b.get('start') or b.get('start_time')
+        end_str = b.get('end') or b.get('end_time')
+        
+        if start_str and end_str:
+            data.append({
+                'start': start_str, # ISO 格式字符串
+                'end': end_str,
+                'status': b.get('status')
+            })
+
+    return JsonResponse(data, safe=False)
 
 class MyBookingsPageView(LoginRequiredMixin, TemplateView):
     template_name = 'my_bookings.html'

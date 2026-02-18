@@ -12,6 +12,7 @@ class MySocialAccountAdapter(DefaultSocialAccountAdapter):
         user = super().populate_user(request, sociallogin, data)
 
         user.email = ""
+        sociallogin.email_addresses = []
 
         # 获取 Discord 返回的原始数据
         extra_data = sociallogin.account.extra_data

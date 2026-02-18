@@ -1412,7 +1412,7 @@
             });
         }
         
-        // 核心修复：directBook 函数逻辑重写
+        // 修复后的 directBook 函数
         window.directBook = function(resourceId, castName, isoStart, duration, avatarUrl) {
             currentCastName = castName;
             currentCastAvatar = avatarUrl;
@@ -1424,7 +1424,7 @@
                 return;
             }
 
-            // 1. 获取目标时间
+            // 1. 获取搜索的目标时间对象
             const targetTime = new Date(isoStart);
             
             // 2. 构造查询该日期的全天排班的URL
@@ -1449,7 +1449,7 @@
                     // 筛选有效未被预约的时段
                     const validEvents = events.filter(e => !e.is_booked && !(e.extendedProps && e.extendedProps.is_booked));
 
-                    // 4. 查找包含用户搜索时间的那个真实排班段
+                    // 4. 查找包含用户搜索时间的那个排班段
                     for (let e of validEvents) {
                         const s = new Date(e.start).getTime();
                         const d = new Date(e.end).getTime();
@@ -1461,16 +1461,22 @@
                     }
 
                     if (matchedSlot) {
-                        // 5. 设置为真实的排班时间
+                        // 5. 【关键】更新全局 selectedSlot，这对 populateTimeSelect 至关重要
                         selectedSlot = matchedSlot;
                         
-                        // 更新UI
+                        // --- UI 更新部分 ---
                         document.getElementById('modal-cast-name').innerText = currentCastName;
-                        document.getElementById('slot-range-display').innerText = formatTime24(selectedSlot.start) + ' ~ ' + formatTime24(selectedSlot.end) + ' (Selected)';
+                        document.getElementById('slot-range-display').innerText = formatTime24(selectedSlot.start) + ' ~ ' + formatTime24(selectedSlot.end);
+                        
+                        // 设置日期显示
+                        const dateStr = targetTime.toLocaleDateString('ja-JP', {
+                            year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short'
+                        });
+                        document.getElementById('modal-booking-date-display').innerText = dateStr;
 
+                        // 设置头像
                         const avatarImg = document.getElementById('booking-cast-avatar');
                         const fallbackDiv = document.getElementById('booking-cast-avatar-fallback');
-                        
                         if (avatarImg && fallbackDiv) {
                             if (currentCastAvatar && currentCastAvatar !== 'None' && currentCastAvatar !== '') {
                                 avatarImg.src = currentCastAvatar;
@@ -1481,29 +1487,10 @@
                                 fallbackDiv.classList.remove('hidden');
                             }
                         }
-                        
-                        // 设置开始时间下拉框
-                        const selectEl = document.getElementById('input-start-time');
-                        if(selectEl) {
-                            selectEl.innerHTML = '';
-                            for (let h = 0; h < 30; h++) {
-                                ['00', '10', '20', '30', '40', '50'].forEach(m => {
-                                    const displayH = h % 24; 
-                                    const val = `${String(displayH).padStart(2,'0')}:${m}`;
-                                    const opt = document.createElement('option');
-                                    opt.value = val;
-                                    const textH = h < 24 ? String(h).padStart(2,'0') : String(h);
-                                    opt.text = `${textH}:${m}`;
-                                    selectEl.appendChild(opt);
-                                });
-                            }
-                            const clickedH = targetTime.getHours();
-                            const clickedM = targetTime.getMinutes();
-                            selectEl.value = `${String(clickedH).padStart(2,'0')}:${String(clickedM).padStart(2,'0')}`;
-                        }
 
-                        // 设置时长按钮状态
+                        // 设置时长 (这会更新 input-duration 的值)
                         document.getElementById('input-duration').value = duration;
+                        // 更新时长按钮样式
                         document.querySelectorAll('.duration-btn').forEach(b => {
                             b.classList.remove('bg-veludo-gold', 'text-black');
                             b.classList.add('bg-white/5', 'text-gray-300');
@@ -1513,6 +1500,28 @@
                             targetBtn.classList.add('bg-veludo-gold', 'text-black');
                             targetBtn.classList.remove('bg-white/5', 'text-gray-300');
                         }
+                        
+                        // --- 核心修复逻辑开始 ---
+                        
+                        // 1. 调用现有的函数生成“所有可用时间”的列表 (基于 selectedSlot 和 duration)
+                        populateTimeSelect(duration);
+
+                        // 2. 构造搜索时间的 HH:mm 格式
+                        const h = String(targetTime.getHours()).padStart(2, '0');
+                        const m = String(targetTime.getMinutes()).padStart(2, '0');
+                        const targetVal = `${h}:${m}`;
+
+                        // 3. 强制将下拉菜单的值设为“搜索的时间”
+                        const selectEl = document.getElementById('input-start-time');
+                        if(selectEl) {
+                            // 检查该时间是否在列表中（理论上必然在，除非时长超限）
+                            let exists = Array.from(selectEl.options).some(o => o.value === targetVal);
+                            if (exists) {
+                                selectEl.value = targetVal;
+                            }
+                        }
+
+                        // --- 核心修复逻辑结束 ---
 
                         // 显示弹窗
                         let modal = document.getElementById('booking-modal');
@@ -1524,6 +1533,7 @@
                             content.classList.add('scale-100', 'opacity-100');
                         }, 10);
                         
+                        // 立即运行一次计算，确保“结束时间”显示正确，并为“下一步”按钮准备好数据
                         calculateEndTime();
 
                     } else {

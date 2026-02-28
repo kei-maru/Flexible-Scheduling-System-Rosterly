@@ -21,3 +21,6 @@ staticfiles/
 
 # 忽略媒体上传目录 (用户头像等)
 media/
+
+# 忽略本地开发容器配置
+.devcontainer/

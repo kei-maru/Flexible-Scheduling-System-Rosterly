@@ -16,6 +16,7 @@ urlpatterns = [
     # 因为 bookings/urls.py 里面写的是 'bookings/'，所以拼接起来就是 api/v1/integration/bookings/
     path('api/v1/integration/', include('bookings.urls')),
     path('dashboard/', include('dashboard.urls')),
+    path('accounts/', include('allauth.urls')),
 ]
 
 

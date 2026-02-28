@@ -31,6 +31,7 @@ class SaaSUser(AbstractUser):
     ]
     tenant = models.ForeignKey(Tenant, related_name='users', on_delete=models.CASCADE, null=True, blank=True)
     role = models.CharField(choices=ROLE_CHOICES, default='STAFF')
+    discord_id = models.CharField(max_length=64, blank=True, null=True, db_index=True)
     
     class Meta:
         db_table = 'saas_users'

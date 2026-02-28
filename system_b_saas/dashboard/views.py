@@ -5,9 +5,22 @@ from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.contrib import messages
+from django.conf import settings
 from bookings.models import Booking
 from resources.models import Resource, EmailTemplate
 from tenants.models import Tenant
+
+
+class DashboardLoginView(TemplateView):
+    template_name = "dashboard/login.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["discord_oauth_ready"] = bool(
+            settings.SYSTEM_B_DISCORD_CLIENT_ID and settings.SYSTEM_B_DISCORD_SECRET
+        )
+        return context
+
 
 class TenantDashboardView(LoginRequiredMixin, TemplateView):
     template_name = "dashboard/tenant_dashboard.html"

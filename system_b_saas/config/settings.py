@@ -42,6 +42,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.discord',
     
     'rest_framework',
     'rest_framework.authtoken',
@@ -62,6 +68,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -130,6 +137,7 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'tenants.SaaSUser'
+SITE_ID = int(os.environ.get('SITE_ID', '1'))
 
 SESSION_COOKIE_NAME = 'saas_sessionid'
 CSRF_COOKIE_NAME = 'saas_csrftoken'
@@ -163,10 +171,39 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 LOGIN_REDIRECT_URL = 'tenant_dashboard'
 
 # 2. 如果没登录就访问 dashboard，被踢到哪里？ -> 踢到 login
-LOGIN_URL = 'login'
+LOGIN_URL = 'dashboard_login'
 
 # 3. 登出后去哪里？ -> 登录页
-LOGOUT_REDIRECT_URL = 'login'
+LOGOUT_REDIRECT_URL = 'dashboard_login'
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+ACCOUNT_LOGIN_METHODS = {'username'}
+ACCOUNT_SIGNUP_FIELDS = ['username*']
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_AUTO_SIGNUP = False
+SOCIALACCOUNT_QUERY_EMAIL = False
+SOCIALACCOUNT_ADAPTER = 'tenants.adapters.SaaSDiscordSocialAdapter'
+
+SYSTEM_B_DISCORD_CLIENT_ID = os.environ.get('SYSTEM_B_DISCORD_CLIENT_ID', '')
+SYSTEM_B_DISCORD_SECRET = os.environ.get('SYSTEM_B_DISCORD_SECRET', '')
+SYSTEM_B_DISCORD_KEY = os.environ.get('SYSTEM_B_DISCORD_KEY', '')
+
+SOCIALACCOUNT_PROVIDERS = {
+    'discord': {
+        'APP': {
+            'client_id': SYSTEM_B_DISCORD_CLIENT_ID,
+            'secret': SYSTEM_B_DISCORD_SECRET,
+            'key': SYSTEM_B_DISCORD_KEY,
+        },
+        'SCOPE': ['identify'],
+        'AUTH_PARAMS': {'prompt': 'none'},
+    }
+}
 
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')

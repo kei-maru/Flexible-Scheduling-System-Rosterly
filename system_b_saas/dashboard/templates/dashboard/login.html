@@ -1,47 +1,50 @@
+{% load socialaccount %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Login | System B SaaS</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: "Manrope", sans-serif; }
+    </style>
 </head>
-<body class="bg-gray-50 h-screen flex items-center justify-center font-sans">
+<body class="min-h-screen bg-white text-slate-900">
+    <div class="relative min-h-screen overflow-hidden">
+        <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(15,23,42,0.08),transparent_34%),radial-gradient(circle_at_85%_78%,rgba(59,130,246,0.10),transparent_30%)]"></div>
 
-    <div class="w-full max-w-md bg-white p-8 rounded-lg shadow-sm border border-gray-200">
-        <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold text-gray-900 tracking-tight">System B <span class="text-indigo-600">SaaS</span></h1>
-            <p class="text-sm text-gray-500 mt-2">Sign in to manage your bookings</p>
-        </div>
+        <main class="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center px-6 py-10">
+            <section class="w-full rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-[0_18px_60px_-28px_rgba(15,23,42,0.32)] backdrop-blur md:p-12">
+                <div class="mb-10">
+                    <p class="mb-3 inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-slate-500">VELUDO SYSTEM B</p>
+                    <h1 class="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">员工 / 店长登录</h1>
+                    <p class="mt-3 max-w-xl text-sm leading-6 text-slate-600">仅店铺员工与店长可访问管理后台。客户预约无需登录，直接从店铺预约链接进入。</p>
+                </div>
 
-        <form method="post" class="space-y-6">
-            {% csrf_token %}
-            
-            {% if form.errors %}
-            <div class="bg-red-50 text-red-600 text-sm p-3 rounded-md border border-red-100">
-                Invalid username or password.
-            </div>
-            {% endif %}
-
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                <input type="text" name="username" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" required>
-            </div>
-
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input type="password" name="password" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" required>
-            </div>
-
-            <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">
-                Sign In
-            </button>
-        </form>
-
-        <div class="mt-6 text-center text-xs text-gray-400">
-            &copy; 2026 Veludo Inc. All rights reserved.
-        </div>
+                {% if discord_oauth_ready %}
+                <form action="{% provider_login_url 'discord' %}" method="post" class="max-w-sm">
+                    {% csrf_token %}
+                    <button type="submit" class="group flex w-full items-center justify-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
+                        <span class="text-base">◉</span>
+                        Continue with Discord
+                    </button>
+                </form>
+                {% if messages %}
+                <div class="mt-4 max-w-xl space-y-2">
+                    {% for message in messages %}
+                    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Discord OAuth 尚未配置。请设置 `SYSTEM_B_DISCORD_CLIENT_ID` 与 `SYSTEM_B_DISCORD_SECRET` 后重启容器。
+                </div>
+                {% endif %}
+            </section>
+        </main>
     </div>
-
 </body>
 </html>

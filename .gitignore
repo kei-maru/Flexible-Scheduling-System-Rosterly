@@ -16,6 +16,7 @@ system_a_veludo/media/
 *.rar
 
 # 忽略 Django 收集的静态文件目录 (也就是 Nginx 读取的目录)
+static_root/
 static_root_saas/
 staticfiles/
 

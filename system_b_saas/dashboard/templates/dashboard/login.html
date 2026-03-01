@@ -2,49 +2,47 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Login | System B SaaS</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: "Manrope", sans-serif; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>System B Staff Login</title>
+  <style>
+    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--dark:#111827;--dark2:#1f2937;--err-bg:#fff1f2;--err:#be123c}
+    *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 20% 15%,rgba(17,24,39,.06),transparent 38%),radial-gradient(circle at 80% 80%,rgba(30,64,175,.08),transparent 30%),var(--bg);color:var(--text)}
+    .wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+    .card{width:min(760px,100%);background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 22px 60px -30px rgba(15,23,42,.35);padding:36px}
+    .tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:11px;letter-spacing:.15em;color:var(--muted);font-weight:700}
+    h1{margin:14px 0 8px;font-size:34px;line-height:1.2}
+    p{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
+    .btn{margin-top:28px;width:320px;max-width:100%;padding:12px 14px;border:0;border-radius:12px;background:var(--dark);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+    .btn:hover{background:var(--dark2)}
+    .alert{margin-top:16px;padding:12px 14px;border:1px solid #fecdd3;background:var(--err-bg);color:var(--err);border-radius:10px;font-size:14px}
+    .warn{margin-top:18px;padding:12px 14px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;font-size:14px}
+  </style>
 </head>
-<body class="min-h-screen bg-white text-slate-900">
-    <div class="relative min-h-screen overflow-hidden">
-        <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(15,23,42,0.08),transparent_34%),radial-gradient(circle_at_85%_78%,rgba(59,130,246,0.10),transparent_30%)]"></div>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <span class="tag">VELUDO SYSTEM B</span>
+      <h1>员工 / 店长登录</h1>
+      <p>仅店铺员工与店长可访问管理后台。客户预约无需登录，直接从店铺预约链接进入。</p>
 
-        <main class="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center px-6 py-10">
-            <section class="w-full rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-[0_18px_60px_-28px_rgba(15,23,42,0.32)] backdrop-blur md:p-12">
-                <div class="mb-10">
-                    <p class="mb-3 inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-slate-500">VELUDO SYSTEM B</p>
-                    <h1 class="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">员工 / 店长登录</h1>
-                    <p class="mt-3 max-w-xl text-sm leading-6 text-slate-600">仅店铺员工与店长可访问管理后台。客户预约无需登录，直接从店铺预约链接进入。</p>
-                </div>
+      {% if discord_oauth_ready %}
+      <form action="{% provider_login_url 'discord' %}" method="post">
+        {% csrf_token %}
+        <button class="btn" type="submit">Continue with Discord</button>
+      </form>
+      <p style="margin-top:10px;font-size:12px;color:#64748b">Local test login: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
+      {% else %}
+      <div class="warn">Discord OAuth 未配置。请先设置 `SYSTEM_B_DISCORD_CLIENT_ID` / `SYSTEM_B_DISCORD_SECRET`。</div>
+      <p style="margin-top:10px;font-size:12px;color:#64748b">可先使用本地账号登录：<a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
+      {% endif %}
 
-                {% if discord_oauth_ready %}
-                <form action="{% provider_login_url 'discord' %}" method="post" class="max-w-sm">
-                    {% csrf_token %}
-                    <button type="submit" class="group flex w-full items-center justify-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
-                        <span class="text-base">◉</span>
-                        Continue with Discord
-                    </button>
-                </form>
-                {% if messages %}
-                <div class="mt-4 max-w-xl space-y-2">
-                    {% for message in messages %}
-                    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ message }}</div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                {% else %}
-                <div class="max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    Discord OAuth 尚未配置。请设置 `SYSTEM_B_DISCORD_CLIENT_ID` 与 `SYSTEM_B_DISCORD_SECRET` 后重启容器。
-                </div>
-                {% endif %}
-            </section>
-        </main>
-    </div>
+      {% if messages %}
+      {% for message in messages %}
+      <div class="alert">{{ message }}</div>
+      {% endfor %}
+      {% endif %}
+    </section>
+  </div>
 </body>
 </html>

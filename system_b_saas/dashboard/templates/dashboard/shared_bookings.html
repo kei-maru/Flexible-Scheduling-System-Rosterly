@@ -1,0 +1,237 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>予約一覧 | System B</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { 'veludo-gold': '#d4af37', 'veludo-bg': '#1a1a1a' },
+                    fontFamily: { serif: ['"Noto Serif JP"', 'serif'], english: ['"Cormorant Garamond"', 'serif'] }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-black text-white font-serif bg-fixed bg-cover" 
+      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-0"></div>
+
+    <div class="relative z-10 max-w-5xl mx-auto px-4 py-8 md:px-6 md:py-12">
+        <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{% url 'shared_home' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-gold hover:border-veludo-gold transition-colors">主页</a>
+                <a href="{% url 'shared_schedule' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-gold hover:border-veludo-gold transition-colors">排班管理</a>
+                <a href="{% url 'shared_profile' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-gold hover:border-veludo-gold transition-colors">个人信息管理</a>
+                <a href="{% url 'shared_bookings' %}" class="text-xs border border-veludo-gold px-3 py-2 text-veludo-gold">预约一览</a>
+                {% if is_admin %}
+                <a href="{% url 'tenant_dashboard' %}" class="text-xs border border-indigo-200/40 px-3 py-2 text-indigo-200 hover:text-white hover:border-indigo-200 transition-colors">管理员面板</a>
+                {% endif %}
+            </div>
+            <div class="relative group self-end md:self-auto">
+                <button class="flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-2 py-1 hover:border-veludo-gold transition-colors">
+                    {% if user_avatar_url %}
+                    <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
+                    {% else %}
+                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ user_initial }}</span>
+                    {% endif %}
+                    <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
+                </button>
+                <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-white/20 bg-black/90 p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+                    <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20">Logout</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-between md:items-end mb-8 md:mb-12 border-b border-white/10 pb-6 gap-4 md:gap-0">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-english text-veludo-gold italic">予約一覧</h1>
+                <p class="text-xs text-gray-400 mt-2 tracking-widest uppercase">Booking History</p>
+            </div>
+            <div class="text-left md:text-right text-xs text-gray-400">
+                {% if is_admin %}ADMIN VIEW{% else %}STAFF VIEW{% endif %}
+            </div>
+        </div>
+
+        <div class="space-y-4 md:space-y-6">
+            {% if bookings %}
+                {% for booking in bookings %}
+                <div onclick="showDetail(this)"
+                     data-id="{{ booking.id }}"
+                     data-resource="{{ booking.resource.name }}"
+                     data-customer="{{ booking.customer_name }}"
+                     data-email="{{ booking.customer_email }}"
+                     data-start-date="{{ booking.start_time|date:'Y/m/d (D)' }}"
+                     data-time-range="{{ booking.start_time|date:'H:i' }} - {{ booking.end_time|date:'H:i' }}"
+                     data-status="{{ booking.status }}"
+                     data-start-iso="{{ booking.start_time|date:'c' }}"
+                     class="bg-white/5 border border-white/10 p-4 md:p-6 rounded-sm hover:border-veludo-gold/50 hover:bg-white/10 transition-all cursor-pointer group relative overflow-hidden">
+
+                    <div class="absolute top-0 left-0 w-1 h-full bg-veludo-gold opacity-50 group-hover:opacity-100 transition-opacity"></div>
+
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
+                        <div class="flex items-center gap-4 md:gap-6 w-full md:w-auto">
+                            <div class="text-center bg-white/5 p-2 rounded-sm min-w-[70px] border border-white/10 group-hover:border-veludo-gold/30 transition-colors shrink-0">
+                                <div class="text-[9px] text-gray-200 uppercase tracking-[0.2em] mb-1">DATE</div>
+                                <div class="text-xl font-serif text-white lining-nums tracking-widest leading-none">
+                                    {{ booking.start_time|date:"m/d" }}
+                                </div>
+                            </div>
+
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xl font-english text-veludo-gold leading-none flex items-center gap-2">
+                                    <span>{{ booking.start_time|date:"H:i" }}</span>
+                                    <span class="text-gray-300">~</span>
+                                    <span class="text-gray-300">{{ booking.end_time|date:"H:i" }}</span>
+                                </div>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="bg-white/5 px-1.5 py-0.5 rounded-sm text-[8px] text-gray-200 border border-white/10 tracking-[0.15em] uppercase shrink-0">RESOURCE</span>
+                                    <span class="text-xs font-normal tracking-widest text-gray-200 font-serif truncate">{{ booking.resource.name }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-2 border-t border-white/5 pt-3 md:pt-0 md:border-none">
+                            <span class="px-3 py-1 text-[10px] tracking-widest rounded border
+                                {% if booking.status == 'COMPLETED' %}border-veludo-gold/30 text-veludo-gold bg-veludo-gold/10
+                                {% elif booking.status == 'CANCELLED' %}border-red-500/30 text-red-400 bg-red-500/10
+                                {% else %}border-green-500/30 text-green-400 bg-green-500/10{% endif %}">
+                                {{ booking.status }}
+                            </span>
+                            <div class="text-[10px] text-gray-600 font-mono">ID: {{ booking.id|slice:":8" }}...</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-20 bg-white/5 rounded border border-white/10 border-dashed">
+                    <i class="fa-regular fa-calendar-xmark text-4xl text-gray-600 mb-4"></i>
+                    <p class="text-gray-400">予約履歴がありません</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="detail-modal" class="fixed inset-0 bg-black/90 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-[#151515] w-full max-w-md border border-veludo-gold/30 shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white z-10">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div class="bg-white/5 p-6 border-b border-white/10 text-center shrink-0">
+                <h3 class="text-xl font-english text-veludo-gold italic">Reservation Details</h3>
+            </div>
+
+            <div class="p-6 md:p-8 space-y-6 flex-1">
+                <div class="text-center mb-6">
+                    <span class="px-3 py-1 text-[10px] tracking-widest border rounded" id="modal-status">CONFIRMED</span>
+                    <p class="text-[10px] text-gray-600 mt-2 font-mono" id="modal-id">ID: --</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-black/40 p-3 rounded border border-white/5">
+                        <div class="text-[13px] text-gray-500 uppercase">CUSTOMER</div>
+                        <div class="text-lg font-bold text-white mt-1 leading-tight break-words" id="modal-customer">--</div>
+                    </div>
+
+                    <div class="bg-black/40 p-3 rounded border border-white/5">
+                        <div class="text-[13px] text-gray-500 uppercase">RESOURCE</div>
+                        <div class="text-lg font-bold text-white mt-1 leading-tight break-words" id="modal-resource">--</div>
+                    </div>
+                </div>
+
+                <div class="bg-black/40 p-3 rounded border border-white/5">
+                    <div class="text-[13px] text-gray-500 uppercase">EMAIL</div>
+                    <div class="text-sm text-white mt-1 break-all" id="modal-email">--</div>
+                </div>
+
+                <div class="bg-black/40 p-4 rounded border border-white/5 flex items-center justify-between">
+                    <div class="text-[13px] font-english text-gray-200 uppercase">TIME</div>
+                    <div class="text-2xl font-bold text-veludo-gold" id="modal-time">-- : --</div>
+                </div>
+
+                <div class="text-[10px] text-gray-500 text-center" id="modal-note">
+                    操作権限はロールにより制限されます。
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-white/10 bg-white/5 flex flex-col md:flex-row gap-3 md:gap-4 shrink-0">
+                {% if is_admin %}
+                <button id="btn-cancel" onclick="updateBookingStatus('CANCELLED')" class="flex-1 py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/30 text-xs tracking-widest transition-colors">CANCEL</button>
+                {% endif %}
+                <button id="btn-complete" onclick="updateBookingStatus('COMPLETED')" class="flex-1 py-3 bg-veludo-gold/20 hover:bg-veludo-gold/40 text-veludo-gold border border-veludo-gold/30 text-xs tracking-widest transition-colors">COMPLETE</button>
+                <button onclick="closeModal()" class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs tracking-widest transition-colors">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+let currentBookingId = null;
+const NOW_ISO = "{{ now_iso }}";
+
+function getCsrfToken() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+}
+
+function showDetail(el) {
+    const ds = el.dataset;
+    currentBookingId = ds.id;
+
+    document.getElementById('modal-id').innerText = 'ID: ' + ds.id;
+    document.getElementById('modal-customer').innerText = ds.customer;
+    document.getElementById('modal-resource').innerText = ds.resource;
+    document.getElementById('modal-email').innerText = ds.email;
+    document.getElementById('modal-time').innerText = ds.timeRange;
+
+    const statusEl = document.getElementById('modal-status');
+    statusEl.innerText = ds.status;
+    statusEl.className = 'px-3 py-1 text-[10px] tracking-widest border rounded';
+    if (ds.status === 'COMPLETED') statusEl.classList.add('border-veludo-gold/30','text-veludo-gold','bg-veludo-gold/10');
+    else if (ds.status === 'CANCELLED') statusEl.classList.add('border-red-500/30','text-red-400','bg-red-500/10');
+    else statusEl.classList.add('border-green-500/30','text-green-400','bg-green-500/10');
+
+    const noteEl = document.getElementById('modal-note');
+    const startTime = new Date(ds.startIso);
+    const now = new Date(NOW_ISO);
+    if ((startTime - now) < 2 * 60 * 60 * 1000) {
+        noteEl.innerText = '2時間以内の予約はキャンセルできません。';
+    } else {
+        noteEl.innerText = '操作権限はロールにより制限されます。';
+    }
+
+    document.getElementById('detail-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+    currentBookingId = null;
+    document.getElementById('detail-modal').classList.add('hidden');
+}
+
+async function updateBookingStatus(status) {
+    if (!currentBookingId) return;
+    const res = await fetch(`/dashboard/api/bookings/${currentBookingId}/`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({ status })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        alert(data.error || 'Action failed');
+        return;
+    }
+    alert(`Updated: ${status}`);
+    location.reload();
+}
+</script>
+</body>
+</html>

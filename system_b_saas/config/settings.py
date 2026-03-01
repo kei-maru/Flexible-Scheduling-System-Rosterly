@@ -76,7 +76,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -167,8 +167,8 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # Auth & Redirect Settings
 # ====================================
 
-# 1. 登录成功后，自动跳转到哪里？ -> 跳到 dashboard
-LOGIN_REDIRECT_URL = 'tenant_dashboard'
+# 1. 登录成功后，自动跳转到哪里？ -> 公共主页面
+LOGIN_REDIRECT_URL = 'shared_home'
 
 # 2. 如果没登录就访问 dashboard，被踢到哪里？ -> 踢到 login
 LOGIN_URL = 'dashboard_login'
@@ -183,6 +183,12 @@ AUTHENTICATION_BACKENDS = [
 
 ACCOUNT_LOGIN_METHODS = {'username'}
 ACCOUNT_SIGNUP_FIELDS = ['username*']
+ACCOUNT_LOGIN_BY_CODE_ENABLED = False
+ACCOUNT_LOGIN_BY_CODE_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'username'
+ACCOUNT_EMAIL_REQUIRED = False
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_UNIQUE_EMAIL = False
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_AUTO_SIGNUP = False

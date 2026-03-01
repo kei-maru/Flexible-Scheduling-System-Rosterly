@@ -1,0 +1,923 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Schedule Management | Veludo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <link rel="icon" type="image/png" href="/media/tenant_logos/veludo_logo.png">
+    <link rel="apple-touch-icon" href="/media/tenant_logos/veludo_logo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'veludo-accent-gold': '#d4af37', 
+                        'veludo-dark-bg': '#1a1a1a',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #000; 
+            color: #e5e5e5; 
+            font-family: "Noto Serif JP", serif;
+            font-variant-numeric: lining-nums tabular-nums; 
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        .glass-panel {
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* FullCalendar Customization */
+        .fc { border: none !important; font-family: "Noto Serif JP", sans-serif; }
+        .fc-toolbar-title { 
+            font-family: "Cormorant Garamond", serif; 
+            font-size: 1.8rem !important; 
+            color: #d4af37; 
+            letter-spacing: 0.05em; 
+        }
+        /* Mobile Toolbar Adjustment */
+        @media (max-width: 768px) {
+            .fc-toolbar-title { font-size: 1.4rem !important; }
+            .fc-header-toolbar {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        .fc-button { 
+            background-color: transparent !important; 
+            border: 1px solid #444 !important; 
+            color: #aaa !important;
+            font-size: 0.75rem !important; 
+            text-transform: uppercase;
+            letter-spacing: 1px; 
+            transition: all 0.3s ease;
+        }
+        .fc-button:hover { border-color: #d4af37 !important; color: #d4af37 !important; }
+        .fc-button-active { background-color: #d4af37 !important; color: #000 !important; border-color: #d4af37 !important; }
+        
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #333 !important; }
+        
+        .fc-timegrid-slot-label-cushion { 
+            color: #e5e5e5 !important; 
+            font-family: "Cormorant Garamond"; 
+            font-size: 1em; 
+            font-weight: 500;
+        }
+        .fc-col-header-cell-cushion {
+            color: #4b4225 !important; 
+            text-decoration: none !important;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .fc-col-header-cell a { text-decoration: none !important; }
+        
+        /* Event Styling */
+        .fc-event {
+            border: none;
+            border-left: 3px solid #d4af37;
+            border-radius: 0 2px 2px 0;
+            font-size: 0.75rem; 
+            line-height: 1.1;   
+            padding: 1px 4px;   
+            overflow: hidden;   
+            white-space: nowrap;
+            text-overflow: ellipsis; 
+        }
+        .fc-event:hover {
+            background-color: rgba(212, 175, 55, 0.4);
+            transform: scale(1.01);
+            cursor: pointer;
+        }
+        .fc-event.booked-slot {
+            background-color: rgba(139, 0, 0, 0.3) !important;
+            border-left-color: #ff4444 !important;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d4af37; }
+    </style>
+</head>
+<body class="min-h-screen bg-fixed bg-cover bg-center py-6 md:py-10"
+      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
+    
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-sm fixed"></div>
+
+    <div class="relative z-10 w-full max-w-7xl mx-auto px-4">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{% url 'shared_home' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-accent-gold hover:border-veludo-accent-gold transition-colors">主页</a>
+                <a href="{% url 'shared_schedule' %}" class="text-xs border border-veludo-accent-gold px-3 py-2 text-veludo-accent-gold">排班管理</a>
+                <a href="{% url 'shared_profile' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-accent-gold hover:border-veludo-accent-gold transition-colors">个人信息管理</a>
+                <a href="{% url 'shared_bookings' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-accent-gold hover:border-veludo-accent-gold transition-colors">预约一览</a>
+                {% if is_admin %}
+                <a href="{% url 'tenant_dashboard' %}" class="text-xs border border-indigo-200/40 px-3 py-2 text-indigo-200 hover:text-white hover:border-indigo-200 transition-colors">管理员面板</a>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center gap-4 self-end md:self-auto">
+                <div id="status-indicator" class="text-xs font-mono text-gray-500">
+                    <span class="w-2 h-2 rounded-full bg-gray-500 inline-block mr-1" id="status-dot"></span>
+                    System B: <span id="status-text">Standing By</span>
+                </div>
+                <div class="relative group">
+                    <button class="flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-2 py-1 hover:border-veludo-accent-gold transition-colors">
+                        {% if user_avatar_url %}
+                        <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
+                        {% else %}
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ user_initial }}</span>
+                        {% endif %}
+                        <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
+                    </button>
+                    <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-white/20 bg-black/90 p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+                        <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if not is_cast %}
+            <div class="glass-panel border-l-4 border-red-500 p-8 text-center">
+                <h2 class="text-xl text-red-400 font-serif mb-2">Access Denied</h2>
+                <p class="text-gray-400 text-sm">You are not authorized to manage schedules.</p>
+            </div>
+        {% else %}
+
+        <div class="glass-panel p-4 md:p-6 rounded-sm shadow-2xl">
+            <div class="mb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-white/10 pb-4">
+                <div>
+                    <h1 class="text-xl md:text-3xl font-serif text-veludo-accent-gold tracking-widest mb-1">スケジュール＆シフト一覧</h1>
+                    <p class="text-xs text-gray-400 font-sans tracking-wide">
+                        <i class="fa-regular fa-hand-pointer mr-1"></i> ドラッグしてシフトを追加
+                        <span class="mx-2 hidden md:inline">|</span>
+                        <br class="md:hidden">
+                        <i class="fa-regular fa-trash-can mr-1"></i> クリックしてシフトを削除
+                    </p>
+                </div>
+                
+                <div class="flex flex-col items-end gap-2 w-full md:w-auto">
+                    <!-- 追踪周期编辑点击 -->
+                    <button onclick="openRecurringModal()" class="w-full md:w-auto bg-veludo-accent-gold/10 text-veludo-accent-gold border border-veludo-accent-gold px-4 py-3 md:py-2 text-xs uppercase tracking-widest hover:bg-veludo-accent-gold hover:text-black transition-colors">
+                        <i class="fa-solid fa-repeat mr-2"></i> 繰り返しスケジュール編集（周期）
+                    </button>
+
+                    <div class="flex flex-wrap gap-2 md:gap-4 text-xs justify-end">
+                        <div class="flex items-center gap-1">
+                            <div class="w-3 h-3 bg-[#10b981]/30 border-l-2 border-[#10b981]"></div> 
+                            <span class="text-gray-400">単発</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <div class="w-3 h-3 bg-[#d4af37]/30 border-l-2 border-[#d4af37]"></div> 
+                            <span class="text-gray-400">周期</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <div class="w-3 h-3 bg-red-900/40 border-l-2 border-red-500"></div> 
+                            <span class="text-gray-400">予約済</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id='calendar' class="bg-[#1a1a1a]/50 rounded text-gray-200"></div>
+        </div>
+        
+        {% endif %}
+    </div>
+
+    <!-- Recurring Modal -->
+    <div id="recurringModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-sm" onclick="closeRecurringModal()"></div>
+        <!-- 适配手机：宽95%，最大高度90vh，可滚动 -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[95%] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="glass-panel p-6 md:p-8 rounded-sm shadow-2xl relative">
+                <button onclick="closeRecurringModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+                <h2 class="text-lg md:text-xl font-serif text-veludo-accent-gold mb-6 border-l-4 border-veludo-accent-gold pl-3">
+                    繰り返しスケジュール編集（周期）
+                </h2>
+                <form id="recurringForm" class="space-y-6">
+                    <div class="mb-6 p-4 bg-white/5 border border-white/10 rounded-sm">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-serif text-veludo-accent-gold">
+                                <i class="fa-solid fa-bookmark mr-1"></i> テンプレート読込・保存
+                            </h3>
+                        </div>
+
+                        <div class="flex gap-2 mb-3">
+                            <select id="template-select" class="flex-1 bg-black/50 border border-white/20 text-white text-xs p-2 rounded-sm focus:border-veludo-accent-gold outline-none">
+                                <option value="">-- テンプレートを選択 --</option>
+                                </select>
+                            <button type="button" onclick="loadSelectedTemplate()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 text-xs rounded-sm border border-gray-600">
+                                読込
+                            </button>
+                        </div>
+
+                        <div class="flex gap-2 items-center border-t border-white/10 pt-3">
+                            <input type="text" id="new-template-name" placeholder="新しいテンプレート名 (例: 平日深夜)" class="flex-1 bg-black/50 border border-white/20 text-white text-xs p-2 rounded-sm focus:border-veludo-accent-gold outline-none">
+                            <button type="button" onclick="saveCurrentAsTemplate()" class="bg-veludo-accent-gold/20 text-veludo-accent-gold hover:bg-veludo-accent-gold hover:text-black border border-veludo-accent-gold px-3 py-1 text-xs rounded-sm transition-colors">
+                                保存
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">開始日付</label>
+                            <input type="date" name="range_start" required class="w-full bg-black/30 border border-white/10 text-white p-3 md:p-2 text-sm focus:border-veludo-accent-gold outline-none rounded-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase tracking-widest block mb-2">終了日付</label>
+                            <input type="date" name="range_end" required class="w-full bg-black/30 border border-white/10 text-white p-3 md:p-2 text-sm focus:border-veludo-accent-gold outline-none rounded-sm">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-black/20 p-3 md:p-4 rounded border border-white/5">
+                        <div class="grid grid-cols-1 gap-2">
+                            <!-- 容器：手机端使用 flex-wrap 自动换行 -->
+                            <div id="week-rows" class="space-y-3"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-xs text-gray-400 italic">* 一回のみ変更シフトのが優先されます</div>
+                    <button type="submit" class="w-full bg-veludo-accent-gold text-black py-4 md:py-3 font-bold uppercase tracking-widest hover:bg-white transition-colors rounded-sm">
+                        シフトを追加する
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            if (!calendarEl) return;
+
+            const CURRENT_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+
+            // --- 状态指示器逻辑 ---
+            var statusDot = document.getElementById('status-dot');
+            var statusText = document.getElementById('status-text');
+
+            function updateStatus(state) {
+                if (!statusDot || !statusText) return;
+                if(state === 'loading') {
+                    statusDot.className = "w-2 h-2 rounded-full bg-yellow-500 inline-block mr-1 animate-pulse";
+                    statusText.innerText = "Syncing...";
+                    statusText.className = "text-yellow-500";
+                } else if (state === 'success') {
+                    statusDot.className = "w-2 h-2 rounded-full bg-green-500 inline-block mr-1";
+                    statusText.innerText = "Connected";
+                    statusText.className = "text-green-500";
+                } else if (state === 'error') {
+                    statusDot.className = "w-2 h-2 rounded-full bg-red-500 inline-block mr-1";
+                    statusText.innerText = "Error";
+                    statusText.className = "text-red-500";
+                }
+            }
+
+            if (!CURRENT_RESOURCE_ID) {
+                console.error("Missing SaaS Resource ID");
+                updateStatus('error');
+                return;
+            }
+
+            // 检测手机端
+            var isMobile = window.innerWidth < 768;
+
+            // --- 初始化 FullCalendar ---
+            window.calendar = new FullCalendar.Calendar(calendarEl, {
+                // [优化] 定义特定视图的配置
+                views: {
+                    mobileThreeDay: {
+                        type: 'timeGrid',
+                        duration: { days: 3 }, // 手机: 3天
+                        buttonText: '3日',
+                        dateIncrement: { days: 1 }, // 手机: 翻1天
+                        dayHeaderFormat: { month: 'numeric', day: 'numeric', omitCommas: true } // 手机: 只显示月/日
+                    },
+                    pcWeek: {
+                        type: 'timeGrid',
+                        duration: { days: 7 }, // PC: 7天
+                        buttonText: '7日',
+                        dateIncrement: { days: 1 }, // PC: 翻1天
+                        dayHeaderFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true } // PC: 显示星期+日期
+                    },
+                    dayGridMonth: {
+                        buttonText: '月',
+                        // 月视图默认翻页1个月，无需设置 dateIncrement
+                        dayHeaderFormat: { weekday: 'short' } // 月视图表头只显示星期 (Mon, Tue...)
+                    }
+                },
+                
+                // 根据设备选择初始视图
+                initialView: isMobile ? 'mobileThreeDay' : 'pcWeek',
+                
+                height: 'auto',
+                slotMinTime: '00:00:00',
+                scrollTime: '20:00:00',
+                slotDuration: '01:00:00', 
+                nowIndicator: true,
+                locale: 'ja',
+                
+                // 手机端简化 Toolbar
+                headerToolbar: isMobile 
+                    ? { left: 'prev,next', center: 'title', right: 'today' }
+                    : { left: 'prevWeek,prevCustom,nextCustom,nextWeek today', center: 'title', right: 'dayGridMonth,pcWeek,mobileThreeDay' }, // 使用自定义视图名称
+                
+                customButtons: {
+                    prevWeek: {
+                        text: '≪', // 设置图标
+                        hint: '前週', // 悬停时的提示文字 (FullCalendar 6支持)
+                        click: function() {
+                            window.calendar.incrementDate({ weeks: -1 });
+                        }
+                    },
+                    prevCustom: { // 重新定义 prev 以便统一控制 title
+                        text: '＜',
+                        hint: '前日',
+                        click: function() {
+                            window.calendar.prev();
+                        }
+                    },
+                    nextCustom: { // 重新定义 next
+                        text: '＞',
+                        hint: '次日',
+                        click: function() {
+                            window.calendar.next();
+                        }
+                    },
+                    nextWeek: {
+                        text: '≫', // 设置图标
+                        hint: '次週',
+                        click: function() {
+                            window.calendar.incrementDate({ weeks: 1 });
+                        }
+                    }
+                },
+                datesSet: function() {
+                    // 获取左侧按钮组
+                    const btnMap = {
+                        '.fc-prevWeek-button': '前週',
+                        '.fc-prevCustom-button': '前日',
+                        '.fc-nextCustom-button': '次日',
+                        '.fc-nextWeek-button': '次週'
+                    };
+
+                    Object.keys(btnMap).forEach(selector => {
+                        const el = document.querySelector(selector);
+                        if (el) el.setAttribute('title', btnMap[selector]);
+                    });
+                },
+                slotLabelFormat: { hour: 'numeric', minute: '2-digit', meridiem: false, hour12: false },
+                allDaySlot: false,
+                selectable: true,
+                selectMirror: true,
+                longPressDelay: 300, 
+
+                // --- 1. 获取排班 (FETCH) ---
+                events: function(info, successCallback, failureCallback) {
+                    updateStatus('loading');
+                    
+                    const url = new URL('/dashboard/api/schedule/events/', window.location.origin);
+                    url.searchParams.append('resource_id', CURRENT_RESOURCE_ID);
+                    url.searchParams.append('start', info.startStr);
+                    url.searchParams.append('end', info.endStr);
+
+                    fetch(url)
+                        .then(response => {
+                            if (!response.ok) throw new Error("Network response was not ok");
+                            return response.json();
+                        })
+                        .then(data => {
+                            updateStatus('success');
+                            const events = Array.isArray(data) ? data.map(item => {
+                                const props = item.extendedProps || {};
+                                const isBooked = props.is_booked !== undefined ? props.is_booked : item.is_booked;
+                                const isRecurring = props.is_recurring !== undefined ? props.is_recurring : item.is_recurring;
+
+                                let bgColor, borderColor, titleText, textColor;
+
+                                if (isBooked) {
+                                    titleText = '予約済み';
+                                    bgColor = 'rgba(139, 0, 0, 0.6)'; 
+                                    borderColor = '#ff4444';
+                                    textColor = '#e5e5e5';
+                                } else if (isRecurring) {
+                                    titleText = isMobile ? '周期' : '空きシフト (周期)';
+                                    bgColor = 'rgba(212, 175, 55, 0.25)'; 
+                                    borderColor = '#d4af37';
+                                    textColor = '#d4af37';
+                                } else {
+                                    titleText = isMobile ? '単発' : '空きシフト(単発) ';
+                                    bgColor = 'rgba(16, 185, 129, 0.25)'; 
+                                    borderColor = '#10b981';
+                                    textColor = '#4ade80';
+                                }
+
+                                return {
+                                    id: item.id,
+                                    title: titleText,
+                                    start: item.start,
+                                    end: item.end,
+                                    backgroundColor: bgColor,
+                                    borderColor: borderColor,
+                                    textColor: textColor,
+                                    classNames: isBooked ? ['booked-slot'] : (isRecurring ? ['recurring-slot'] : ['single-slot']),
+                                    editable: !isBooked, 
+                                    extendedProps: props
+                                };
+                            }) : [];
+                            successCallback(events);
+                        })
+                        .catch(error => {
+                            console.error("Fetch error:", error);
+                            updateStatus('error');
+                            failureCallback(error);
+                        });
+                },
+
+                // --- 2. 创建排班 ---
+                select: function(arg) {
+                    let allEvents = window.calendar.getEvents();
+                    let isInvalid = allEvents.some(event => {
+                        const overlap = arg.start < event.end && arg.end > event.start;
+                        const touching = (arg.start.getTime() === event.end.getTime()) || 
+                                         (arg.end.getTime() === event.start.getTime());
+                        return overlap || touching;
+                    });
+
+                    if (isInvalid) {
+                        alert('シフトが重複または隣接しています。調整してください。');
+                        window.calendar.unselect();
+                        return;
+                    }
+
+                    if (!confirm(`【一回のみ変更シフト】を追加しますか？\n(Create Single Shift)\n${formatDate(arg.start)} - ${formatDate(arg.end)}`)) {
+                        window.calendar.unselect();
+                        return;
+                    }
+
+                    updateStatus('loading');
+                    
+                    fetch('/dashboard/api/schedule/availability/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify({
+                            resource_id: CURRENT_RESOURCE_ID,
+                            start: arg.startStr,
+                            end: arg.endStr
+                        })
+                    })
+                    .then(async response => {
+                        if (response.ok) {
+                            window.calendar.refetchEvents();
+                            updateStatus('success');
+                            // 追踪排班创建 (需要在后端 Action 中添加 CREATE_SHIFT 才有意义)
+                            // trackEvent('CREATE_SHIFT', 'Single Shift'); 
+                        } else {
+                            const errData = await response.json();
+                            alert(`Failed: ${errData.error || 'Unknown error'}`);
+                            updateStatus('error');
+                        }
+                    })
+                    .catch(err => { updateStatus('error'); alert('System Error'); })
+                    .finally(() => window.calendar.unselect());
+                },
+
+                // --- 3. 删除排班 ---
+                eventClick: function(arg) {
+                    const props = arg.event.extendedProps;
+
+                    if (props && props.is_booked) {
+                        const targetUrl = "{% url 'shared_bookings' %}"; 
+                        window.location.href = `${targetUrl}?highlight=${arg.event.id}`;
+                        return; 
+                    }
+
+                    if (!confirm('このシフトを削除しますか？\nDelete this slot?')) {
+                        return;
+                    }
+
+                    updateStatus('loading');
+                    fetch('/dashboard/api/schedule/availability/', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify({ id: arg.event.id })
+                    })
+                    .then(async response => {
+                        if (response.ok) {
+                            arg.event.remove();
+                            updateStatus('success');
+                        } else {
+                            const errData = await response.json();
+                            alert(`Delete Failed: ${errData.error}`);
+                        }
+                    })
+                    .catch(err => { console.error(err); alert("Network Error"); });
+                }
+            });
+
+            window.calendar.render();
+        });
+
+        // ============================================================
+        // 周期排班 (Recurring Modal) 逻辑
+        // ============================================================
+        const days = ['日', '月', '火', '水', '木', '金', '土'];
+        const weekRowsContainer = document.getElementById('week-rows');
+
+        // 1. 生成表单行 (手机适配布局: flex-wrap + min-w-0防止溢出)
+        if (weekRowsContainer) {
+            days.forEach((day, index) => {
+                const row = document.createElement('div');
+                // 使用 flex-wrap 并在小屏时自动换行
+                row.className = "flex flex-wrap items-center gap-2 p-3 hover:bg-white/5 rounded transition-colors border border-white/5 bg-black/20";
+                row.innerHTML = `
+                    <div class="flex items-center gap-3 w-full sm:w-auto mb-2 sm:mb-0">
+                        <input type="checkbox" id="day-${index}-check" class="accent-veludo-accent-gold w-5 h-5 cursor-pointer" onchange="toggleDayRow(${index})">
+                        <div class="text-sm font-serif text-gray-300 font-bold w-12">${day}曜日</div>
+                    </div>
+                    
+                    <!-- 关键修复：添加 w-full sm:w-auto 和 gap-2，并在内部 input 加上 min-w-0 防止 flex 子元素溢出 -->
+                    <div class="flex-1 flex gap-2 items-center opacity-50 pointer-events-none transition-opacity w-full sm:w-auto" id="day-${index}-inputs">
+                        <input type="time" id="day-${index}-start" class="flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
+                        <span class="text-gray-500">~</span>
+                        <input type="time" id="day-${index}-end" class="flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
+                    </div>
+                `;
+                weekRowsContainer.appendChild(row);
+            });
+        }
+
+        // ... Toggle, Open, Fetch, Close, Submit functions ...
+        function toggleDayRow(index, forceState = null) {
+            const checkbox = document.getElementById(`day-${index}-check`);
+            const inputsDiv = document.getElementById(`day-${index}-inputs`);
+            if (forceState !== null) checkbox.checked = forceState;
+            if (checkbox.checked) {
+                inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
+                if(!document.getElementById(`day-${index}-start`).value) {
+                    document.getElementById(`day-${index}-start`).value = "22:00"; 
+                    document.getElementById(`day-${index}-end`).value = "01:00";   
+                }
+            } else {
+                inputsDiv.classList.add('opacity-50', 'pointer-events-none');
+                document.getElementById(`day-${index}-start`).value = "";
+                document.getElementById(`day-${index}-end`).value = "";
+            }
+        }
+
+        function openRecurringModal() {
+            const modal = document.getElementById('recurringModal');
+            modal.classList.remove('hidden');
+            const CURRENT_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+            
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(today.getDate() + 1);
+            const nextWeek = new Date(tomorrow);
+            nextWeek.setDate(tomorrow.getDate() + 7);
+            const defaultStart = tomorrow.toISOString().split('T')[0];
+            const defaultEnd = nextWeek.toISOString().split('T')[0];
+            const startInput = document.querySelector('input[name="range_start"]');
+            const endInput = document.querySelector('input[name="range_end"]');
+            if (startInput) startInput.value = defaultStart;
+            if (endInput) endInput.value = defaultEnd;
+
+            fetchAndPrefillRecurringSettings(CURRENT_RESOURCE_ID);
+            fetchTemplatesList(CURRENT_RESOURCE_ID);
+        }
+
+        function fetchAndPrefillRecurringSettings(resourceId) {
+            const url = new URL('/dashboard/api/schedule/recurring-config/', window.location.origin);
+            url.searchParams.append('resource_id', resourceId);
+            for (let i = 0; i < 7; i++) { toggleDayRow(i, false); }
+
+            fetch(url).then(res => res.json()).then(data => {
+                const config = data.week_config;
+                const range = data.range;
+                if (range && range.start && range.end) {
+                    const startInput = document.querySelector('input[name="range_start"]');
+                    const endInput = document.querySelector('input[name="range_end"]');
+                    if (startInput) startInput.value = range.start;
+                    if (endInput) endInput.value = range.end;
+                }
+                if (config) {
+                    Object.keys(config).forEach(dayKey => {
+                        const dayCfg = config[dayKey];
+                        const dayIndex = parseInt(dayKey);
+                        if (dayCfg && dayCfg.enabled) {
+                            const startInput = document.getElementById(`day-${dayIndex}-start`);
+                            const endInput = document.getElementById(`day-${dayIndex}-end`);
+                            if (startInput && endInput) {
+                                startInput.value = dayCfg.start; 
+                                endInput.value = dayCfg.end;
+                                toggleDayRow(dayIndex, true); 
+                            }
+                        }
+                    });
+                }
+            }).catch(err => console.error("[Prefill] Error:", err));
+        }
+
+        function closeRecurringModal() {
+            document.getElementById('recurringModal').classList.add('hidden');
+        }
+
+        const recurringForm = document.getElementById('recurringForm');
+        if(recurringForm) {
+            recurringForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const rangeStart = formData.get('range_start');
+                const rangeEnd = formData.get('range_end');
+                let weekConfig = {};
+                days.forEach((_, index) => {
+                    const checked = document.getElementById(`day-${index}-check`).checked;
+                    const start = document.getElementById(`day-${index}-start`).value;
+                    const end = document.getElementById(`day-${index}-end`).value;
+                    if (checked) {
+                        if (start && end) weekConfig[index] = { enabled: true, start: start, end: end };
+                    } else {
+                        weekConfig[index] = { enabled: false };
+                    }
+                });
+
+                // [新增] 确认提交日期范围
+                if (confirm(`以下の期間でシフトを作成しますか？\n期間: ${rangeStart} ~ ${rangeEnd}\n(チェックを入れていない日の周期シフトは削除されます)`)) {
+                    const btn = e.target.querySelector('button[type="submit"]');
+                    const originalText = btn.innerText;
+                    btn.innerText = "Processing...";
+                    btn.disabled = true;
+
+                    fetch('/dashboard/api/schedule/availability/', { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify({
+                            resource_id: "{{ current_resource_id|default:'' }}",
+                            range_start: rangeStart,
+                            range_end: rangeEnd,
+                            week_config: weekConfig
+                        })
+                    }).then(async response => {
+                        if (response.ok) {
+                            const data = await response.json();
+                            alert(`保存しました。\nAdded: ${data.created}, Deleted: ${data.deleted}`);
+                            closeRecurringModal();
+                            if(window.calendar) window.calendar.refetchEvents(); 
+                        } else {
+                            const err = await response.json();
+                            alert(`Error: ${err.error || 'Unknown'}`);
+                        }
+                    }).catch(err => {
+                        alert("Network Error");
+                    }).finally(() => {
+                        btn.innerText = originalText;
+                        btn.disabled = false;
+                    });
+                }
+            });
+        }
+
+        function formatDate(date) {
+            const h = date.getHours().toString().padStart(2, '0');
+            const m = date.getMinutes().toString().padStart(2, '0');
+            return `${h}:${m}`;
+        }
+        function trackEvent(action, target = '', meta = {}) {
+            const url = "/core/api/track/"; 
+            
+            // --- 1. 基础页面信息 ---
+            if (!meta.page_url) meta.page_url = window.location.pathname;
+            if (!meta.page_title) meta.page_title = document.title;
+            meta.referrer = document.referrer || 'direct'; // 来源(是从Google来的还是直接输入的)
+
+            // --- 2. 设备与屏幕指纹 (UI优化神技) ---
+            meta.screen = {
+                width: window.screen.width,   // 屏幕物理宽度
+                height: window.screen.height, // 屏幕物理高度
+                dpr: window.devicePixelRatio  // 屏幕密度 (2=Retina, 1=普通, 3=超高清)
+            };
+            meta.viewport = {
+                width: window.innerWidth,     // 当前浏览器窗口宽度 (排查布局崩坏的关键)
+                height: window.innerHeight    // 当前浏览器窗口高度
+            };
+            meta.is_mobile = window.innerWidth < 768; // 简单判断
+
+            // --- 3. 用户环境上下文 ---
+            meta.language = navigator.language; // 语言 (ja-JP, en-US) -> 判断是否需要做多语言
+            meta.user_agent = navigator.userAgent; // 浏览器版本内核
+            meta.timezone_offset = new Date().getTimezoneOffset(); // 时区偏移 (分钟) -> 判断用户是否在海外
+
+            // --- 4. 行为现场 (点击发生时的状态) ---
+            meta.scroll_y = window.scrollY || window.pageYOffset; // 点击时页面滚动到了哪里 -> 判断用户看没看完
+            meta.timestamp_client = new Date().toISOString(); // 客户端时间 (对比服务端时间看延迟)
+            
+            // --- 5. 性能简报 (可选，检测加载慢不慢) ---
+            // performance.now() 返回页面加载到当前的时间(毫秒)
+            // 如果这个数字很大，说明用户打开页面很久才进行操作，或者页面加载卡顿
+            meta.time_since_load = Math.round(performance.now()); 
+
+            // --- 6. 网络状态 (实验性API，部分浏览器支持) ---
+            if (navigator.connection) {
+                meta.connection = {
+                    effectiveType: navigator.connection.effectiveType, // 4g, 3g, wifi
+                    rtt: navigator.connection.rtt // 往返延迟
+                };
+            }
+
+            // 发送数据
+            const payload = {
+                action: action,
+                target: target,
+                meta: meta
+            };
+
+            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+            if (navigator.sendBeacon) {
+                // sendBeacon 是最稳妥的，但不能自定义Header (除了Content-Type)
+                // 如果你的Django CSRF检查严格，sendBeacon可能会失败，除非你在View里豁免了CSRF
+                // 或者你的 CSRF 机制允许通过 Cookie 获取。
+                // 为了保险，这里还是用 fetch + keepalive，它是现代标准。
+                 fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                }).catch(err => console.error("Tracking Error:", err));
+            } else {
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify(payload)
+                });
+            }
+        }
+
+        // 自动追踪页面浏览 (Action: VIEW_SHIFT)
+        document.addEventListener('DOMContentLoaded', () => {
+            trackEvent('VIEW_SHIFT', 'Schedule Management Page');
+        });
+        // ==========================================
+// 新增：模版管理逻辑
+// ==========================================
+
+// 1. 获取模版列表并填充下拉菜单
+function fetchTemplatesList(resourceId) {
+    const select = document.getElementById('template-select');
+    select.innerHTML = '<option value="">Loading...</option>';
+
+    // 注意：这里假设你的 System A 已经配置了 Nginx 转发，或者 URL 映射正确
+    // 如果 404，请确认 urls.py 里的路径是否是 api/availability/templates/
+    const url = new URL('/dashboard/api/schedule/templates/', window.location.origin);
+    url.searchParams.append('resource_id', resourceId);
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            select.innerHTML = '<option value="">-- テンプレートを選択 --</option>';
+            if (Array.isArray(data)) {
+                data.forEach(tpl => {
+                    const option = document.createElement('option');
+                    option.value = tpl.id; // 这里存 ID
+                    option.textContent = tpl.name;
+                    // 把配置数据藏在 dataset 里，避免再次请求
+                    option.dataset.config = JSON.stringify(tpl.week_config);
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            select.innerHTML = '<option value="">Error loading templates</option>';
+        });
+}
+
+// 2. 点击“读取”按钮：将选中的模版应用到表单
+function loadSelectedTemplate() {
+    const select = document.getElementById('template-select');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (!selectedOption.value) {
+        alert("テンプレートを選択してください。");
+        return;
+    }
+
+    try {
+        const config = JSON.parse(selectedOption.dataset.config);
+        
+        // 先清空当前表单
+        for (let i = 0; i < 7; i++) { toggleDayRow(i, false); }
+
+        // 填入数据
+        Object.keys(config).forEach(dayKey => {
+            const dayCfg = config[dayKey];
+            const dayIndex = parseInt(dayKey); // 确保是数字
+            if (dayCfg && dayCfg.enabled) {
+                const startInput = document.getElementById(`day-${dayIndex}-start`);
+                const endInput = document.getElementById(`day-${dayIndex}-end`);
+                if (startInput && endInput) {
+                    startInput.value = dayCfg.start;
+                    endInput.value = dayCfg.end;
+                    toggleDayRow(dayIndex, true);
+                }
+            }
+        });
+        alert(`テンプレート「${selectedOption.text}」を読み込みました。`);
+    } catch (e) {
+        console.error(e);
+        alert("模版数据损坏");
+    }
+}
+
+// 3. 点击“保存”按钮：将当前表单存为新模版
+function saveCurrentAsTemplate() {
+    const nameInput = document.getElementById('new-template-name');
+    const name = nameInput.value.trim();
+    if (!name) {
+        alert("テンプレート名を入力してください。");
+        return;
+    }
+
+    const CURRENT_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+    
+    // 收集当前表单数据 (复用 submit 逻辑)
+    let weekConfig = {};
+    const days = ['日', '月', '火', '水', '木', '金', '土'];
+    let hasData = false;
+    
+    days.forEach((_, index) => {
+        const checked = document.getElementById(`day-${index}-check`).checked;
+        const start = document.getElementById(`day-${index}-start`).value;
+        const end = document.getElementById(`day-${index}-end`).value;
+        if (checked && start && end) {
+            weekConfig[index] = { enabled: true, start: start, end: end };
+            hasData = true;
+        } else {
+            weekConfig[index] = { enabled: false };
+        }
+    });
+
+    if (!hasData) {
+        alert("保存するシフト設定がありません。（少なくとも1日分を入力してください）");
+        return;
+    }
+
+    // 发送请求
+    const btn = event.target; // 获取点击的按钮
+    const originalText = btn.innerText;
+    btn.innerText = "...";
+    btn.disabled = true;
+
+    fetch('/dashboard/api/schedule/templates/', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            resource_id: CURRENT_RESOURCE_ID,
+            name: name,
+            week_config: weekConfig
+        })
+    })
+    .then(async res => {
+        if (res.ok) {
+            alert("テンプレートを保存しました！");
+            nameInput.value = ""; // 清空输入框
+            fetchTemplatesList(CURRENT_RESOURCE_ID); // 刷新列表
+        } else {
+            const err = await res.json();
+            alert(`保存失敗: ${err.error}`);
+        }
+    })
+    .catch(err => alert("Network Error"))
+    .finally(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    });
+}
+    </script>
+</body>
+</html>

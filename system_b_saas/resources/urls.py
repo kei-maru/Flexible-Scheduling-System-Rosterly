@@ -1,7 +1,7 @@
 # system_b_saas/resources/urls.py
 
 from django.urls import path
-from .views import (
+from .integration_views import (
     IntegrationAvailabilityView, 
     IntegrationResourceView,
     RecurringConfigView,

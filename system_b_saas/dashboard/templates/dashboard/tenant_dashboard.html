@@ -60,11 +60,17 @@
         </div>
 
         <nav class="flex-1 py-6 space-y-1">
+            <a href="{% url 'shared_schedule' %}" class="w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <i class="fa-regular fa-calendar-check w-6"></i> Shared Schedule
+            </a>
             <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 <i class="fa-solid fa-chart-simple w-6"></i> Overview
             </button>
             <button onclick="switchTab('orders')" id="nav-orders" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 <i class="fa-solid fa-receipt w-6"></i> Bookings
+            </button>
+            <button onclick="switchTab('staff')" id="nav-staff" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <i class="fa-solid fa-users-gear w-6"></i> Staff
             </button>
             <button onclick="switchTab('email')" id="nav-email" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 <i class="fa-solid fa-envelope-open-text w-6"></i> Email Templates
@@ -120,7 +126,7 @@
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                     <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Next 24h</div>
-                    <div class="text-3xl font-bold text-primary">--</div>
+                    <div class="text-3xl font-bold text-primary">{{ next_24h_count }}</div>
                 </div>
             </div>
 
@@ -147,6 +153,42 @@
                         </div>
                         {% endfor %}
                     </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <h3 class="text-lg font-medium text-gray-900">Upcoming Shifts</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full saas-table">
+                        <thead>
+                            <tr>
+                                <th>Resource</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for shift in upcoming_shifts %}
+                            <tr class="hover:bg-gray-50">
+                                <td>{{ shift.resource.name }}</td>
+                                <td>{{ shift.start_time|date:"Y/m/d H:i" }}</td>
+                                <td>{{ shift.end_time|date:"Y/m/d H:i" }}</td>
+                                <td>
+                                    {% if shift.is_recurring %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Recurring</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Single</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-8 text-gray-500 italic">No upcoming shifts.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -193,6 +235,68 @@
                             <tr>
                                 <td colspan="5" class="text-center py-8 text-gray-500 italic">No bookings found.</td>
                             </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-staff" class="hidden-section">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 class="text-lg font-medium text-gray-900">Staff Profiles</h3>
+                    <div class="text-xs text-gray-500">Edit role, contact and linked resource</div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full saas-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Discord</th>
+                                <th>Role</th>
+                                <th>Resource</th>
+                                <th>Active</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in staff_rows %}
+                            <tr>
+                                <td colspan="7" class="p-0 border-b border-gray-100">
+                                    <form method="post" class="grid grid-cols-1 md:grid-cols-7 gap-2 p-3 items-center">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="save_staff" value="true">
+                                        <input type="hidden" name="user_id" value="{{ row.user.id }}">
+
+                                        <input type="text" name="username" value="{{ row.user.username }}" class="border border-gray-300 rounded px-2 py-2 text-sm">
+                                        <input type="email" name="email" value="{{ row.user.email }}" class="border border-gray-300 rounded px-2 py-2 text-sm">
+                                        <input type="text" name="discord_id" value="{{ row.user.discord_id|default:'' }}" class="border border-gray-300 rounded px-2 py-2 text-sm">
+
+                                        <select name="role" class="border border-gray-300 rounded px-2 py-2 text-sm">
+                                            <option value="STAFF" {% if row.user.role == 'STAFF' %}selected{% endif %}>STAFF</option>
+                                            <option value="ADMIN" {% if row.user.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
+                                        </select>
+
+                                        <select name="linked_resource_id" class="border border-gray-300 rounded px-2 py-2 text-sm">
+                                            <option value="">-- No Link --</option>
+                                            {% for r in resources %}
+                                            <option value="{{ r.id }}" {% if row.linked_resource_id == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>
+                                            {% endfor %}
+                                        </select>
+
+                                        <label class="flex items-center gap-2 text-sm text-gray-700 px-2">
+                                            <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="accent-indigo-600">
+                                            Active
+                                        </label>
+
+                                        <button type="submit" class="bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700">Save</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="7" class="text-center py-8 text-gray-500 italic">No staff users.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -354,7 +458,7 @@
         // --- 1. Navigation Logic (Missing Function) ---
         function switchTab(tabName) {
             // Hide all sections
-            ['overview', 'orders', 'email'].forEach(t => {
+            ['overview', 'orders', 'staff', 'email'].forEach(t => {
                 document.getElementById('section-' + t).classList.add('hidden-section');
                 document.getElementById('nav-' + t).classList.remove('active', 'bg-indigo-50', 'text-primary');
                 document.getElementById('nav-' + t).classList.add('text-gray-600');
@@ -370,6 +474,7 @@
             const titles = {
                 'overview': 'Dashboard',
                 'orders': 'Bookings',
+                'staff': 'Staff Management',
                 'email': 'Email Configuration'
             };
             document.getElementById('page-title').innerText = titles[tabName];

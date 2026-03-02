@@ -1,8 +1,10 @@
 # system_b/config/urls.py
 from django.contrib import admin
-from django.urls import path, include
-from django.conf.urls.static import static
+from django.urls import path, include, re_path
 from django.conf import settings
+from django.views.static import serve
+from dashboard.schedule_views import SharedBookingListView, SharedHomeView, SharedProfileView, SharedScheduleView
+from dashboard.views import LocalPasswordLoginView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -16,7 +18,16 @@ urlpatterns = [
     # 因为 bookings/urls.py 里面写的是 'bookings/'，所以拼接起来就是 api/v1/integration/bookings/
     path('api/v1/integration/', include('bookings.urls')),
     path('dashboard/', include('dashboard.urls')),
+    path('home/', SharedHomeView.as_view(), name='shared_home'),
+    path('schedule/', SharedScheduleView.as_view(), name='shared_schedule'),
+    path('profile/', SharedProfileView.as_view(), name='shared_profile'),
+    path('bookings/', SharedBookingListView.as_view(), name='shared_bookings'),
+    path('accounts/login/', LocalPasswordLoginView.as_view(), name='local_password_login'),
+    path('accounts/', include('allauth.urls')),
 ]
 
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += [
+    re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
+    re_path(r"^static/(?P<path>.*)$", serve, {"document_root": settings.STATIC_ROOT}),
+]

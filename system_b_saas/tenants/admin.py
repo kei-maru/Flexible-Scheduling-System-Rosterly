@@ -11,9 +11,9 @@ class TenantAdmin(admin.ModelAdmin):
 
 @admin.register(SaaSUser)
 class CustomSaaSUserAdmin(UserAdmin):
-    list_display = UserAdmin.list_display + ('tenant', 'role')
+    list_display = UserAdmin.list_display + ('tenant', 'role', 'discord_id')
     fieldsets = UserAdmin.fieldsets + (
-        ("SaaS属性", {'fields': ('tenant', 'role')}),
+        ("SaaS属性", {'fields': ('tenant', 'role', 'discord_id')}),
     )
 
 # SaaS后台标题

@@ -25,6 +25,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from datetime import datetime, timedelta
 from django.utils import timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from django.conf import settings
 
 # DRF 引用
 from rest_framework.views import APIView
@@ -43,8 +44,8 @@ from .forms import CastProfileForm, CastMediaFormSet
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-SYSTEM_B_ROOT = "http://127.0.0.1:8001" 
-SYSTEM_B_API_KEY = "veludo_secret_key_123"
+SYSTEM_B_ROOT = getattr(settings, "SYSTEM_B_ROOT", "http://system-b:8001")
+SYSTEM_B_API_KEY = getattr(settings, "SAAS_API_KEY", "veludo_secret_key_123")
 
 # --- 1. 登录视图 ---
 class CustomLoginView(LoginView):

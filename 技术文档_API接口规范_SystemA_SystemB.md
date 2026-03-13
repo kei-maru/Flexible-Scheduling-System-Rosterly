@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-02-28  
+**最后更新**: 2026-03-13  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。
 
 ## 1. 认证与约定
@@ -68,17 +68,28 @@
 }
 ```
 
-- 周期排班示例：
+- 周期排班示例（支持同一天多个时间段）：
 
 ```json
 {
   "range_start": "2026-03-01",
   "range_end": "2026-03-31",
   "week_config": {
-    "1": {"enabled": true, "start": "21:00", "end": "23:00"}
+    "1": {
+      "enabled": true,
+      "slots": [
+        {"start": "21:00", "end": "23:00"},
+        {"start": "01:00", "end": "03:00"}
+      ],
+      "start": "21:00",
+      "end": "23:00"
+    }
   }
 }
 ```
+说明：
+- `slots` 是新格式，可为每个星期几设置多个时段。
+- `start/end` 仍保留（兼容旧前端），表示该日第一个时段。
 
 #### `DELETE /accounts/api/availability/`
 
@@ -96,10 +107,19 @@
 {
   "range": {"start": "2026-03-01", "end": "2026-03-31"},
   "week_config": {
-    "1": {"enabled": true, "start": "21:00", "end": "23:00"}
+    "1": {
+      "enabled": true,
+      "slots": [
+        {"start": "21:00", "end": "23:00"},
+        {"start": "01:00", "end": "03:00"}
+      ],
+      "start": "21:00",
+      "end": "23:00"
+    }
   }
 }
 ```
+说明：`slots` 为新字段，`start/end` 为兼容字段（第一个时段）。
 
 #### `GET /accounts/api/availability/templates/?resource_id=<id>`
 
@@ -116,7 +136,15 @@
   "resource_id": "<my_resource_id>",
   "name": "平日夜班",
   "week_config": {
-    "1": {"enabled": true, "start": "21:00", "end": "23:00"}
+    "1": {
+      "enabled": true,
+      "slots": [
+        {"start": "21:00", "end": "23:00"},
+        {"start": "01:00", "end": "03:00"}
+      ],
+      "start": "21:00",
+      "end": "23:00"
+    }
   }
 }
 ```
@@ -137,6 +165,7 @@
   "end": "2026-03-05T22:00:00+09:00"
 }
 ```
+备注（前端行为）：若单次排班跨天，预约界面会按 **24:00** 拆分展示，点击凌晨时间只会使用当日区间。
 
 #### `DELETE /accounts/api/booking/cancel/<booking_id>/`
 
@@ -333,4 +362,3 @@
 2. 再验证 `availability/`（能查到可预约窗口）。
 3. 最后打通 `bookings/` 创建、取消、完结全链路。
 4. 若出现“前端显示与后端不一致”，优先检查时区和 `resource_id` 映射。
-

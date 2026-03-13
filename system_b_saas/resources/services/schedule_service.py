@@ -60,6 +60,30 @@ def _parse_date_or_datetime(value: str) -> datetime:
     raise ScheduleValidationError(f"Invalid date format: {value}")
 
 
+def _normalize_week_config(week_config: dict | None) -> dict[str, list[dict[str, str]]]:
+    normalized: dict[str, list[dict[str, str]]] = {}
+    if not week_config:
+        return normalized
+
+    for day_key, config in week_config.items():
+        if not config or not config.get("enabled"):
+            continue
+
+        slots: list[dict[str, str]] = []
+        raw_slots = config.get("slots")
+        if isinstance(raw_slots, list):
+            for slot in raw_slots:
+                if slot and slot.get("start") and slot.get("end"):
+                    slots.append({"start": slot["start"], "end": slot["end"]})
+        elif config.get("start") and config.get("end"):
+            slots.append({"start": config["start"], "end": config["end"]})
+
+        if slots:
+            normalized[str(day_key)] = slots
+
+    return normalized
+
+
 def resolve_resource(tenant, resource_id_raw: str | None) -> Resource:
     if not resource_id_raw:
         raise ScheduleValidationError("resource_id required")
@@ -262,6 +286,8 @@ def create_recurring_availability(
     if not all([range_start, range_end, week_config]):
         raise ScheduleValidationError("Missing fields")
 
+    normalized_week = _normalize_week_config(week_config)
+
     start_dt = _parse_date_or_datetime(range_start)
     end_dt = _parse_date_or_datetime(range_end)
     curr_date = start_dt.date()
@@ -276,18 +302,16 @@ def create_recurring_availability(
     with transaction.atomic():
         RecurringPattern.objects.filter(resource=resource).delete()
 
-        for day_key, config in week_config.items():
-            if not config.get("enabled"):
-                continue
-
-            RecurringPattern.objects.create(
-                resource=resource,
-                day_of_week=int(day_key),
-                start_time=config["start"],
-                end_time=config["end"],
-                valid_from=curr_date,
-                valid_until=end_date,
-            )
+        for day_key, slots in normalized_week.items():
+            for slot in slots:
+                RecurringPattern.objects.create(
+                    resource=resource,
+                    day_of_week=int(day_key),
+                    start_time=slot["start"],
+                    end_time=slot["end"],
+                    valid_from=curr_date,
+                    valid_until=end_date,
+                )
 
         loop_date = curr_date
         while loop_date <= end_date:
@@ -306,10 +330,10 @@ def create_recurring_availability(
             ).delete()
             stats["deleted"] += deleted_count
 
-            day_cfg = week_config.get(js_day_key, {})
-            if day_cfg.get("enabled"):
-                start_time = datetime.strptime(day_cfg["start"], "%H:%M").time()
-                end_time = datetime.strptime(day_cfg["end"], "%H:%M").time()
+            day_slots = normalized_week.get(js_day_key, [])
+            for slot in day_slots:
+                start_time = datetime.strptime(slot["start"], "%H:%M").time()
+                end_time = datetime.strptime(slot["end"], "%H:%M").time()
 
                 seg_start = _ensure_aware(datetime.combine(loop_date, start_time))
                 seg_end = _ensure_aware(datetime.combine(loop_date, end_time))
@@ -362,12 +386,20 @@ def get_recurring_config(tenant, resource_id_raw: str | None):
         range_info["start"] = dates["min_start"]
         range_info["end"] = dates["max_end"]
 
-        for pattern in patterns:
-            config[str(pattern.day_of_week)] = {
-                "enabled": True,
-                "start": pattern.start_time.strftime("%H:%M"),
-                "end": pattern.end_time.strftime("%H:%M"),
-            }
+        for pattern in patterns.order_by("day_of_week", "start_time"):
+            day_key = str(pattern.day_of_week)
+            day_cfg = config.setdefault(day_key, {"enabled": True, "slots": []})
+            day_cfg["slots"].append(
+                {
+                    "start": pattern.start_time.strftime("%H:%M"),
+                    "end": pattern.end_time.strftime("%H:%M"),
+                }
+            )
+
+        for day_cfg in config.values():
+            if day_cfg.get("slots"):
+                day_cfg["start"] = day_cfg["slots"][0]["start"]
+                day_cfg["end"] = day_cfg["slots"][0]["end"]
 
     return {"range": range_info, "week_config": config}
 

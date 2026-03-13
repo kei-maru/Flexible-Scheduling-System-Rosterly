@@ -89,6 +89,14 @@
         .fc-button-active { background-color: #d4af37 !important; color: #000 !important; border-color: #d4af37 !important; }
 
         .fc-theme-standard td, .fc-theme-standard th { border-color: #333 !important; }
+        /* Compact time grid rows to reduce scrolling */
+        .fc { --fc-timegrid-slot-min-height: 10px; }
+        .fc .fc-timegrid-slot { height: 10px !important; }
+        .fc .fc-timegrid-slot-lane { height: 10px !important; }
+        .fc .fc-timegrid-slot-label { height: 10px !important; }
+        .fc .fc-timegrid-slot-label { padding: 0 4px !important; }
+        .fc .fc-timegrid-axis-cushion { font-size: 0.65rem !important; }
+        .fc .fc-timegrid-event { font-size: 0.7rem; line-height: 1.1; }
 
         /* PC端日历样式：只在 min-width 768px 以上生效，避免破坏手机布局 */
         @media (min-width: 768px) {
@@ -797,6 +805,25 @@
             }
         }
 
+        // 将跨天排班按 24:00 拆分成多段（避免凌晨点击时带出前一天）
+        function splitOvernightSegments(start, end) {
+            const segments = [];
+            let cursor = new Date(start);
+            const endTime = new Date(end);
+            while (cursor.toDateString() !== endTime.toDateString()) {
+                const nextMidnight = new Date(cursor);
+                nextMidnight.setHours(24, 0, 0, 0);
+                if (nextMidnight.getTime() > cursor.getTime()) {
+                    segments.push({ start: new Date(cursor), end: new Date(nextMidnight) });
+                }
+                cursor = new Date(nextMidnight);
+            }
+            if (cursor.getTime() < endTime.getTime()) {
+                segments.push({ start: new Date(cursor), end: new Date(endTime) });
+            }
+            return segments;
+        }
+
         // 【新增】检查用户自身订单冲突
         async function checkUserBookingOverlap(newStart, newEnd) {
             try {
@@ -952,18 +979,27 @@
                     fetch(url)
                         .then(res => { if (!res.ok) throw new Error("Network Error"); return res.json(); })
                         .then(data => {
-                            const events = Array.isArray(data) ? data
-                                .filter(item => !((item.extendedProps && item.extendedProps.is_booked) || item.is_booked))
-                                .map(item => ({
-                                    id: item.id,
-                                    title: '予約可能', 
-                                    start: item.start,
-                                    end: item.end,
-                                    backgroundColor: 'rgba(47, 235, 156, 0.15)', 
-                                    borderColor: '#d4af37',
-                                    textColor: '#e5e5e5',
-                                    extendedProps: item.extendedProps
-                                })) : [];
+                            const events = [];
+                            if (Array.isArray(data)) {
+                                data
+                                    .filter(item => !((item.extendedProps && item.extendedProps.is_booked) || item.is_booked))
+                                    .forEach(item => {
+                                        const segments = splitOvernightSegments(item.start, item.end);
+                                        const props = item.extendedProps || {};
+                                        segments.forEach((seg, idx) => {
+                                            events.push({
+                                                id: `${item.id}-${idx}`,
+                                                title: '予約可能',
+                                                start: seg.start,
+                                                end: seg.end,
+                                                backgroundColor: 'rgba(47, 235, 156, 0.15)',
+                                                borderColor: '#d4af37',
+                                                textColor: '#e5e5e5',
+                                                extendedProps: { ...props, original_id: item.id, segment_index: idx }
+                                            });
+                                        });
+                                    });
+                            }
                             successCallback(events);
                         })
                         .catch(err => { console.error(err); failureCallback(err); });
@@ -1451,13 +1487,17 @@
 
                     // 4. 查找包含用户搜索时间的那个排班段
                     for (let e of validEvents) {
-                        const s = new Date(e.start).getTime();
-                        const d = new Date(e.end).getTime();
-                        // 只要搜索时间在 [开始, 结束) 区间内，就视为命中
-                        if (searchTs >= s && searchTs < d) {
-                            matchedSlot = { start: new Date(e.start), end: new Date(e.end), resourceId: resourceId };
-                            break;
+                        const segments = splitOvernightSegments(e.start, e.end);
+                        for (let seg of segments) {
+                            const s = seg.start.getTime();
+                            const d = seg.end.getTime();
+                            // 只要搜索时间在 [开始, 结束) 区间内，就视为命中
+                            if (searchTs >= s && searchTs < d) {
+                                matchedSlot = { start: seg.start, end: seg.end, resourceId: resourceId };
+                                break;
+                            }
                         }
+                        if (matchedSlot) break;
                     }
 
                     if (matchedSlot) {

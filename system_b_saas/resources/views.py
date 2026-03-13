@@ -456,6 +456,26 @@ class IntegrationAvailabilityView(APIView):
         
         generation_min_time = timezone.now() + timedelta(hours=24) # 24h 限制线
 
+        def normalize_week_config(raw):
+            normalized = {}
+            if not raw:
+                return normalized
+            for day_key, config in raw.items():
+                if not config or not config.get('enabled'):
+                    continue
+                slots = []
+                if isinstance(config.get('slots'), list):
+                    for slot in config.get('slots'):
+                        if slot and slot.get('start') and slot.get('end'):
+                            slots.append({'start': slot['start'], 'end': slot['end']})
+                elif config.get('start') and config.get('end'):
+                    slots.append({'start': config['start'], 'end': config['end']})
+                if slots:
+                    normalized[str(day_key)] = slots
+            return normalized
+
+        normalized_week = normalize_week_config(week_config)
+
         with transaction.atomic():
             try:
                 resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
@@ -486,14 +506,14 @@ class IntegrationAvailabilityView(APIView):
             # 或者：只删除 valid_until >= curr_date 的规则
             RecurringPattern.objects.filter(resource=resource).delete() 
 
-            for day_key, config in week_config.items():
-                if config.get('enabled'):
+            for day_key, slots in normalized_week.items():
+                for slot in slots:
                     try:
                         RecurringPattern.objects.create(
                             resource=resource,
                             day_of_week=int(day_key),
-                            start_time=config['start'], # 前端传 "HH:MM"
-                            end_time=config['end'],
+                            start_time=slot['start'], # 前端传 "HH:MM"
+                            end_time=slot['end'],
                             valid_from=curr_date,
                             valid_until=end_date
                         )
@@ -527,25 +547,25 @@ class IntegrationAvailabilityView(APIView):
                 stats['deleted'] += del_count
 
                 # 2. 根据规则创建新的
-                if js_day_key in week_config and week_config[js_day_key].get('enabled'):
+                if js_day_key in normalized_week:
                     try:
-                        cfg = week_config[js_day_key]
-                        s_time = datetime.strptime(cfg['start'], '%H:%M').time()
-                        e_time = datetime.strptime(cfg['end'], '%H:%M').time()
-                        
-                        dt_s = datetime.combine(loop_date, s_time).replace(tzinfo=JST)
-                        dt_e = datetime.combine(loop_date, e_time).replace(tzinfo=JST)
-                        if dt_e <= dt_s: dt_e += timedelta(days=1)
+                        for slot in normalized_week[js_day_key]:
+                            s_time = datetime.strptime(slot['start'], '%H:%M').time()
+                            e_time = datetime.strptime(slot['end'], '%H:%M').time()
+                            
+                            dt_s = datetime.combine(loop_date, s_time).replace(tzinfo=JST)
+                            dt_e = datetime.combine(loop_date, e_time).replace(tzinfo=JST)
+                            if dt_e <= dt_s: dt_e += timedelta(days=1)
 
-                        if dt_s < generation_min_time:
-                            stats['skipped_24h'] += 1
-                        elif not self._check_conflict(resource, dt_s, dt_e):
-                            Availability.objects.create(
-                                resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True
-                            )
-                            stats['created'] += 1
-                        else:
-                            stats['skipped_conflict'] += 1
+                            if dt_s < generation_min_time:
+                                stats['skipped_24h'] += 1
+                            elif not self._check_conflict(resource, dt_s, dt_e):
+                                Availability.objects.create(
+                                    resource=resource, start_time=dt_s, end_time=dt_e, is_booked=False, is_recurring=True
+                                )
+                                stats['created'] += 1
+                            else:
+                                stats['skipped_conflict'] += 1
                     except Exception as e:
                         print(f"Recurring Gen Error: {e}")
                 
@@ -611,17 +631,20 @@ class RecurringConfigView(APIView):
                 
                 print(f"[System B] Calculated Range: {range_info['start']} ~ {range_info['end']}")
 
-                for p in patterns:
+                for p in patterns.order_by('day_of_week', 'start_time'):
                     # 注意：时间字段转字符串，去掉秒数 (HH:MM:SS -> HH:MM)
                     s_str = p.start_time.strftime('%H:%M')
                     e_str = p.end_time.strftime('%H:%M')
                     
-                    config[str(p.day_of_week)] = {
-                        'enabled': True,
-                        'start': s_str,
-                        'end': e_str
-                    }
+                    day_key = str(p.day_of_week)
+                    day_cfg = config.setdefault(day_key, {'enabled': True, 'slots': []})
+                    day_cfg['slots'].append({'start': s_str, 'end': e_str})
                     print(f"  - Day {p.day_of_week}: {s_str} - {e_str}")
+
+                for day_cfg in config.values():
+                    if day_cfg.get('slots'):
+                        day_cfg['start'] = day_cfg['slots'][0]['start']
+                        day_cfg['end'] = day_cfg['slots'][0]['end']
             else:
                 print("[System B] No patterns found (New setup).")
             

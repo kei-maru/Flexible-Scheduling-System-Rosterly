@@ -137,9 +137,10 @@ MEDIA_ROOT = '/app/media'        # 指向 Docker 内部路径
 # =========================================================
 # 注意：这里使用的是 'system-b'，这是 docker-compose.yml 里的服务名
 # 无论是在本地还是线上，只要在 Docker 里，这个名字都是通用的
-SAAS_API_URL = os.environ.get('SAAS_API_URL', 'http://veludo-system-b:8001/api/v1/integration')
-SAAS_API_KEY = 'veludo_secret_key_123'
-SAAS_API_KEY_HEADER = 'X-Tenant-Key'
+SYSTEM_B_ROOT = os.environ.get('SYSTEM_B_ROOT', 'http://system-b:8001')
+SAAS_API_URL = os.environ.get('SAAS_API_URL', f'{SYSTEM_B_ROOT}/api/v1/integration')
+SAAS_API_KEY = os.environ.get('SAAS_API_KEY', 'veludo_secret_key_123')
+SAAS_API_KEY_HEADER = os.environ.get('SAAS_API_KEY_HEADER', 'X-Tenant-Key')
 
 SESSION_COOKIE_NAME = 'veludo_sessionid'
 CSRF_COOKIE_NAME = 'veludo_csrftoken'

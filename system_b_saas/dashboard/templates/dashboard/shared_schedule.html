@@ -544,12 +544,87 @@
         const days = ['日', '月', '火', '水', '木', '金', '土'];
         const weekRowsContainer = document.getElementById('week-rows');
 
+        function buildSlotRow(dayIndex, startVal = "", endVal = "", removable = false) {
+            const row = document.createElement('div');
+            row.className = "day-slot-row flex gap-2 items-center";
+            row.innerHTML = `
+                <input type="time" value="${startVal || ''}" class="day-slot-start flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
+                <span class="text-gray-500">~</span>
+                <input type="time" value="${endVal || ''}" class="day-slot-end flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
+                <button type="button" class="remove-slot-btn ${removable ? '' : 'hidden'} bg-black/40 border border-white/10 text-white/70 hover:text-white hover:border-red-400 px-2 py-1 text-xs rounded-sm transition-colors" onclick="removeSlotRow(this)">×</button>
+            `;
+            return row;
+        }
+
+        function addSlotRow(dayIndex, startVal = "", endVal = "") {
+            const slotsContainer = document.getElementById(`day-${dayIndex}-slots`);
+            if (!slotsContainer) return;
+            const removable = slotsContainer.children.length > 0;
+            const row = buildSlotRow(dayIndex, startVal, endVal, removable);
+            slotsContainer.appendChild(row);
+        }
+
+        function clearDaySlots(dayIndex) {
+            const slotsContainer = document.getElementById(`day-${dayIndex}-slots`);
+            if (!slotsContainer) return;
+            slotsContainer.innerHTML = '';
+        }
+
+        function ensureDefaultSlot(dayIndex) {
+            const slotsContainer = document.getElementById(`day-${dayIndex}-slots`);
+            if (!slotsContainer || slotsContainer.children.length > 0) return;
+            addSlotRow(dayIndex, "22:00", "01:00");
+        }
+
+        function collectDaySlots(dayIndex) {
+            const slotsContainer = document.getElementById(`day-${dayIndex}-slots`);
+            if (!slotsContainer) return [];
+            const rows = slotsContainer.querySelectorAll('.day-slot-row');
+            const slots = [];
+            rows.forEach(row => {
+                const startInput = row.querySelector('.day-slot-start');
+                const endInput = row.querySelector('.day-slot-end');
+                const start = startInput ? startInput.value : "";
+                const end = endInput ? endInput.value : "";
+                if (start && end) slots.push({ start, end });
+            });
+            return slots;
+        }
+
+        function applyDayConfig(dayIndex, dayCfg) {
+            if (!dayCfg || !dayCfg.enabled) {
+                toggleDayRow(dayIndex, false);
+                return;
+            }
+            toggleDayRow(dayIndex, true);
+            clearDaySlots(dayIndex);
+
+            let slots = [];
+            if (Array.isArray(dayCfg.slots)) {
+                slots = dayCfg.slots;
+            } else if (dayCfg.start && dayCfg.end) {
+                slots = [{ start: dayCfg.start, end: dayCfg.end }];
+            }
+
+            if (slots.length === 0) {
+                ensureDefaultSlot(dayIndex);
+                return;
+            }
+
+            slots.forEach(slot => addSlotRow(dayIndex, slot.start, slot.end));
+        }
+
+        function removeSlotRow(btn) {
+            const row = btn.closest('.day-slot-row');
+            if (row) row.remove();
+        }
+
         // 1. 生成表单行 (手机适配布局: flex-wrap + min-w-0防止溢出)
         if (weekRowsContainer) {
             days.forEach((day, index) => {
                 const row = document.createElement('div');
                 // 使用 flex-wrap 并在小屏时自动换行
-                row.className = "flex flex-wrap items-center gap-2 p-3 hover:bg-white/5 rounded transition-colors border border-white/5 bg-black/20";
+                row.className = "flex flex-wrap items-start gap-2 p-3 hover:bg-white/5 rounded transition-colors border border-white/5 bg-black/20";
                 row.innerHTML = `
                     <div class="flex items-center gap-3 w-full sm:w-auto mb-2 sm:mb-0">
                         <input type="checkbox" id="day-${index}-check" class="accent-veludo-accent-gold w-5 h-5 cursor-pointer" onchange="toggleDayRow(${index})">
@@ -557,10 +632,11 @@
                     </div>
                     
                     <!-- 关键修复：添加 w-full sm:w-auto 和 gap-2，并在内部 input 加上 min-w-0 防止 flex 子元素溢出 -->
-                    <div class="flex-1 flex gap-2 items-center opacity-50 pointer-events-none transition-opacity w-full sm:w-auto" id="day-${index}-inputs">
-                        <input type="time" id="day-${index}-start" class="flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
-                        <span class="text-gray-500">~</span>
-                        <input type="time" id="day-${index}-end" class="flex-1 min-w-0 bg-black/50 border border-white/10 text-white px-2 py-3 md:py-2 text-base md:text-sm rounded-sm focus:border-veludo-accent-gold outline-none h-10 md:h-auto">
+                    <div class="flex-1 flex flex-col gap-2 opacity-50 pointer-events-none transition-opacity w-full sm:w-auto" id="day-${index}-inputs">
+                        <div id="day-${index}-slots" class="flex flex-col gap-2"></div>
+                        <button type="button" id="day-${index}-add" onclick="addSlotRow(${index})" class="add-slot-btn bg-black/40 border border-white/10 text-white/80 hover:text-white hover:border-veludo-accent-gold px-2 py-1 text-xs rounded-sm transition-colors self-start">
+                            ＋ 追加
+                        </button>
                     </div>
                 `;
                 weekRowsContainer.appendChild(row);
@@ -574,14 +650,10 @@
             if (forceState !== null) checkbox.checked = forceState;
             if (checkbox.checked) {
                 inputsDiv.classList.remove('opacity-50', 'pointer-events-none');
-                if(!document.getElementById(`day-${index}-start`).value) {
-                    document.getElementById(`day-${index}-start`).value = "22:00"; 
-                    document.getElementById(`day-${index}-end`).value = "01:00";   
-                }
+                ensureDefaultSlot(index);
             } else {
                 inputsDiv.classList.add('opacity-50', 'pointer-events-none');
-                document.getElementById(`day-${index}-start`).value = "";
-                document.getElementById(`day-${index}-end`).value = "";
+                clearDaySlots(index);
             }
         }
 
@@ -624,15 +696,7 @@
                     Object.keys(config).forEach(dayKey => {
                         const dayCfg = config[dayKey];
                         const dayIndex = parseInt(dayKey);
-                        if (dayCfg && dayCfg.enabled) {
-                            const startInput = document.getElementById(`day-${dayIndex}-start`);
-                            const endInput = document.getElementById(`day-${dayIndex}-end`);
-                            if (startInput && endInput) {
-                                startInput.value = dayCfg.start; 
-                                endInput.value = dayCfg.end;
-                                toggleDayRow(dayIndex, true); 
-                            }
-                        }
+                        applyDayConfig(dayIndex, dayCfg);
                     });
                 }
             }).catch(err => console.error("[Prefill] Error:", err));
@@ -652,10 +716,9 @@
                 let weekConfig = {};
                 days.forEach((_, index) => {
                     const checked = document.getElementById(`day-${index}-check`).checked;
-                    const start = document.getElementById(`day-${index}-start`).value;
-                    const end = document.getElementById(`day-${index}-end`).value;
-                    if (checked) {
-                        if (start && end) weekConfig[index] = { enabled: true, start: start, end: end };
+                    const slots = collectDaySlots(index);
+                    if (checked && slots.length) {
+                        weekConfig[index] = { enabled: true, slots: slots, start: slots[0].start, end: slots[0].end };
                     } else {
                         weekConfig[index] = { enabled: false };
                     }
@@ -834,15 +897,7 @@ function loadSelectedTemplate() {
         Object.keys(config).forEach(dayKey => {
             const dayCfg = config[dayKey];
             const dayIndex = parseInt(dayKey); // 确保是数字
-            if (dayCfg && dayCfg.enabled) {
-                const startInput = document.getElementById(`day-${dayIndex}-start`);
-                const endInput = document.getElementById(`day-${dayIndex}-end`);
-                if (startInput && endInput) {
-                    startInput.value = dayCfg.start;
-                    endInput.value = dayCfg.end;
-                    toggleDayRow(dayIndex, true);
-                }
-            }
+            applyDayConfig(dayIndex, dayCfg);
         });
         alert(`テンプレート「${selectedOption.text}」を読み込みました。`);
     } catch (e) {
@@ -864,15 +919,13 @@ function saveCurrentAsTemplate() {
     
     // 收集当前表单数据 (复用 submit 逻辑)
     let weekConfig = {};
-    const days = ['日', '月', '火', '水', '木', '金', '土'];
     let hasData = false;
     
     days.forEach((_, index) => {
         const checked = document.getElementById(`day-${index}-check`).checked;
-        const start = document.getElementById(`day-${index}-start`).value;
-        const end = document.getElementById(`day-${index}-end`).value;
-        if (checked && start && end) {
-            weekConfig[index] = { enabled: true, start: start, end: end };
+        const slots = collectDaySlots(index);
+        if (checked && slots.length) {
+            weekConfig[index] = { enabled: true, slots: slots, start: slots[0].start, end: slots[0].end };
             hasData = true;
         } else {
             weekConfig[index] = { enabled: false };

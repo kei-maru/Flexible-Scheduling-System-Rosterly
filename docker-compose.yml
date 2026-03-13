@@ -108,13 +108,12 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER:-veludo_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-zym02060}
-      # 👇 这里读取 .env，默认创建 veludo_db
-      POSTGRES_DB: ${DB_NAME:-veludo_db}
     command: postgres -c 'shared_buffers=64MB' -c 'max_connections=50'
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init_sql:/docker-entrypoint-initdb.d
     deploy:
       resources:
         limits:

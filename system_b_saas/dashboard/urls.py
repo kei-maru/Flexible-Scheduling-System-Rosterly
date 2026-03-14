@@ -1,6 +1,6 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
-from .views import TenantDashboardView, DashboardLoginView
+from .views import TenantDashboardView, DashboardLoginView, DashboardTermsView
 from .schedule_views import (
     DashboardScheduleAvailabilityApi,
     DashboardBookingActionApi,
@@ -11,6 +11,7 @@ from .schedule_views import (
 
 urlpatterns = [
     path('login/', DashboardLoginView.as_view(), name='dashboard_login'),
+    path('terms/', DashboardTermsView.as_view(), name='dashboard_terms'),
 
     # 2. 登出 (可选)
     path('logout/', auth_views.LogoutView.as_view(next_page='dashboard_login'), name='logout'),

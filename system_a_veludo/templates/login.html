@@ -73,7 +73,15 @@
 
         <form action="{% provider_login_url 'discord' %}" method="post">
             {% csrf_token %}
-            <button type="submit" class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer">
+            <label class="flex items-start gap-3 text-[10px] text-gray-400 mb-4">
+                <input id="agree-terms" type="checkbox" class="mt-1 accent-veludo-accent-gold" required>
+                <span>
+                    サイト利用規約に同意します（
+                    <a href="{% url 'terms' %}" target="_blank" rel="noopener" class="text-veludo-accent-gold hover:underline">利用規約</a>
+                    ）
+                </span>
+            </label>
+            <button id="discord-btn" type="submit" disabled class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                 <i class="fa-brands fa-discord text-xl"></i>
                 <span class="text-sm font-bold tracking-widest uppercase font-english">Login with Discord</span>
                 
@@ -88,5 +96,14 @@
         </div>
     </div>
 
+    <script>
+        const agree = document.getElementById('agree-terms');
+        const btn = document.getElementById('discord-btn');
+        if (agree && btn) {
+            const toggle = () => { btn.disabled = !agree.checked; };
+            agree.addEventListener('change', toggle);
+            toggle();
+        }
+    </script>
 </body>
 </html>

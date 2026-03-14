@@ -26,6 +26,10 @@ class DashboardLoginView(TemplateView):
         return context
 
 
+class DashboardTermsView(TemplateView):
+    template_name = "dashboard/terms.html"
+
+
 class LocalPasswordLoginView(LoginView):
     template_name = "account/local_login.html"
     authentication_form = AuthenticationForm

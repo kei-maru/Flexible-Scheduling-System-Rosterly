@@ -72,6 +72,10 @@ class RegisterView(CreateView):
         login(self.request, self.object)
         return response
 
+
+class TermsView(TemplateView):
+    template_name = "terms.html"
+
 # --- 4. 个人中心视图 ---
 class ProfileView(LoginRequiredMixin, UpdateView):
     template_name = 'profile.html'

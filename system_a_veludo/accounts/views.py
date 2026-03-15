@@ -30,7 +30,7 @@ from django.conf import settings
 # DRF 引用
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 
 # 本地模块引用
@@ -120,6 +120,11 @@ class ScheduleView(LoginRequiredMixin, TemplateView):
 # --- 6. 排班数据 API (已重构 - 纯代理) ---
 class AvailabilityAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def _get_my_remote_id(self, user):
         if hasattr(user, 'cast_profile') and user.cast_profile.saas_resource_id:
@@ -332,7 +337,7 @@ class IntegrationAvailabilityProxyView(APIView):
         else:
             return Response({'error': 'Failed to save template'}, status=500)
 # --- 7. 预约页面视图 ---
-class BookingPageView(LoginRequiredMixin, TemplateView):
+class BookingPageView(TemplateView):
     template_name = 'booking.html'
 
     def get_context_data(self, **kwargs):

@@ -276,11 +276,8 @@
     <script>
         function handleReservationClick(event) {
             const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}";
-            if (isAuthenticated === 'false') {
-                event.preventDefault(); 
-                if(confirm("ご予約にはログイン（または会員登録）が必要です。\nログインページへ移動しますか？")) {
-                    window.location.href = "{% url 'login' %}?next={% url 'booking_page' %}";
-                }
+            if (typeof trackEvent === 'function') {
+                trackEvent('CLICK_RESERVATION', 'Service Page Button', { authenticated: isAuthenticated });
             }
         }
 

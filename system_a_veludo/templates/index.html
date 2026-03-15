@@ -739,19 +739,6 @@
             const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}";
 
             trackEvent('CLICK_RESERVATION', 'Hero Button', { authenticated: isAuthenticated });
-            
-            // 2. 如果未登录
-            if (isAuthenticated === 'false') {
-                event.preventDefault(); // 阻止 <a> 标签的默认跳转
-                
-                // 3. 弹出确认框 (也可以换成好看的 Modal)
-                if(confirm("ご予約にはログイン（または会員登録）が必要です。\nログインページへ移動しますか？")) {
-                    // 4. 跳转到登录页，并携带 ?next 参数
-                    // 这样登录成功后，Django 会自动跳回预约页
-                    window.location.href = "{% url 'login' %}?next={% url 'booking_page' %}";
-                }
-            }
-            // 如果已登录 (isAuthenticated === 'true')，则不做干预，让 <a> 标签正常跳转
         }
         document.addEventListener('DOMContentLoaded', function() {
             trackEvent('VIEW_PAGE', 'Home Page');

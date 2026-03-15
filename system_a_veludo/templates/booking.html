@@ -528,9 +528,9 @@
                                 </select>
                             <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"></i>
                         </div>
-                        <p class="text-[11px] text-gray-300 mt-2 flex justify-between">
+                        <p class="text-[11px] text-gray-300 mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                             <span>予約可能時間:</span>
-                            <span id="slot-range-display" class="text-white font-mono">--:-- ~ --:--</span>
+                            <span id="slot-range-display" class="text-white font-mono text-right">--:-- ~ --:--</span>
                         </p>
                         <div class="mt-3 p-2 bg-veludo-gold/5 border border-veludo-gold/20 rounded flex items-start gap-2">
                         <i class="fa-solid fa-circle-info text-veludo-gold mt-0.5 text-[10px] shrink-0"></i>
@@ -776,7 +776,7 @@
             const currentVal = selectEl.value; // 暂存当前选中的值
             selectEl.innerHTML = ''; // 清空选项
 
-            const slotStart = new Date(selectedSlot.start);
+            const slotStart = new Date(selectedSlot.clickStart || selectedSlot.start);
             const slotEnd = new Date(selectedSlot.end);
             
             // 循环步进：10分钟
@@ -1011,7 +1011,13 @@
                                                 backgroundColor: 'rgba(47, 235, 156, 0.15)',
                                                 borderColor: '#d4af37',
                                                 textColor: '#e5e5e5',
-                                                extendedProps: { ...props, original_id: item.id, segment_index: idx }
+                                                extendedProps: { 
+                                                    ...props, 
+                                                    original_id: item.id, 
+                                                    segment_index: idx,
+                                                    original_start: item.start,
+                                                    original_end: item.end
+                                                }
                                             });
                                         });
                                     });
@@ -1115,10 +1121,18 @@
                 return;
             }
 
-            selectedSlot = { start: event.start, end: event.end, resourceId: resourceId };
+            const originalStart = event.extendedProps && event.extendedProps.original_start ? event.extendedProps.original_start : event.start;
+            const originalEnd = event.extendedProps && event.extendedProps.original_end ? event.extendedProps.original_end : event.end;
+            selectedSlot = { 
+                start: new Date(originalStart), 
+                end: new Date(originalEnd), 
+                clickStart: event.start,
+                clickEnd: event.end,
+                resourceId: resourceId 
+            };
             
             document.getElementById('modal-cast-name').innerText = currentCastName;
-            document.getElementById('slot-range-display').innerText = formatTime24(selectedSlot.start) + ' ~ ' + formatTime24(selectedSlot.end);
+            document.getElementById('slot-range-display').innerText = formatSlotRangeWithDate(selectedSlot.start, selectedSlot.end);
 
             const dateStr = event.start.toLocaleDateString('ja-JP', {
                 year: 'numeric', 
@@ -1205,7 +1219,7 @@
             }
 
             let userEnd = new Date(userStart.getTime() + duration * 60000);
-            document.getElementById('display-end-time').innerText = formatTime24(userEnd);
+            document.getElementById('display-end-time').innerText = `${formatDateJP(userEnd)} ${formatTime24(userEnd)}`;
 
             let isValid = (userStart >= selectedSlot.start && userEnd <= selectedSlot.end);
             
@@ -1522,7 +1536,13 @@
                             const d = seg.end.getTime();
                             // 只要搜索时间在 [开始, 结束) 区间内，就视为命中
                             if (searchTs >= s && searchTs < d) {
-                                matchedSlot = { start: seg.start, end: seg.end, resourceId: resourceId };
+                                matchedSlot = { 
+                                    start: new Date(e.start), 
+                                    end: new Date(e.end), 
+                                    clickStart: seg.start,
+                                    clickEnd: seg.end,
+                                    resourceId: resourceId 
+                                };
                                 break;
                             }
                         }
@@ -1535,7 +1555,7 @@
                         
                         // --- UI 更新部分 ---
                         document.getElementById('modal-cast-name').innerText = currentCastName;
-                        document.getElementById('slot-range-display').innerText = formatTime24(selectedSlot.start) + ' ~ ' + formatTime24(selectedSlot.end);
+                        document.getElementById('slot-range-display').innerText = formatSlotRangeWithDate(selectedSlot.start, selectedSlot.end);
                         
                         // 设置日期显示
                         const dateStr = targetTime.toLocaleDateString('ja-JP', {
@@ -1616,6 +1636,17 @@
         }
 
         function formatTime24(d) { return d.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit', hour12:false}); }
+        function formatDateJP(d) { return d.toLocaleDateString('ja-JP', {month:'2-digit', day:'2-digit', weekday:'short'}); }
+        function formatSlotRangeWithDate(start, end) {
+            const sDate = formatDateJP(start);
+            const eDate = formatDateJP(end);
+            const sTime = formatTime24(start);
+            const eTime = formatTime24(end);
+            if (start.toDateString() === end.toDateString()) {
+                return `${sDate} ${sTime} ~ ${eTime}`;
+            }
+            return `${sDate} ${sTime} ~ ${eDate} ${eTime}`;
+        }
 
         function openLoginRequiredModal() {
             const modal = document.getElementById('login-required-modal');

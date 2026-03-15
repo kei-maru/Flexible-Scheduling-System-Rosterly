@@ -38,6 +38,7 @@ from .forms import VeludoLoginForm, VeludoRegisterForm, ProfileEditForm
 from .forms import UserRoleForm, CastCMSForm
 from utils.saas_client import SaaSClient
 from casts.models import CastProfile, CastMedia
+from core.models import UserActivity
 from .forms import CastProfileForm, CastMediaFormSet
 
 # [关键修复] 获取 User 模型并赋值给全局变量
@@ -833,7 +834,39 @@ def admin_dashboard(request):
             })
 
     # --------------------------------------------------------
-    # 4. 处理 POST 请求 (User Role & CMS)
+    # 4. Analytics 数据 (访问数统计)
+    # --------------------------------------------------------
+    now = timezone.now()
+    start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_7d = now - timedelta(days=7)
+
+    visit_qs = UserActivity.objects.filter(action='VIEW_PAGE')
+    analytics_visits_total = visit_qs.count()
+    analytics_visits_today = visit_qs.filter(timestamp__gte=start_today).count()
+    analytics_visits_7d = visit_qs.filter(timestamp__gte=start_7d).count()
+
+    analytics_unique_total = visit_qs.values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
+    analytics_unique_today = visit_qs.filter(timestamp__gte=start_today).values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
+    analytics_unique_7d = visit_qs.filter(timestamp__gte=start_7d).values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
+
+    analytics_modules = [
+        {
+            "key": "visits",
+            "title": "Website Visits",
+            "subtitle": "UserActivity: VIEW_PAGE",
+            "value": analytics_visits_total,
+            "stats": [
+                {"label": "Today", "value": analytics_visits_today},
+                {"label": "Last 7 Days", "value": analytics_visits_7d},
+                {"label": "Unique IPs", "value": analytics_unique_total},
+                {"label": "Unique Today", "value": analytics_unique_today},
+                {"label": "Unique 7 Days", "value": analytics_unique_7d},
+            ],
+        }
+    ]
+
+    # --------------------------------------------------------
+    # 5. 处理 POST 请求 (User Role & CMS)
     # --------------------------------------------------------
     role_form = UserRoleForm()
     cms_form = CastCMSForm()
@@ -883,7 +916,7 @@ def admin_dashboard(request):
                 return redirect('admin_dashboard')
 
     # --------------------------------------------------------
-    # 5. 渲染页面
+    # 6. 渲染页面
     # --------------------------------------------------------
     context = {
         'users': users,
@@ -893,5 +926,7 @@ def admin_dashboard(request):
         # 新增列表，包含了 cast_id 供前端 JS 筛选使用
         'shifts': processed_shifts,
         'orders': processed_orders,
+        'analytics_modules': analytics_modules,
+        'analytics_updated_at': now,
     }
     return render(request, 'admin_dashboard.html', context)

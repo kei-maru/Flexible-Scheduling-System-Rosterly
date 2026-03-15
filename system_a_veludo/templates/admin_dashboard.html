@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -413,7 +414,39 @@
                     {% endfor %}
                 </div>
 
+                <div class="mt-10 border border-white/10 bg-black/20 p-6 rounded-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="text-[10px] text-gray-500 uppercase tracking-[0.3em]">Visits Trend (Last 14 Days)</div>
+                        <span class="text-[10px] text-veludo-gold/70 uppercase tracking-[0.2em]">Chart</span>
+                    </div>
+                    <div class="h-52">
+                        <canvas id="visitsTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="mt-6 border border-white/10 bg-black/20 p-6 rounded-sm">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                        <div class="text-[10px] text-gray-500 uppercase tracking-[0.3em]">Visit Time Distribution</div>
+                        <form method="get" class="flex flex-wrap items-center gap-2 text-[10px] text-gray-300 uppercase tracking-[0.2em]">
+                            <input type="hidden" name="tab" value="analytics">
+                            <label for="analytics_start" class="text-gray-500">From</label>
+                            <input id="analytics_start" name="analytics_start" type="date" value="{{ analytics_range_start }}" class="bg-black/30 border border-white/10 rounded-sm px-2 py-1 text-[10px] text-white focus:border-veludo-gold outline-none">
+                            <label for="analytics_end" class="text-gray-500">To</label>
+                            <input id="analytics_end" name="analytics_end" type="date" value="{{ analytics_range_end }}" class="bg-black/30 border border-white/10 rounded-sm px-2 py-1 text-[10px] text-white focus:border-veludo-gold outline-none">
+                            <button type="submit" class="bg-white/10 hover:bg-veludo-gold hover:text-black transition-colors px-3 py-1 rounded-sm">Apply</button>
+                        </form>
+                    </div>
+                    <div class="h-52">
+                        <canvas id="hourDistChart"></canvas>
+                    </div>
+                </div>
+
                 <div class="mt-8 text-[10px] text-gray-500 uppercase tracking-[0.3em]">More Modules Coming Soon</div>
+
+                {{ analytics_trend_labels|json_script:"trend-labels" }}
+                {{ analytics_trend_values|json_script:"trend-values" }}
+                {{ analytics_hour_labels|json_script:"hour-labels" }}
+                {{ analytics_hour_values|json_script:"hour-values" }}
             </div>
         </div>
     </div>
@@ -443,6 +476,104 @@
     </div>
 
     <script>
+        let visitsTrendChartInstance = null;
+        let hourDistChartInstance = null;
+
+        function initVisitsTrendChart() {
+            const labels = JSON.parse(document.getElementById('trend-labels')?.textContent || '[]');
+            const values = JSON.parse(document.getElementById('trend-values')?.textContent || '[]');
+            const canvas = document.getElementById('visitsTrendChart');
+            if (!canvas || !labels.length) return;
+
+            if (visitsTrendChartInstance) visitsTrendChartInstance.destroy();
+            visitsTrendChartInstance = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Visits',
+                        data: values,
+                        borderColor: '#d4af37',
+                        backgroundColor: 'rgba(212, 175, 55, 0.15)',
+                        borderWidth: 2,
+                        tension: 0.35,
+                        fill: true,
+                        pointRadius: 2,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#e5e5e5',
+                            borderColor: '#d4af37',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        function initHourDistributionChart() {
+            const labels = JSON.parse(document.getElementById('hour-labels')?.textContent || '[]');
+            const values = JSON.parse(document.getElementById('hour-values')?.textContent || '[]');
+            const canvas = document.getElementById('hourDistChart');
+            if (!canvas || !labels.length) return;
+
+            if (hourDistChartInstance) hourDistChartInstance.destroy();
+            hourDistChartInstance = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Visits',
+                        data: values,
+                        backgroundColor: 'rgba(212, 175, 55, 0.3)',
+                        borderColor: '#d4af37',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#e5e5e5',
+                            borderColor: '#d4af37',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            });
+        }
         // Tab Logic
         function switchTab(tabName) {
             ['users', 'content', 'shifts', 'analytics'].forEach(t => {
@@ -464,7 +595,26 @@
                 activeTab.classList.add('active', 'text-white');
                 activeTab.classList.remove('text-gray-500');
             }
+
+            if (tabName === 'analytics') {
+                setTimeout(initVisitsTrendChart, 0);
+                setTimeout(initHourDistributionChart, 0);
+            }
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam) {
+                switchTab(tabParam);
+            } else {
+                const analyticsTab = document.getElementById('tab-analytics');
+                if (analyticsTab && analyticsTab.classList.contains('active')) {
+                    initVisitsTrendChart();
+                    initHourDistributionChart();
+                }
+            }
+        });
 
         // User Filter Logic
         function filterUsers() {

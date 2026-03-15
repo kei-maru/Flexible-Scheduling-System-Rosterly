@@ -14,7 +14,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django import forms
 from django.contrib import messages
 from django.db.models import Q, Count, Avg, FloatField
-from django.db.models.functions import Cast
+from django.db.models.functions import Cast, TruncDate, ExtractHour
 import requests
 import json
 import pytz
@@ -876,6 +876,64 @@ def admin_dashboard(request):
     analytics_unique_today = visit_qs.filter(timestamp__gte=start_today).values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
     analytics_unique_7d = visit_qs.filter(timestamp__gte=start_7d).values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
 
+    trend_days = 14
+    trend_start = start_today - timedelta(days=trend_days - 1)
+    trend_qs = UserActivity.objects.filter(
+        action='VIEW_PAGE',
+        meta_data__ip__in=eligible_ips,
+        timestamp__gte=trend_start,
+        timestamp__lt=start_today + timedelta(days=1)
+    )
+    trend_data = (
+        trend_qs
+        .annotate(d=TruncDate('timestamp'))
+        .values('d')
+        .annotate(c=Count('id'))
+        .order_by('d')
+    )
+    trend_map = {row['d']: row['c'] for row in trend_data}
+    analytics_trend_labels = []
+    analytics_trend_values = []
+    for i in range(trend_days):
+        day = trend_start + timedelta(days=i)
+        day_label = day.strftime("%m/%d")
+        analytics_trend_labels.append(day_label)
+        analytics_trend_values.append(trend_map.get(day.date(), 0))
+
+    def parse_date(value):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    default_end_date = now.date()
+    default_start_date = default_end_date - timedelta(days=6)
+    range_start_date = parse_date(request.GET.get("analytics_start")) or default_start_date
+    range_end_date = parse_date(request.GET.get("analytics_end")) or default_end_date
+    if range_start_date > range_end_date:
+        range_start_date, range_end_date = range_end_date, range_start_date
+
+    tz = timezone.get_current_timezone()
+    range_start_dt = timezone.make_aware(datetime.combine(range_start_date, datetime.min.time()), tz)
+    range_end_dt = timezone.make_aware(datetime.combine(range_end_date + timedelta(days=1), datetime.min.time()), tz)
+
+    hourly_qs = UserActivity.objects.filter(
+        action='VIEW_PAGE',
+        meta_data__ip__in=eligible_ips,
+        timestamp__gte=range_start_dt,
+        timestamp__lt=range_end_dt
+    )
+    hourly_rows = (
+        hourly_qs
+        .annotate(hour=ExtractHour('timestamp'))
+        .values('hour')
+        .annotate(c=Count('id'))
+        .order_by('hour')
+    )
+    hourly_map = {row['hour']: row['c'] for row in hourly_rows}
+    analytics_hour_labels = [f"{h:02d}:00" for h in range(24)]
+    analytics_hour_values = [hourly_map.get(h, 0) for h in range(24)]
+
     mobile_regex = r"(Mobile|Android|iPhone|iPad|iPod|Windows Phone)"
     ua_ip_qs = UserActivity.objects.filter(
         action='VIEW_PAGE'
@@ -1021,5 +1079,11 @@ def admin_dashboard(request):
         'orders': processed_orders,
         'analytics_modules': analytics_modules,
         'analytics_updated_at': now,
+        'analytics_trend_labels': analytics_trend_labels,
+        'analytics_trend_values': analytics_trend_values,
+        'analytics_hour_labels': analytics_hour_labels,
+        'analytics_hour_values': analytics_hour_values,
+        'analytics_range_start': range_start_date.strftime("%Y-%m-%d"),
+        'analytics_range_end': range_end_date.strftime("%Y-%m-%d"),
     }
     return render(request, 'admin_dashboard.html', context)

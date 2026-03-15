@@ -66,6 +66,27 @@
             opacity: 0; transition: opacity 1s ease-in-out; z-index: 1;
         }
         .carousel-slide.active { opacity: 1; z-index: 10; }
+        .carousel-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.35);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            opacity: 0.4;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 30;
+        }
+        .carousel-arrow:hover { opacity: 0.9; transform: translateY(-50%) scale(1.05); }
+        .carousel-arrow.left { left: 10px; }
+        .carousel-arrow.right { right: 10px; }
+        .carousel-container:hover .carousel-arrow { opacity: 0.8; }
         
         /* Animations */
         .fade-in-up { animation: fadeInUp 1s ease-out forwards; opacity: 0; transform: translateY(20px); }
@@ -190,7 +211,7 @@
                      style="animation-delay: {{ forloop.counter0|add:1 }}00ms;">
                     
                     <!-- Carousel Image Section -->
-                    <div class="relative w-full aspect-[4/3] bg-gray-900 overflow-hidden carousel-container flex-shrink-0">
+                    <div class="relative w-full aspect-[4/3] bg-gray-900 overflow-hidden carousel-container flex-shrink-0" onclick="event.stopPropagation()">
                         {% if cast.medias.all %}
                             {% for media in cast.medias.all %}
                                 {% if media.image_file %}
@@ -213,6 +234,13 @@
                                 {% endif %}
                             </div>
                         {% endif %}
+
+                        <button class="carousel-arrow left" data-carousel-prev aria-label="Previous image">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <button class="carousel-arrow right" data-carousel-next aria-label="Next image">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
                         
                         {% if cast.youtube_url %}
                             <div class="absolute top-3 right-3 z-20 bg-black/60 text-white px-2 py-1 rounded text-xs backdrop-blur-sm">
@@ -332,14 +360,35 @@
             const castCards = document.querySelectorAll('.cast-card');
             castCards.forEach((card) => {
                 const slides = card.querySelectorAll('.carousel-slide');
-                if (slides.length <= 1) return;
+                const prevBtn = card.querySelector('[data-carousel-prev]');
+                const nextBtn = card.querySelector('[data-carousel-next]');
+                if (slides.length <= 1) {
+                    if (prevBtn) prevBtn.classList.add('hidden');
+                    if (nextBtn) nextBtn.classList.add('hidden');
+                    return;
+                }
                 let currentSlide = 0;
+                const showSlide = (nextIndex) => {
+                    slides[currentSlide].classList.remove('active');
+                    currentSlide = (nextIndex + slides.length) % slides.length;
+                    slides[currentSlide].classList.add('active');
+                };
                 const intervalTime = Math.floor(Math.random() * 3000) + 3000;
                 setInterval(() => {
-                    slides[currentSlide].classList.remove('active');
-                    currentSlide = (currentSlide + 1) % slides.length;
-                    slides[currentSlide].classList.add('active');
+                    showSlide(currentSlide + 1);
                 }, intervalTime);
+                if (prevBtn) {
+                    prevBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showSlide(currentSlide - 1);
+                    });
+                }
+                if (nextBtn) {
+                    nextBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showSlide(currentSlide + 1);
+                    });
+                }
             });
         });
         function trackEvent(action, target = '', meta = {}) {

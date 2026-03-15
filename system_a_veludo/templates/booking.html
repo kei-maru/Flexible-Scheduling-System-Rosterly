@@ -696,12 +696,15 @@
     </div>
 
     <script>
-        function trackEvent(action, target = '', meta = {}) {
+        function trackEvent(action, target = '', meta = {}, options = {}) {
             const url = "/core/api/track/"; 
+            const pageTarget = document.title || window.location.pathname;
             
             // --- 1. 基础页面信息 ---
             if (!meta.page_url) meta.page_url = window.location.pathname;
             if (!meta.page_title) meta.page_title = document.title;
+            if (!meta.page) meta.page = pageTarget;
+            if (!meta.path) meta.path = window.location.pathname;
             meta.referrer = document.referrer || 'direct'; // 来源(是从Google来的还是直接输入的)
 
             // --- 2. 设备与屏幕指纹 (UI优化神技) ---
@@ -745,7 +748,6 @@
                 meta: meta
             };
 
-            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
             if (navigator.sendBeacon) {
                 // sendBeacon 是最稳妥的，但不能自定义Header (除了Content-Type)
                 // 如果你的Django CSRF检查严格，sendBeacon可能会失败，除非你在View里豁免了CSRF
@@ -758,16 +760,56 @@
                         "X-CSRFToken": "{{ csrf_token }}"
                     },
                     body: JSON.stringify(payload),
-                    keepalive: true
+                    keepalive: options.keepalive !== false
                 }).catch(err => console.error("Tracking Error:", err));
             } else {
                 fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    keepalive: options.keepalive === true
                 });
             }
         }
+
+        // 页面停留时间统计
+        let pageEnterAt = Date.now();
+        let durationSent = false;
+        function sendPageDuration() {
+            if (durationSent) return;
+            const durationMs = Date.now() - pageEnterAt;
+            if (durationMs < 1000) return;
+            const pageTarget = document.title || window.location.pathname;
+            durationSent = true;
+            trackEvent('PAGE_DURATION', pageTarget, {
+                duration_ms: durationMs,
+                duration_s: Math.round(durationMs / 1000)
+            }, { keepalive: true });
+        }
+
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === 'hidden') {
+                sendPageDuration();
+            }
+        });
+        window.addEventListener("beforeunload", sendPageDuration);
+
+        // 修复：移动端进入预约页面时被拉到最底部
+        document.addEventListener("DOMContentLoaded", function() {
+            if (window.innerWidth < 768) {
+                if ('scrollRestoration' in history) {
+                    history.scrollRestoration = 'manual';
+                }
+                window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }
+        });
+        window.addEventListener("pageshow", function() {
+            if (window.innerWidth < 768) {
+                window.scrollTo(0, 0);
+            }
+        });
         // 【新增】根据排班范围和所选时长，动态生成时间选项
         function populateTimeSelect(durationMinutes) {
             if (!selectedSlot) return;

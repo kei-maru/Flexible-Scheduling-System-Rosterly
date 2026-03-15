@@ -39,6 +39,7 @@ class UserActivity(models.Model):
         ('LOGIN', 'User Login'),              
         ('BOOKING_SUCCESS', 'Booking Success'), 
         ('SWITCH_MODE', 'Switch Mode'),       
+        ('PAGE_DURATION', 'Page Duration'),
     ]
 
     user = models.ForeignKey(

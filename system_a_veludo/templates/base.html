@@ -36,8 +36,12 @@
 
     <script>
         // 定义全局埋点函数
-        function trackEvent(action, target = '', meta = {}) {
+        function trackEvent(action, target = '', meta = {}, options = {}) {
             console.log("Tracking:", action, target); // Debug用
+            const pageTarget = document.title || window.location.pathname;
+
+            if (!meta.page) meta.page = pageTarget;
+            if (!meta.path) meta.path = window.location.pathname;
 
             // 注意：这里 URL 需要根据你的 urls.py 配置调整
             // 假设你在 core/urls.py 里配置的是 'api/track/'
@@ -51,6 +55,7 @@
                     "Content-Type": "application/json",
                     "X-CSRFToken": "{{ csrf_token }}" // Django 注入的 Token
                 },
+                keepalive: !!options.keepalive,
                 body: JSON.stringify({
                     action: action,
                     target: target,
@@ -65,6 +70,28 @@
             const pageTarget = document.title || window.location.pathname;
             trackEvent('VIEW_PAGE', pageTarget);
         });
+
+        // 页面停留时间统计（尽量在离开前发送）
+        let pageEnterAt = Date.now();
+        let durationSent = false;
+        function sendPageDuration() {
+            if (durationSent) return;
+            const durationMs = Date.now() - pageEnterAt;
+            if (durationMs < 1000) return;
+            const pageTarget = document.title || window.location.pathname;
+            durationSent = true;
+            trackEvent('PAGE_DURATION', pageTarget, {
+                duration_ms: durationMs,
+                duration_s: Math.round(durationMs / 1000)
+            }, { keepalive: true });
+        }
+
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === 'hidden') {
+                sendPageDuration();
+            }
+        });
+        window.addEventListener("beforeunload", sendPageDuration);
     </script>
 
     {% block extra_scripts %}{% endblock %}

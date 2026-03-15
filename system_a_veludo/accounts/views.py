@@ -13,7 +13,8 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 from django import forms
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Count, Avg, FloatField
+from django.db.models.functions import Cast
 import requests
 import json
 import pytz
@@ -840,7 +841,33 @@ def admin_dashboard(request):
     start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start_7d = now - timedelta(days=7)
 
-    visit_qs = UserActivity.objects.filter(action='VIEW_PAGE')
+    def format_duration(seconds):
+        if not seconds or seconds < 0:
+            return "0:00"
+        total_seconds = int(round(seconds))
+        minutes, sec = divmod(total_seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{sec:02d}"
+        return f"{minutes:02d}:{sec:02d}"
+
+    def short_label(text, max_len=18):
+        if not text:
+            return "--"
+        if len(text) <= max_len:
+            return text
+        return text[:max_len - 1] + "…"
+
+    ip_activity_qs = UserActivity.objects.exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='')
+    eligible_ips = (
+        ip_activity_qs
+        .values('meta_data__ip')
+        .annotate(c=Count('id'))
+        .filter(c__gte=3)
+        .values_list('meta_data__ip', flat=True)
+    )
+
+    visit_qs = UserActivity.objects.filter(action='VIEW_PAGE', meta_data__ip__in=eligible_ips)
     analytics_visits_total = visit_qs.count()
     analytics_visits_today = visit_qs.filter(timestamp__gte=start_today).count()
     analytics_visits_7d = visit_qs.filter(timestamp__gte=start_7d).count()
@@ -849,11 +876,58 @@ def admin_dashboard(request):
     analytics_unique_today = visit_qs.filter(timestamp__gte=start_today).values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
     analytics_unique_7d = visit_qs.filter(timestamp__gte=start_7d).values('meta_data__ip').exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='').distinct().count()
 
+    mobile_regex = r"(Mobile|Android|iPhone|iPad|iPod|Windows Phone)"
+    ua_ip_qs = UserActivity.objects.filter(
+        action='VIEW_PAGE'
+    ).exclude(
+        meta_data__ip__isnull=True
+    ).exclude(
+        meta_data__ip=''
+    ).exclude(
+        meta_data__user_agent__isnull=True
+    ).exclude(
+        meta_data__user_agent=''
+    )
+    mobile_ips = ua_ip_qs.filter(meta_data__user_agent__iregex=mobile_regex).values('meta_data__ip').distinct().count()
+    desktop_ips = ua_ip_qs.exclude(meta_data__user_agent__iregex=mobile_regex).values('meta_data__ip').distinct().count()
+    total_ips_for_ratio = mobile_ips + desktop_ips
+    mobile_ratio = round((mobile_ips / total_ips_for_ratio) * 100, 1) if total_ips_for_ratio else 0
+
+    duration_qs = UserActivity.objects.filter(action='PAGE_DURATION', meta_data__ip__in=eligible_ips)
+    duration_ms_field = Cast('meta_data__duration_ms', FloatField())
+    avg_duration_ms = duration_qs.aggregate(avg=Avg(duration_ms_field)).get('avg') or 0
+    avg_duration_str = format_duration(avg_duration_ms / 1000)
+
+    duration_by_page = (
+        duration_qs
+        .exclude(target__isnull=True)
+        .exclude(target='')
+        .values('target')
+        .annotate(avg_ms=Avg(duration_ms_field))
+        .order_by('-avg_ms')
+    )
+    longest_page = duration_by_page.first() or {}
+    longest_page_label = short_label(longest_page.get('target'))
+    longest_page_duration = format_duration((longest_page.get('avg_ms') or 0) / 1000)
+
+    click_qs = UserActivity.objects.filter(action__startswith='CLICK_', meta_data__ip__in=eligible_ips)
+    click_by_page = (
+        click_qs
+        .exclude(meta_data__page__isnull=True)
+        .exclude(meta_data__page='')
+        .values('meta_data__page')
+        .annotate(c=Count('id'))
+        .order_by('-c')
+    )
+    top_click = click_by_page.first() or {}
+    top_click_label = short_label(top_click.get('meta_data__page'))
+    top_click_count = top_click.get('c') or 0
+
     analytics_modules = [
         {
             "key": "visits",
             "title": "Website Visits",
-            "subtitle": "UserActivity: VIEW_PAGE",
+            "subtitle": "UserActivity: VIEW_PAGE (IP >= 3)",
             "value": analytics_visits_total,
             "stats": [
                 {"label": "Today", "value": analytics_visits_today},
@@ -862,7 +936,26 @@ def admin_dashboard(request):
                 {"label": "Unique Today", "value": analytics_unique_today},
                 {"label": "Unique 7 Days", "value": analytics_unique_7d},
             ],
-        }
+        },
+        {
+            "key": "mobile_ratio",
+            "title": "Mobile Ratio",
+            "subtitle": "UserAgent (Unique IPs)",
+            "value": f"{mobile_ratio}%",
+            "stats": [
+                {"label": "Mobile IPs", "value": mobile_ips},
+                {"label": "Desktop IPs", "value": desktop_ips},
+            ],
+        },
+        {
+            "key": "engagement",
+            "title": "Engagement",
+            "subtitle": "PAGE_DURATION (IP >= 3)",
+            "value": avg_duration_str,
+            "stats": [
+                {"label": "Avg Duration", "value": avg_duration_str},
+            ],
+        },
     ]
 
     # --------------------------------------------------------

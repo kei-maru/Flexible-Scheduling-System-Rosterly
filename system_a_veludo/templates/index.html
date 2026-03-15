@@ -786,11 +786,14 @@
                 document.body.style.overflow = ''; // 恢复滚动
             }
         }
-        function trackEvent(action, target = '', meta = {}) {
+        function trackEvent(action, target = '', meta = {}, options = {}) {
             const url = "/core/api/track/"; 
+            const pageTarget = document.title || window.location.pathname;
             
             if (!meta.page_url) meta.page_url = window.location.pathname;
             if (!meta.page_title) meta.page_title = document.title;
+            if (!meta.page) meta.page = pageTarget;
+            if (!meta.path) meta.path = window.location.pathname;
             meta.referrer = document.referrer || 'direct'; 
 
             meta.screen = {
@@ -826,7 +829,6 @@
                 meta: meta
             };
 
-            const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
             if (navigator.sendBeacon) {
 
                  fetch(url, {
@@ -836,16 +838,39 @@
                         "X-CSRFToken": "{{ csrf_token }}"
                     },
                     body: JSON.stringify(payload),
-                    keepalive: true
+                    keepalive: options.keepalive !== false
                 }).catch(err => console.error("Tracking Error:", err));
             } else {
                 fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    keepalive: options.keepalive === true
                 });
             }
         }
+
+        // 页面停留时间统计
+        let pageEnterAt = Date.now();
+        let durationSent = false;
+        function sendPageDuration() {
+            if (durationSent) return;
+            const durationMs = Date.now() - pageEnterAt;
+            if (durationMs < 1000) return;
+            const pageTarget = document.title || window.location.pathname;
+            durationSent = true;
+            trackEvent('PAGE_DURATION', pageTarget, {
+                duration_ms: durationMs,
+                duration_s: Math.round(durationMs / 1000)
+            }, { keepalive: true });
+        }
+
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === 'hidden') {
+                sendPageDuration();
+            }
+        });
+        window.addEventListener("beforeunload", sendPageDuration);
     </script>
 </body>
 </html>

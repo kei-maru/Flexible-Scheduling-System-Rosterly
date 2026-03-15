@@ -38,6 +38,7 @@ def track_activity(request):
             ip = request.META.get('REMOTE_ADDR')
         
         meta['ip'] = ip
+        meta['user_agent'] = request.META.get('HTTP_USER_AGENT', '')
         
         # [新增] 打印调试信息到终端，方便你看有没有收到
         print(f"--- TRACKING --- User: {request.user}, Action: {action}, Target: {target}")

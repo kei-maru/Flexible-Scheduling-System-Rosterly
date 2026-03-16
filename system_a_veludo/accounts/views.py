@@ -851,13 +851,6 @@ def admin_dashboard(request):
             return f"{hours}:{minutes:02d}:{sec:02d}"
         return f"{minutes:02d}:{sec:02d}"
 
-    def short_label(text, max_len=18):
-        if not text:
-            return "--"
-        if len(text) <= max_len:
-            return text
-        return text[:max_len - 1] + "…"
-
     ip_activity_qs = UserActivity.objects.exclude(meta_data__ip__isnull=True).exclude(meta_data__ip='')
     eligible_ips = (
         ip_activity_qs
@@ -951,35 +944,15 @@ def admin_dashboard(request):
     total_ips_for_ratio = mobile_ips + desktop_ips
     mobile_ratio = round((mobile_ips / total_ips_for_ratio) * 100, 1) if total_ips_for_ratio else 0
 
-    duration_qs = UserActivity.objects.filter(action='PAGE_DURATION', meta_data__ip__in=eligible_ips)
     duration_ms_field = Cast('meta_data__duration_ms', FloatField())
-    avg_duration_ms = duration_qs.aggregate(avg=Avg(duration_ms_field)).get('avg') or 0
+    duration_qs = (
+        UserActivity.objects
+        .filter(action='PAGE_DURATION', meta_data__ip__in=eligible_ips)
+        .annotate(duration_ms=duration_ms_field)
+        .filter(duration_ms__gte=3000)
+    )
+    avg_duration_ms = duration_qs.aggregate(avg=Avg('duration_ms')).get('avg') or 0
     avg_duration_str = format_duration(avg_duration_ms / 1000)
-
-    duration_by_page = (
-        duration_qs
-        .exclude(target__isnull=True)
-        .exclude(target='')
-        .values('target')
-        .annotate(avg_ms=Avg(duration_ms_field))
-        .order_by('-avg_ms')
-    )
-    longest_page = duration_by_page.first() or {}
-    longest_page_label = short_label(longest_page.get('target'))
-    longest_page_duration = format_duration((longest_page.get('avg_ms') or 0) / 1000)
-
-    click_qs = UserActivity.objects.filter(action__startswith='CLICK_', meta_data__ip__in=eligible_ips)
-    click_by_page = (
-        click_qs
-        .exclude(meta_data__page__isnull=True)
-        .exclude(meta_data__page='')
-        .values('meta_data__page')
-        .annotate(c=Count('id'))
-        .order_by('-c')
-    )
-    top_click = click_by_page.first() or {}
-    top_click_label = short_label(top_click.get('meta_data__page'))
-    top_click_count = top_click.get('c') or 0
 
     analytics_modules = [
         {

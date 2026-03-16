@@ -955,6 +955,15 @@
         }
 
         window.loadCastSchedule = function(resourceId, castName, allow30, allow60, allow120, avatarUrl) {
+            if (window.innerWidth < 768) {
+                const pageCast = document.getElementById('page-cast');
+                const viewCastList = document.getElementById('view-cast-list');
+                if (pageCast) pageCast.scrollTop = 0;
+                if (viewCastList) viewCastList.scrollTop = 0;
+                window.scrollTo({ top: 0, behavior: 'auto' });
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }
             currentCastName = castName;
             currentCastAvatar = avatarUrl;
             trackEvent('CLICK_CAST', castName, { resource_id: resourceId });

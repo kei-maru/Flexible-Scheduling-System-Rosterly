@@ -55,6 +55,16 @@
             <div class="text-left md:text-right">
                 <div class="text-sm text-gray-300">{{ user.vrc_id|default:user.username }} 様</div>
                 <div class="text-xs text-gray-500">{{ user.email }}</div>
+                {% if is_cast %}
+                <a
+                    href="https://vrchat.com/home/group/grp_46243e70-e64e-4cac-8504-e4890fcfaafc/settings/logs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-block mt-3 px-3 py-2 text-[10px] tracking-widest border border-veludo-gold/40 text-veludo-gold bg-veludo-gold/10 hover:bg-veludo-gold/20 transition-colors"
+                >
+                    VRCHAT LOGを開く
+                </a>
+                {% endif %}
             </div>
         </div>
 

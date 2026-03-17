@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 class User(AbstractUser):
     """
@@ -68,3 +69,29 @@ class UserActivity(models.Model):
         user_str = self.user.username if self.user else "Anonymous"
         # 使用 get_action_display() 可以在后台显示可读的标签
         return f"{user_str} - {self.get_action_display()} - {self.timestamp}"
+
+
+class BlockedIP(models.Model):
+    ip = models.GenericIPAddressField("IP", unique=True, db_index=True)
+    reason = models.CharField("理由", max_length=255, default="High-frequency bot traffic")
+    is_active = models.BooleanField("有効", default=True)
+    hit_count = models.PositiveIntegerField("検知回数", default=0)
+    first_detected_at = models.DateTimeField("初回検知", auto_now_add=True)
+    last_detected_at = models.DateTimeField("最終検知", auto_now=True)
+    banned_until = models.DateTimeField("解除日時", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Blocked IP"
+        verbose_name_plural = "Blocked IPs"
+        ordering = ["-last_detected_at"]
+
+    def __str__(self):
+        return f"{self.ip} ({'active' if self.is_currently_blocked else 'inactive'})"
+
+    @property
+    def is_currently_blocked(self):
+        if not self.is_active:
+            return False
+        if self.banned_until is None:
+            return True
+        return self.banned_until > timezone.now()

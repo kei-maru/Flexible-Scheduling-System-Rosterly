@@ -72,6 +72,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'core.middleware.BlockBlockedIPMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -109,6 +110,13 @@ DATABASES = {
         'HOST': os.environ.get('DB_HOST', 'db'), # docker-compose 服务名
         'PORT': os.environ.get('DB_PORT', '5432'),
         'CONN_MAX_AGE': 600,
+    }
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'veludo-tracking-cache',
     }
 }
 
@@ -189,3 +197,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 # (可选) 防止任务死锁的超时设置
 CELERY_TASK_SOFT_TIME_LIMIT = 300 
 CELERY_TASK_TIME_LIMIT = 360
+
+TRACKING_BOT_WINDOW_SECONDS = int(os.environ.get('TRACKING_BOT_WINDOW_SECONDS', '600'))
+TRACKING_BOT_THRESHOLD = int(os.environ.get('TRACKING_BOT_THRESHOLD', '300'))
+TRACKING_IP_WHITELIST = [ip.strip() for ip in os.environ.get('TRACKING_IP_WHITELIST', '127.0.0.1,::1').split(',') if ip.strip()]

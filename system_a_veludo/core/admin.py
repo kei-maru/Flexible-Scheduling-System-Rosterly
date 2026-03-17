@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, UserActivity
+from .models import User, UserActivity, BlockedIP
 
 # 安全注销 User 模型，防止 AlreadyRegistered 错误
 if admin.site.is_registered(User):
@@ -45,3 +45,10 @@ class UserActivityAdmin(admin.ModelAdmin):
     def get_ip(self, obj):
         return obj.meta_data.get('ip', '-')
     get_ip.short_description = "IP Address"
+
+
+@admin.register(BlockedIP)
+class BlockedIPAdmin(admin.ModelAdmin):
+    list_display = ('ip', 'is_active', 'hit_count', 'reason', 'last_detected_at', 'banned_until')
+    list_filter = ('is_active', 'last_detected_at')
+    search_fields = ('ip', 'reason')

@@ -15,7 +15,7 @@ from django.db.models import Q
 # 👇 导入我们刚才写好的 Tasks
 from bookings.tasks import process_new_booking, send_cancellation_email_task
 from tenants.permissions import IsTenantAuthorized
-from resources.models import Resource
+from resources.models import Resource, ServicePreset
 from bookings.models import Booking
 
 
@@ -29,6 +29,8 @@ class IntegrationBookingView(APIView):
         customer_name = request.data.get('customer_name')
         start_time_str = request.data.get('start_time')
         end_time_str = request.data.get('end_time')
+        service_id = request.data.get('service_id')
+        service_name_raw = (request.data.get('service_name') or '').strip()
 
         if not all([resource_uuid, start_time_str, end_time_str]):
             return Response({'error': 'Missing required fields'}, status=400)
@@ -55,6 +57,24 @@ class IntegrationBookingView(APIView):
         if conflicting_booking:
             return Response({'error': 'Time slot unavailable'}, status=status.HTTP_409_CONFLICT)
 
+        selected_service = None
+        selected_service_name = None
+        if service_id:
+            selected_service = ServicePreset.objects.filter(
+                tenant=request.tenant,
+                id=service_id,
+                is_active=True
+            ).first()
+            if not selected_service:
+                return Response({'error': 'Invalid service_id'}, status=400)
+            selected_service_name = selected_service.name
+        elif service_name_raw:
+            selected_service = ServicePreset.objects.filter(
+                tenant=request.tenant,
+                name=service_name_raw
+            ).first()
+            selected_service_name = selected_service.name if selected_service else service_name_raw
+
         try:
             with transaction.atomic():
                 booking = Booking.objects.create(
@@ -62,6 +82,8 @@ class IntegrationBookingView(APIView):
                     resource=resource,
                     customer_email=customer_email,
                     customer_name=customer_name,
+                    selected_service=selected_service,
+                    selected_service_name=selected_service_name,
                     start_time=start_time,
                     end_time=end_time,
                     status='CONFIRMED'
@@ -76,7 +98,11 @@ class IntegrationBookingView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
-        return Response({'booking_id': str(booking.id), 'status': booking.status}, status=201)
+        return Response({
+            'booking_id': str(booking.id),
+            'status': booking.status,
+            'service_name': booking.selected_service_name
+        }, status=201)
 
     def get(self, request):
         """
@@ -152,6 +178,7 @@ class IntegrationBookingView(APIView):
             'resource_name': b.resource.name,
             'customer_name': b.customer_name,
             'customer_email': b.customer_email,
+            'service_name': b.selected_service_name or '',
             'start': b.start_time,
             'end': b.end_time,
             'status': b.status,
@@ -200,3 +227,19 @@ class IntegrationBookingView(APIView):
             return Response({'status': 'COMPLETED'}, status=200)
             
         return Response({'error': 'Invalid status update'}, status=400)
+
+
+class IntegrationServiceListView(APIView):
+    permission_classes = [IsTenantAuthorized]
+
+    def get(self, request):
+        services = ServicePreset.objects.filter(tenant=request.tenant, is_active=True).order_by('sort_order', 'id')
+        data = [
+            {
+                'id': s.id,
+                'name': s.name,
+                'duration_minutes': s.duration_minutes,
+            }
+            for s in services
+        ]
+        return Response(data)

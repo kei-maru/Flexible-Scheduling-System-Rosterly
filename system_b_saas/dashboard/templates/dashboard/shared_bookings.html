@@ -67,6 +67,7 @@
                      data-resource="{{ booking.resource.name }}"
                      data-customer="{{ booking.customer_name }}"
                      data-email="{{ booking.customer_email }}"
+                     data-service="{{ booking.selected_service_name|default:'' }}"
                      data-start-date="{{ booking.start_time|date:'Y/m/d (D)' }}"
                      data-time-range="{{ booking.start_time|date:'H:i' }} - {{ booking.end_time|date:'H:i' }}"
                      data-status="{{ booking.status }}"
@@ -93,6 +94,10 @@
                                 <div class="flex items-center gap-2 mt-2">
                                     <span class="bg-white/5 px-1.5 py-0.5 rounded-sm text-[8px] text-gray-200 border border-white/10 tracking-[0.15em] uppercase shrink-0">RESOURCE</span>
                                     <span class="text-xs font-normal tracking-widest text-gray-200 font-serif truncate">{{ booking.resource.name }}</span>
+                                </div>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="bg-white/5 px-1.5 py-0.5 rounded-sm text-[8px] text-gray-200 border border-white/10 tracking-[0.15em] uppercase shrink-0">SERVICE</span>
+                                    <span class="text-xs font-normal tracking-widest text-gray-300 font-serif truncate">{{ booking.selected_service_name|default:"-" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -151,6 +156,11 @@
                     <div class="text-sm text-white mt-1 break-all" id="modal-email">--</div>
                 </div>
 
+                <div class="bg-black/40 p-3 rounded border border-white/5">
+                    <div class="text-[13px] text-gray-500 uppercase">SERVICE</div>
+                    <div class="text-sm text-white mt-1 break-all" id="modal-service">--</div>
+                </div>
+
                 <div class="bg-black/40 p-4 rounded border border-white/5 flex items-center justify-between">
                     <div class="text-[13px] font-english text-gray-200 uppercase">TIME</div>
                     <div class="text-2xl font-bold text-veludo-gold" id="modal-time">-- : --</div>
@@ -188,6 +198,7 @@ function showDetail(el) {
     document.getElementById('modal-customer').innerText = ds.customer;
     document.getElementById('modal-resource').innerText = ds.resource;
     document.getElementById('modal-email').innerText = ds.email;
+    document.getElementById('modal-service').innerText = ds.service || '--';
     document.getElementById('modal-time').innerText = ds.timeRange;
 
     const statusEl = document.getElementById('modal-status');

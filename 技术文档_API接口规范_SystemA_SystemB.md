@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-03-13  
+**最后更新**: 2026-03-20  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。
 
 ## 1. 认证与约定
@@ -304,16 +304,52 @@
 {
   "resource_id": "<uuid_or_external_id>",
   "resource_name": "CastName",
+  "service_id": 3,
+  "service_name": "90分 ASMR コース",
   "customer_email": "guest@example.com",
   "customer_name": "guest_vrc",
   "start_time": "2026-03-05T21:00:00+09:00",
-  "end_time": "2026-03-05T22:00:00+09:00"
+  "end_time": "2026-03-05T22:00:00+09:00",
+  "course_duration_minutes": 60
 }
 ```
 
 - 关键规则：
   - 冲突检测含前后 30 分钟缓冲
   - 冲突返回 `409 Time slot unavailable`
+  - `service_id`（推荐）可指定管理员预设服务；`service_name` 作为兼容兜底
+  - 订单会落库 `selected_service_name`，邮件优先显示用户所选服务名
+  - `course_duration_minutes` 为可选透传字段（System A 可用 `end-start` 动态计算）
+  - 若未选择服务，System B 邮件回退为按数据库 `Booking.start_time/end_time` 计算时长并渲染
+
+#### `GET /api/v1/integration/services/`
+
+- 功能：获取租户下可预约的服务预设（给预约页下拉框使用）
+- 返回示例：
+
+```json
+[
+  {"id": 1, "name": "60分 ASMR コース", "duration_minutes": 60},
+  {"id": 2, "name": "90分 ASMR コース", "duration_minutes": 90}
+]
+```
+
+#### 邮件模板动态变量（System B）
+
+`BOOKING_CONFIRMED` 邮件模板支持以下变量：
+
+- `{{ customer_name }}`
+- `{{ resource_name }}`
+- `{{ tenant_name }}`
+- `{{ start_date }}`
+- `{{ time_range }}`
+- `{{ duration_minutes }}`
+- `{{ duration_hours }}`
+- `{{ service_name }}`
+
+兼容性说明：
+
+- 旧模板若写死 `60分...`，系统会在发送时自动替换为实际预约分钟数（基于 `start_time/end_time`）。
 
 #### `GET /api/v1/integration/bookings/`
 
@@ -324,6 +360,8 @@
   - `customer_email`
   - `resource_id`
   - `sync_all=true`（管理员全量同步）
+- 返回补充字段：
+  - `service_name`（用户下单时选择的服务名；无则为空字符串）
 
 #### `DELETE /api/v1/integration/bookings/<booking_id>/`
 

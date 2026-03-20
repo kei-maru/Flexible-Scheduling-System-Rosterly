@@ -14,7 +14,15 @@ class Booking(models.Model):
     customer_id = models.CharField(max_length=100, db_index=True, null=True, blank=True)
     customer_email = models.EmailField()
     customer_name = models.CharField(max_length=100)
-    
+    selected_service = models.ForeignKey(
+        'resources.ServicePreset',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings'
+    )
+    selected_service_name = models.CharField(max_length=120, null=True, blank=True)
+
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     

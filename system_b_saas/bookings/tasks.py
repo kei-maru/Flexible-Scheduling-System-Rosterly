@@ -90,7 +90,6 @@ def _send_booking_emails_logic(booking):
         t_footer_title = tpl.footer_title
         t_footer_text = tpl.footer_text
         raw_subject = tpl.subject_template
-        service_name = tpl.service_name
 
         # --- Logo 路径逻辑 ---
         # 1. 获取本地文件系统的绝对路径 (用于 open 读取)
@@ -104,8 +103,45 @@ def _send_booking_emails_logic(booking):
     jst = pytz.timezone('Asia/Tokyo')
     start_jst = booking.start_time.astimezone(jst)
     end_jst = booking.end_time.astimezone(jst)
+    duration_minutes = int((booking.end_time - booking.start_time).total_seconds() // 60)
+    if duration_minutes <= 0:
+        duration_minutes = 60
+    duration_hours = round(duration_minutes / 60, 2)
     date_str = start_jst.strftime('%Y年%m月%d日')
     time_range_str = f"{start_jst.strftime('%H:%M')} - {end_jst.strftime('%H:%M')}"
+
+    # Baseline context from booking DB values.
+    base_ctx = {
+        'resource_name': booking.resource.name,
+        'tenant_name': booking.tenant.name,
+        'start_date': date_str,
+        'time_range': time_range_str,
+        'duration_minutes': duration_minutes,
+        'duration_hours': duration_hours,
+    }
+
+    def _render_text_with_duration(text, ctx):
+        """Render template vars; keep backward compatibility for old fixed '60分' strings."""
+        if text is None:
+            return ""
+        text = str(text)
+        try:
+            rendered = Template(text).render(Context(ctx))
+        except Exception:
+            rendered = text
+        if "{{" not in text and "60分" in rendered:
+            rendered = rendered.replace("60分", f"{duration_minutes}分")
+        return rendered
+
+    booking_selected_service = (booking.selected_service_name or "").strip()
+    dynamic_service_name_default = f"{duration_minutes}分VRASMR施術コース (PCVR)"
+    if booking_selected_service:
+        service_name = booking_selected_service
+    elif tpl.service_name and tpl.service_name.strip():
+        rendered_service_name = _render_text_with_duration(tpl.service_name, base_ctx)
+        service_name = rendered_service_name or dynamic_service_name_default
+    else:
+        service_name = dynamic_service_name_default
 
     def _send_single(recipient_email, recipient_name, email_title, email_greeting, is_cast=False):
 
@@ -118,6 +154,8 @@ def _send_booking_emails_logic(booking):
             'service_name': service_name,
             'start_date': date_str,
             'time_range': time_range_str,
+            'duration_minutes': duration_minutes,
+            'duration_hours': duration_hours,
             'email_title': email_title,
             'email_greeting': email_greeting,
             'button_text': t_btn_text,
@@ -126,6 +164,11 @@ def _send_booking_emails_logic(booking):
             'footer_text': t_footer_text,
             'logo_url': logo_src, # ✅ 关键：这里传的是 CID 字符串
         }
+        resolved_subject = _render_text_with_duration(raw_subject, ctx)
+        resolved_email_title = _render_text_with_duration(email_title, ctx)
+        resolved_email_greeting = _render_text_with_duration(email_greeting, ctx)
+        ctx['email_title'] = resolved_email_title
+        ctx['email_greeting'] = resolved_email_greeting
         
         # HTML 模板保持原样，不用动
         html_template = """
@@ -184,7 +227,7 @@ def _send_booking_emails_logic(booking):
         """
 
         subject_prefix = "【キャスト通知】" if is_cast else ""
-        final_subject = subject_prefix + Template(raw_subject).render(Context(ctx))
+        final_subject = subject_prefix + resolved_subject
         final_html = Template(html_template).render(Context(ctx))
         text_content = strip_tags(final_html)
 

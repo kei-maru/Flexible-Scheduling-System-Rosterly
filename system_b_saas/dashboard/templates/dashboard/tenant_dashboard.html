@@ -72,6 +72,9 @@
             <button onclick="switchTab('staff')" id="nav-staff" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 <i class="fa-solid fa-users-gear w-6"></i> Staff
             </button>
+            <button onclick="switchTab('services')" id="nav-services" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <i class="fa-solid fa-list-check w-6"></i> Service Presets
+            </button>
             <button onclick="switchTab('email')" id="nav-email" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 <i class="fa-solid fa-envelope-open-text w-6"></i> Email Templates
             </button>
@@ -205,6 +208,7 @@
                                 <th>ID</th>
                                 <th>Customer</th>
                                 <th>Resource</th>
+                                <th>Service</th>
                                 <th>Date & Time</th>
                                 <th>Status</th>
                             </tr>
@@ -218,6 +222,7 @@
                                     <div class="text-xs text-gray-500">{{ order.customer_email }}</div>
                                 </td>
                                 <td class="text-gray-700">{{ order.resource.name }}</td>
+                                <td class="text-gray-700">{{ order.selected_service_name|default:"-" }}</td>
                                 <td>
                                     <div class="text-gray-900">{{ order.start_time|date:"Y/m/d" }}</div>
                                     <div class="text-xs text-gray-500">{{ order.start_time|time:"H:i" }} - {{ order.end_time|time:"H:i" }}</div>
@@ -233,7 +238,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center py-8 text-gray-500 italic">No bookings found.</td>
+                                <td colspan="6" class="text-center py-8 text-gray-500 italic">No bookings found.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -304,6 +309,87 @@
             </div>
         </div>
 
+        <div id="section-services" class="hidden-section">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                        <h3 class="text-lg font-medium text-gray-900">Create Service Preset</h3>
+                        <p class="text-xs text-gray-500 mt-1">Used by System B booking flow and email service name.</p>
+                    </div>
+                    <div class="p-6">
+                        <form method="post" class="space-y-4">
+                            {% csrf_token %}
+                            <input type="hidden" name="save_service" value="true">
+                            <input type="hidden" name="service_id" value="">
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Service Name</label>
+                                <input type="text" name="service_name" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. 90分 ASMR コース">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Duration (minutes)</label>
+                                <input type="number" name="duration_minutes" min="1" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" value="60">
+                            </div>
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" name="is_active" checked class="accent-indigo-600">
+                                Active
+                            </label>
+                            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded font-bold shadow hover:bg-indigo-700 transition-colors">
+                                Save Service
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                        <h3 class="text-lg font-medium text-gray-900">Preset List</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full saas-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Duration</th>
+                                    <th>Active</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for svc in service_presets %}
+                                <tr class="hover:bg-gray-50">
+                                    <td>
+                                        <div class="font-medium text-gray-900">{{ svc.name }}</div>
+                                    </td>
+                                    <td class="text-gray-700">{{ svc.duration_minutes }} min</td>
+                                    <td>
+                                        {% if svc.is_active %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                        {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="post" onsubmit="return confirm('Delete this service preset?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="delete_service" value="true">
+                                            <input type="hidden" name="service_id" value="{{ svc.id }}">
+                                            <button type="submit" class="text-xs text-red-600 hover:text-red-700 font-semibold">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-8 text-gray-500 italic">No service presets.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="section-email" class="hidden-section">
             
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[800px]">
@@ -368,8 +454,10 @@
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Service Name</label>
-                            <input type="text" id="in-service-name" name="service_name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. 60分VRASMR...">
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                Service Name (supports {% templatetag openvariable %} duration_minutes {% templatetag closevariable %})
+                            </label>
+                            <input type="text" id="in-service-name" name="service_name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. {% templatetag openvariable %} duration_minutes {% templatetag closevariable %}分VRASMR施術コース (PCVR)">
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
@@ -458,7 +546,7 @@
         // --- 1. Navigation Logic (Missing Function) ---
         function switchTab(tabName) {
             // Hide all sections
-            ['overview', 'orders', 'staff', 'email'].forEach(t => {
+            ['overview', 'orders', 'staff', 'services', 'email'].forEach(t => {
                 document.getElementById('section-' + t).classList.add('hidden-section');
                 document.getElementById('nav-' + t).classList.remove('active', 'bg-indigo-50', 'text-primary');
                 document.getElementById('nav-' + t).classList.add('text-gray-600');
@@ -475,6 +563,7 @@
                 'overview': 'Dashboard',
                 'orders': 'Bookings',
                 'staff': 'Staff Management',
+                'services': 'Service Presets',
                 'email': 'Email Configuration'
             };
             document.getElementById('page-title').innerText = titles[tabName];

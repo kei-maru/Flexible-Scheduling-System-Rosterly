@@ -6,12 +6,13 @@ from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
+from django.db.models import Max
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.generic import TemplateView
 
 from bookings.models import Booking
-from resources.models import Availability, EmailTemplate, Resource
+from resources.models import Availability, EmailTemplate, Resource, ServicePreset
 from tenants.models import SaaSUser, Tenant
 
 
@@ -106,6 +107,41 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         user.save()
 
+    def _save_service_preset(self, request, tenant):
+        service_id = (request.POST.get("service_id") or "").strip()
+        name = (request.POST.get("service_name") or "").strip()
+        duration_raw = (request.POST.get("duration_minutes") or "").strip()
+        is_active = request.POST.get("is_active") == "on"
+
+        if not name:
+            raise ValueError("Service name is required")
+        if not duration_raw.isdigit() or int(duration_raw) <= 0:
+            raise ValueError("Duration must be a positive integer")
+        duration_minutes = int(duration_raw)
+
+        if service_id:
+            preset = ServicePreset.objects.get(id=service_id, tenant=tenant)
+            preset.name = name
+            preset.duration_minutes = duration_minutes
+            preset.is_active = is_active
+            preset.save(update_fields=["name", "duration_minutes", "is_active", "updated_at"])
+            return
+
+        max_order = ServicePreset.objects.filter(tenant=tenant).aggregate(m=Max("sort_order")).get("m") or 0
+        ServicePreset.objects.create(
+            tenant=tenant,
+            name=name,
+            duration_minutes=duration_minutes,
+            is_active=is_active,
+            sort_order=max_order + 1,
+        )
+
+    def _delete_service_preset(self, request, tenant):
+        service_id = (request.POST.get("service_id") or "").strip()
+        if not service_id:
+            raise ValueError("Missing service_id")
+        ServicePreset.objects.filter(id=service_id, tenant=tenant).delete()
+
     def post(self, request, *args, **kwargs):
         tenant = self._resolve_tenant()
 
@@ -116,10 +152,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             elif request.POST.get("save_staff") == "true":
                 self._save_staff_profile(request, tenant)
                 messages.success(request, "Staff profile updated.")
+            elif request.POST.get("save_service") == "true":
+                self._save_service_preset(request, tenant)
+                messages.success(request, "Service preset saved.")
+            elif request.POST.get("delete_service") == "true":
+                self._delete_service_preset(request, tenant)
+                messages.success(request, "Service preset deleted.")
             else:
                 messages.error(request, "Unsupported dashboard action.")
         except SaaSUser.DoesNotExist:
             messages.error(request, "Staff user not found.")
+        except ServicePreset.DoesNotExist:
+            messages.error(request, "Service preset not found.")
         except Exception as exc:
             messages.error(request, f"Error: {exc}")
 
@@ -133,6 +177,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         resources = Resource.objects.none()
         staff_users = SaaSUser.objects.none()
         staff_rows = []
+        service_presets = ServicePreset.objects.none()
         upcoming_shifts = Availability.objects.none()
 
         if tenant:
@@ -151,6 +196,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 resource__tenant=tenant,
                 start_time__gte=timezone.now(),
             ).select_related("resource").order_by("start_time")[:60]
+            service_presets = ServicePreset.objects.filter(tenant=tenant).order_by("sort_order", "id")
 
         templates_data = {}
         for event_type in ["BOOKING_CONFIRMED", "BOOKING_CANCELLED"]:
@@ -176,7 +222,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     "subject": "【予約キャンセル】" if is_cancel else "【予約確定】",
                     "email_title": "予約キャンセルのお知らせ" if is_cancel else "予約が確定しました。",
                     "email_greeting": "予約がキャンセルされました。" if is_cancel else "以下の内容で予約を承りました。",
-                    "service_name": "60分VRASMR施術コース (PCVR)",
+                    "service_name": "{{ duration_minutes }}分VRASMR施術コース (PCVR)",
                     "button_text": "トップページへ" if is_cancel else "詳細を見る",
                     "button_link": "#",
                     "footer_title": "当社のキャンセルポリシー",
@@ -195,6 +241,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "staff_users": staff_users,
                 "staff_rows": staff_rows,
                 "upcoming_shifts": upcoming_shifts,
+                "service_presets": service_presets,
                 "next_24h_count": next_24h_count,
                 "templates_json": json.dumps(templates_data),
             }

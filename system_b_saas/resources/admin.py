@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Resource, Availability, RecurringPattern, EmailTemplate, ScheduleTemplate
+from .models import Resource, Availability, RecurringPattern, EmailTemplate, ScheduleTemplate, ServicePreset
 
 class AvailabilityInline(admin.TabularInline):
     model = Availability
@@ -27,7 +27,7 @@ class EmailTemplateAdmin(admin.ModelAdmin):
 
     def preview_variables(self, obj):
         if obj.event_type == 'BOOKING_CONFIRMED':
-            return "{{ customer_name }}, {{ resource_name }}, {{ start_time }}, {{ end_time }}"
+            return "{{ customer_name }}, {{ resource_name }}, {{ start_date }}, {{ time_range }}, {{ duration_minutes }}, {{ service_name }}"
         return "N/A"
     preview_variables.short_description = "可用变量参考"
 
@@ -43,3 +43,11 @@ class ScheduleTemplateAdmin(admin.ModelAdmin):
     list_filter = ('created_at',) # 侧边栏筛选
     search_fields = ('name', 'resource__name') # 搜索框
     ordering = ('-created_at',)
+
+
+@admin.register(ServicePreset)
+class ServicePresetAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tenant', 'duration_minutes', 'is_active', 'sort_order')
+    list_filter = ('tenant', 'is_active')
+    search_fields = ('name', 'tenant__name')
+    ordering = ('tenant', 'sort_order', 'id')

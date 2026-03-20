@@ -1,7 +1,7 @@
 # system_b_saas/bookings/urls.py
 
 from django.urls import path
-from .views import IntegrationBookingView
+from .views import IntegrationBookingView, IntegrationServiceListView
 
 urlpatterns = [
     # -----------------------------------------------------------
@@ -14,4 +14,5 @@ urlpatterns = [
     # System A 请求地址: DELETE/PATCH .../api/v1/integration/bookings/{uuid}/
     # 功能: 取消预约 / 完结订单
     path('bookings/<uuid:pk>/', IntegrationBookingView.as_view(), name='integration-booking-detail'),
+    path('services/', IntegrationServiceListView.as_view(), name='integration-service-list'),
 ]

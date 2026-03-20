@@ -366,13 +366,26 @@ class BookingActionAPI(APIView):
 
         client = SaaSClient()
         try:
+            course_duration_minutes = None
+            start_dt = parse_datetime(request.data.get('start')) if request.data.get('start') else None
+            end_dt = parse_datetime(request.data.get('end')) if request.data.get('end') else None
+            if start_dt and end_dt:
+                if timezone.is_naive(start_dt):
+                    start_dt = timezone.make_aware(start_dt)
+                if timezone.is_naive(end_dt):
+                    end_dt = timezone.make_aware(end_dt)
+                delta_minutes = int((end_dt - start_dt).total_seconds() // 60)
+                if delta_minutes > 0:
+                    course_duration_minutes = delta_minutes
+
             result = client.create_booking(
                 resource_id=request.data.get('resource_id'),
                 resource_name=request.data.get('resource_name'),
                 email=user.email,
                 name=user.vrc_id,
                 start=request.data.get('start'),
-                end=request.data.get('end')
+                end=request.data.get('end'),
+                course_duration_minutes=course_duration_minutes
             )
             if result: return Response(result, status=201)
             else: return Response({'error': 'SaaS Booking Failed'}, status=500)

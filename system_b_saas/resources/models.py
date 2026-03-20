@@ -102,6 +102,25 @@ class ScheduleTemplate(models.Model):
     def __str__(self):
         return f"{self.name} ({self.resource.name})"
 
+class ServicePreset(models.Model):
+    """
+    Tenant 级别的可预约服务预设
+    """
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='service_presets')
+    name = models.CharField("サービス名", max_length=120)
+    duration_minutes = models.PositiveIntegerField("所要時間(分)", default=60)
+    is_active = models.BooleanField("有効", default=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('tenant', 'name')
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f"{self.name} ({self.duration_minutes}min)"
+
 class EmailTemplate(models.Model):
     EVENT_CHOICES = [
         ('BOOKING_CONFIRMED', 'Booking Confirmation'),

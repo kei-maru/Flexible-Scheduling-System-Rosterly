@@ -233,7 +233,7 @@ class SaaSClient:
     # Booking (预约管理)
     # ========================================================
 
-    def create_booking(self, resource_id, resource_name, email, name, start, end):
+    def create_booking(self, resource_id, resource_name, email, name, start, end, course_duration_minutes=None):
         """提交预约"""
         url = f"{self.api_base_url}/bookings/"
         data = {
@@ -244,6 +244,8 @@ class SaaSClient:
             'start_time': start,
             'end_time': end
         }
+        if course_duration_minutes is not None:
+            data['course_duration_minutes'] = int(course_duration_minutes)
         try:
             response = requests.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()

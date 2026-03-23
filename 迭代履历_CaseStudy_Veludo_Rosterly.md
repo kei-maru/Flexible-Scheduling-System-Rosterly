@@ -1,0 +1,362 @@
+# 迭代履历（Case Study，全量版）
+
+**项目**: Veludo / Rosterly（System A 定制前台 + System B SaaS 核心）  
+**作者**: Yukimikei（作者归并见第 2 节）  
+**统计区间**: 2026-01-15 ~ 2026-03-23  
+**数据来源**: `git log --all`（当前仓库全量历史）  
+
+---
+
+## 1. 全量统计快照
+
+- 总提交数：`134`
+- 时间跨度：`2026-01-15` 到 `2026-03-23`
+- 月度分布：
+  - `2026-01`: 74 commits
+  - `2026-02`: 36 commits
+  - `2026-03`: 24 commits
+- 最早提交：`3021a2a Re-init clean project`
+- 最新提交：`ffd669e feat: Update API documentation with latest changes...`
+
+---
+
+## 2. 作者归并说明（同一作者）
+
+以下 Git identity 需归并为同一人（你本人）：
+- `Keimaru <m17621752319@gmail.com>`：88 commits
+- `kei-maru <2894758587@qq.com>`：40 commits
+- `kei-maru <m17621752319@gmail.com>`：6 commits
+
+结论：本仓库历史中的 134 提交均归属同一作者主体。
+
+---
+
+## 3. 项目演进主线
+
+项目经历了从「快速试错构建」到「架构收敛」的完整路径：
+
+1. 基础搭建与跑通（1 月中旬）
+2. 体验和业务逻辑密集迭代（1 月下旬到 2 月中旬）
+3. 双系统边界清晰化与运维安全强化（2 月下旬到 3 月上旬）
+4. 数据能力与合规完善（3 月中旬）
+5. 核心去耦（Cast 主数据迁移到 B，3 月下旬）
+
+---
+
+## 4. 分阶段履历（全量整理）
+
+## 4.1 Phase 0：初始化与工程骨架（2026-01-15）
+
+关键内容：
+- 项目重建、Docker 服务、依赖、Python 版本、数据库连接。
+- 基础配置反复修正（host、static、api key、signals 调试）。
+
+代表提交：
+- `3021a2a` Re-init clean project
+- `293cbc8` Add Docker services
+- `0077999` Add requirements
+- `ca39c1b` update_database_setting
+
+阶段结论：
+- 工程从空仓到可运行状态，完成最小可用开发基座。
+
+---
+
+## 4.2 Phase 1：业务可用性冲刺（2026-01-17 ~ 2026-01-25）
+
+关键内容：
+- 日历、排班、搜索、递归任务等核心流程修复。
+- 邮件模板和发送内容连续调优。
+- 移动端布局、首页与 cast 图片交互快速迭代。
+- 埋点功能上线并调整开关。
+
+代表提交：
+- `5ca9442` fix_calendar
+- `e24595a` fix_recurciveTask & signals
+- `2c52d7f` fix search bug
+- `21f12b5` Update_email_to_both client and Cast
+- `760c4e2` tracking_user
+
+阶段结论：
+- 核心业务从“能跑”提升到“可连续使用”。
+
+---
+
+## 4.3 Phase 2：部署与环境治理（2026-02-04 ~ 2026-02-15）
+
+关键内容：
+- 容器命名、yml 结构、服务拆分与路径修复。
+- System B 命名和 API URL 对齐。
+- 开发/部署 compose 体系逐步稳定。
+
+代表提交：
+- `2bf2977` change_system_b name
+- `ced73a9` fix saas_api_url
+- `a199ee4` twoyml
+- `e2fee3e` setup dev compse
+
+阶段结论：
+- 多环境部署方式成形，为后续双服务器运行打基础。
+
+---
+
+## 4.4 Phase 3：预约/排班细节完善（2026-02-08 ~ 2026-02-20）
+
+关键内容：
+- 排班 pattern 与周开关能力完善。
+- 预约时段、冲突、展示细节多轮修复。
+- 邮件与时间逻辑问题修补。
+
+代表提交：
+- `dc585c5` update_schedule_pattern
+- `496a514` add_week switch
+- `7a05f39` fix_bookingview
+- `636f493` update_reserve time
+- `1ce2028` fix_email&& time search bug
+
+阶段结论：
+- 预约链路从粗粒度逻辑进入“边界条件优化”阶段。
+
+---
+
+## 4.5 Phase 4：System B 运营后台与安全强化（2026-03-01 ~ 2026-03-13）
+
+关键内容：
+- System B 登录和后台界面进入稳定迭代。
+- A 侧对外暴露面收敛（仅 127.0.0.1，交由反代处理）。
+- 排班与 API 整体能力增强。
+
+代表提交：
+- `d3c5d2c` systemB login
+- `343db80` update systemb interface
+- `9172d57` security: restrict system_a port to 127.0.0.1
+- `e87f8a4` Enhance scheduling features and API integration
+
+阶段结论：
+- 系统从“功能开发期”进入“可运维上线期”。
+
+---
+
+## 4.6 Phase 5：合规、体验、数据化运营（2026-03-14 ~ 2026-03-17）
+
+关键内容：
+- 利用条款与同意逻辑接入。
+- 预约登录拦截点和交互体验优化。
+- 管理员 Analytics 模块化落地，补趋势/分布/停留等指标。
+- 自动化 IP 防护与清理命令上线。
+
+代表提交：
+- `fb504a4` terms + consent checkbox
+- `eb85b1c` login required modal
+- `572d92b` analytics dashboard
+- `83e97a4` page duration + mobile ratio
+- `6657412` trend + hourly charts
+- `b360738` IP blocking + cleanup command
+
+阶段结论：
+- 产品从业务可用升级到“可观测、可运营、可防护”。
+
+---
+
+## 4.7 Phase 6：SaaS 一般化能力（2026-03-19 ~ 2026-03-20）
+
+关键内容：
+- 服务预设进入主流程，邮件服务名支持动态与回退策略。
+- 文档体系统一到“API 权威、需求主导、架构补充”的协作模型。
+
+代表提交：
+- `9291f48` service presets + duration tracking
+- `d44dc72` docs alignment for system relationship/login requirement
+
+阶段结论：
+- 从定制业务逻辑转向可复用 SaaS 能力沉淀。
+
+---
+
+## 4.8 Phase 7：核心去耦里程碑（2026-03-23）
+
+关键内容：
+- B 新增 `ResourceProfile / ResourceMedia` 承接 Cast 主数据。
+- A 改为远端读取 Cast（带本地回退开关）。
+- 增加幂等迁移命令 `sync_casts_to_system_b`。
+- 管理员编辑 CastProfile 后实时同步到 B。
+
+代表提交：
+- `f2f4c14` resource profile/media + API
+- `6d418dc` remote cast sync and management
+- `ffd669e` API doc sync and migration details
+
+线上结果：
+- `sync_casts_to_system_b --only-active`：17/17 成功，0 失败。
+- 线上配置确认：`CAST_SOURCE=remote`、`CAST_SOURCE_FALLBACK_LOCAL=True`。
+
+阶段结论：
+- 完成首个核心域去耦，为下一步统一登录（SSO）奠定基础。
+
+---
+
+## 5. 关键架构结论（供讲解）
+
+1. 主体系统定位清晰：`System B` 为核心能力沉淀层，`System A` 为定制前台。  
+2. 先稳态再去耦：先解决体验、安全、可观测，再做核心数据域迁移。  
+3. 保留灰度与回滚：每次关键改造都保留开关和 fallback，降低线上风险。  
+4. 文档治理先行：接口、需求、架构三文档分工明确后，迭代效率明显提升。  
+
+---
+
+## 6. 当前技术债与下一里程碑
+
+当前最大耦合点：
+- 登录系统仍存在 A/B 双身份源（双 Discord OAuth）。
+
+下一目标：
+- 统一到 `System B` 身份源（IdP），A 改为 SSO 消费方（SP）。
+
+现有准备：
+- 已完成施工文档：`施工指南_SSO统一登录_SystemB主身份源.md`。
+
+---
+
+## 7. 对外 Case Study 建议讲法（10 分钟框架）
+
+1. 起点（1 分钟）：双系统并行导致复杂度累积。  
+2. 过程（5 分钟）：从可用性修复到运营能力建设再到去耦。  
+3. 证据（2 分钟）：134 commits，全量演进；17/17 线上迁移成功。  
+4. 方法（1 分钟）：灰度、幂等、回滚优先。  
+5. 下一步（1 分钟）：登录统一 SSO，完成身份域去耦。  
+
+---
+
+## 8. 技术深潜：系统拓扑与边界
+
+## 8.1 逻辑拓扑
+
+- `System B (Rosterly)`：多租户核心层  
+  - 职责：Tenant、Resource、Availability、Booking、EmailTemplate、ServicePreset、后台权限。
+- `System A (Veludo)`：品牌化前台与编排层  
+  - 职责：品牌页面、预约交互、埋点、部分运营后台视图。
+
+调用方向：
+- 用户前台流量：`Browser -> System A`
+- 业务能力调用：`System A -> System B Integration API`
+- 异步任务：`System B -> Celery Worker -> SMTP/Webhook`
+
+## 8.2 部署拓扑（双服务器演进）
+
+- 低资源机器（A）：仅运行 `system_a`（Gunicorn），端口绑定 `127.0.0.1:8000`，由 Nginx 反代。
+- 主服务机器（B）：运行 `rosterly-core + rosterly-worker + postgres + redis`。
+- 演进目标：A 逐步变轻，核心数据与身份都向 B 收敛。
+
+---
+
+## 9. 技术深潜：数据模型与一致性策略
+
+## 9.1 关键模型（当前）
+
+- A 侧：`core.User`, `casts.CastProfile`, `casts.CastMedia`, `core.UserActivity`
+- B 侧：`tenants.SaaSUser`, `resources.Resource`, `resources.ResourceProfile`, `resources.ResourceMedia`, `bookings.Booking`
+
+## 9.2 Cast 主数据迁移后的边界
+
+- 主数据：B 的 `Resource + ResourceProfile + ResourceMedia`
+- A 的角色：读取远端 cast 数据并做前台适配
+- 回退策略：`CAST_SOURCE_FALLBACK_LOCAL=True` 时本地可降级
+
+## 9.3 幂等同步策略（核心）
+
+- 关键键：`tenant + external_id(system_a_user_id)`
+- 写入方式：B 侧 `update_or_create` upsert
+- 结果：重复执行 `sync_casts_to_system_b` 不会产生重复资源
+
+---
+
+## 10. 技术深潜：关键算法与业务规则
+
+## 10.1 排班可约切分算法（B）
+
+在 `resources/services/schedule_service.py` 中，`list_events` 采用以下规则：
+- `24h` 预约提前量（`booking_deadline = now + 24h`）
+- `30min` 预约缓冲带（`BOOKING_BUFFER`）
+- 对每个可用 Availability：
+  - 从原始区间开始
+  - 逐个扣除和已确认订单重叠的缓冲区间
+  - 小于最小可约时长（30 分钟）的碎片丢弃
+
+效果：
+- 前端看到的是“已避让缓冲冲突”的可约窗口，减少下单时冲突失败。
+
+## 10.2 预约冲突规则
+
+- 下单冲突：`start < existing_end + buffer && end > existing_start - buffer`
+- 取消规则：距离开场不足 2 小时不可取消（B API 侧）。
+
+## 10.3 跨天展示与前端切分
+
+- 日历可视化按日切分展示，保证跨午夜时段在 UI 上可理解。
+- 但实际预约时保留原始连续时间窗口，避免“只能按切片下单”的体验问题。
+
+---
+
+## 11. 技术深潜：API 契约与异步链路
+
+## 11.1 关键 Integration API
+
+- `POST /api/v1/integration/resources/`  
+  - Cast 资料 upsert（支持 profile + medias）
+- `GET /api/v1/integration/resources/`  
+  - A 侧远端读取 cast 列表
+- `PATCH /api/v1/integration/resources/<uuid>/`  
+  - 管理端排序与档案局部更新
+- `POST /api/v1/integration/bookings/`  
+  - 创建预约，支持 `service_id/service_name`
+
+## 11.2 邮件异步链路
+
+链路：
+- 下单成功 -> `process_new_booking.delay(booking_id)` -> Worker 读取最新 Booking -> 渲染模板变量 -> 发送客户/cast 邮件
+
+邮件服务名优先级：
+1. `booking.selected_service_name`
+2. `tpl.service_name`（支持模板变量）
+3. 动态时长回退（`duration_minutes`）
+
+设计价值：
+- 事务与邮件发送解耦，失败可重试，不阻塞主交易链路。
+
+---
+
+## 12. 技术深潜：可观测性、安全与稳定性
+
+## 12.1 观测
+
+- 埋点表：`UserActivity`
+- 指标模块：访问总量、去重 IP、移动端占比、平均停留时长、趋势图、小时分布
+- 过滤策略：短时误触（<3s）剔除，统计口径更稳定
+
+## 12.2 安全
+
+- A 服务端口收敛到回环地址（Nginx 统一对外）
+- 自动封禁高频可疑 IP（缓存窗口计数 + 持久化 BlockedIP）
+- 清理命令支持 `--dry-run` 与按条件定向清理
+
+## 12.3 稳定发布策略
+
+- 低内存机器优先 `restart`，避免不必要 `--build`
+- 关键迁移都设计为幂等命令，可重复执行
+- Feature Flag 灰度（如 `CAST_SOURCE`）+ 回滚开关
+
+---
+
+## 13. 附录：关键命令（复盘用）
+
+```bash
+git rev-list --count --all
+git shortlog -sne --all
+git log --reverse --pretty=format:'%ad|%h|%s' --date=short --all
+```
+
+---
+
+## 14. 一句话总结
+
+这 134 次提交的核心价值，不是“功能数量”，而是完成了从快速试错到架构收敛的转变：在不中断业务的前提下，把系统逐步推向可运营、可扩展、可讲述的产品化状态。

@@ -215,14 +215,32 @@
 
 #### `POST /api/v1/integration/resources/`
 
-- 功能：创建/更新 Resource（Cast 同步）
+- 功能：创建/更新 Resource（Cast 同步，幂等 upsert）
 - 请求体：
 
 ```json
 {
   "external_id": "123",
   "name": "CastName",
-  "email": "cast@example.com"
+  "email": "cast@example.com",
+  "profile": {
+    "intro": "自己紹介",
+    "tags": ["癒し", "ロールプレイ"],
+    "avatar_url": "https://...",
+    "youtube_url": "https://youtu.be/...",
+    "display_order": 10,
+    "allow_30_min": true,
+    "allow_60_min": true,
+    "allow_120_min": false
+  },
+  "medias": [
+    {
+      "title": "宣材写真A",
+      "media_type": "IMAGE",
+      "image_url": "https://...",
+      "order": 0
+    }
+  ]
 }
 ```
 
@@ -231,6 +249,22 @@
 ```json
 {"saas_id": "<uuid>", "status": "created"}
 ```
+
+#### `GET /api/v1/integration/resources/`
+
+- 功能：读取租户下 Resource 列表（用于 System A 改为远端主数据读取）
+- Query：
+  - `active_only=true|false`（可选）
+  - `external_id=<system_a_user_id>`（可选）
+
+#### `GET /api/v1/integration/resources/<resource_uuid>/`
+
+- 功能：读取单个 Resource + Profile + Media
+
+#### `PATCH /api/v1/integration/resources/<resource_uuid>/`
+
+- 功能：局部更新 Resource / Profile / Media
+- 说明：当传入 `medias` 时，按当前 payload 全量替换该 Resource 的媒体列表。
 
 ### 3.2 排班管理
 

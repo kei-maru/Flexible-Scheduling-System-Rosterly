@@ -29,6 +29,60 @@ class Resource(models.Model):
         email_display = f" <{self.email}>" if self.email else ""
         return f"{self.name}{email_display} ({self.tenant.name})"
 
+
+class ResourceProfile(models.Model):
+    """
+    Resource 的公开档案（用于承接 System A 的 Cast 资料）
+    """
+    resource = models.OneToOneField(Resource, on_delete=models.CASCADE, related_name='profile')
+
+    intro = models.TextField("自己紹介文", blank=True, default="")
+    tags = models.JSONField("特徴タグ", default=list, blank=True)
+    avatar_url = models.URLField("プロフィール画像URL", blank=True, null=True)
+    youtube_url = models.URLField("YouTube URL", blank=True, null=True)
+
+    display_order = models.IntegerField("表示順序", default=0)
+    allow_30_min = models.BooleanField(default=False, verbose_name="Allow 30 min")
+    allow_60_min = models.BooleanField(default=True, verbose_name="Allow 60 min")
+    allow_120_min = models.BooleanField(default=False, verbose_name="Allow 120 min")
+
+    metadata = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'resource__name']
+
+    def __str__(self):
+        return f"Profile<{self.resource.name}>"
+
+
+class ResourceMedia(models.Model):
+    """
+    Resource 档案媒体（图片/视频）
+    """
+    MEDIA_TYPES = [
+        ('IMAGE', '画像'),
+        ('VIDEO', '動画'),
+    ]
+
+    profile = models.ForeignKey(ResourceProfile, on_delete=models.CASCADE, related_name='medias')
+    title = models.CharField("タイトル", max_length=120, blank=True, default="")
+    media_type = models.CharField("メディアタイプ", max_length=10, choices=MEDIA_TYPES, default='IMAGE')
+
+    image_url = models.URLField("画像URL", blank=True, null=True)
+    video_url = models.URLField("動画URL", blank=True, null=True)
+    cover_url = models.URLField("サムネイルURL", blank=True, null=True)
+
+    order = models.IntegerField("表示順序", default=0)
+    is_active = models.BooleanField("有効", default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f"{self.profile.resource.name} - {self.media_type}#{self.order}"
+
 class Availability(models.Model):
     """
     リソースの空き状況（シフト）

@@ -1,15 +1,39 @@
 from django.contrib import admin
-from .models import Resource, Availability, RecurringPattern, EmailTemplate, ScheduleTemplate, ServicePreset
+from .models import (
+    Resource,
+    ResourceProfile,
+    ResourceMedia,
+    Availability,
+    RecurringPattern,
+    EmailTemplate,
+    ScheduleTemplate,
+    ServicePreset,
+)
 
 class AvailabilityInline(admin.TabularInline):
     model = Availability
     extra = 3
 
+
 @admin.register(Resource)
 class ResourceAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tenant', 'external_id')
-    list_filter = ('tenant',)
+    list_display = ('name', 'tenant', 'external_id', 'is_active')
+    list_filter = ('tenant', 'is_active')
     inlines = [AvailabilityInline]
+
+
+@admin.register(ResourceProfile)
+class ResourceProfileAdmin(admin.ModelAdmin):
+    list_display = ('resource', 'display_order', 'allow_30_min', 'allow_60_min', 'allow_120_min')
+    list_filter = ('allow_30_min', 'allow_60_min', 'allow_120_min')
+    search_fields = ('resource__name', 'resource__external_id')
+
+
+@admin.register(ResourceMedia)
+class ResourceMediaAdmin(admin.ModelAdmin):
+    list_display = ('profile', 'media_type', 'order', 'is_active')
+    list_filter = ('media_type', 'is_active')
+    search_fields = ('profile__resource__name', 'title')
 
 @admin.register(Availability)
 class AvailabilityAdmin(admin.ModelAdmin):

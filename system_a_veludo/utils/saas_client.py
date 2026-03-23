@@ -327,7 +327,7 @@ class SaaSClient:
     # Resource (资源同步)
     # ========================================================
 
-    def sync_cast_to_saas(self, user_id, name, email):
+    def sync_cast_to_saas(self, user_id, name, email, profile=None, medias=None):
         """同步 Cast 资料"""
         url = f"{self.api_base_url}/resources/"
         data = {
@@ -335,6 +335,10 @@ class SaaSClient:
             'name': name,
             'email': email
         }
+        if profile is not None:
+            data['profile'] = profile
+        if medias is not None:
+            data['medias'] = medias
         try:
             response = requests.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
@@ -342,4 +346,40 @@ class SaaSClient:
             return result.get('saas_id')
         except requests.RequestException as e:
             print(f"Sync Cast Error: {e}")
+            return None
+
+    def get_resources(self, active_only=True, external_id=None):
+        """
+        获取资源列表（System B 作为 Cast 主数据源）
+        API: GET /resources/
+        """
+        url = f"{self.api_base_url}/resources/"
+        params = {}
+        if active_only:
+            params['active_only'] = 'true'
+        if external_id is not None:
+            params['external_id'] = str(external_id)
+
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Get Resources Error: {e}")
+            return []
+
+    def get_resource_detail(self, resource_id):
+        """
+        获取单个资源详情
+        API: GET /resources/{id}/
+        """
+        url = f"{self.api_base_url}/resources/{resource_id}/"
+        try:
+            response = requests.get(url, headers=self.headers, timeout=5)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Get Resource Detail Error: {e}")
             return None

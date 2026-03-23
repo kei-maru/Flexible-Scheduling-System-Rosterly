@@ -28,4 +28,5 @@ urlpatterns = [
     # 3. 资源同步 (Resources)
     # -----------------------------------------------------------
     path('resources/', IntegrationResourceView.as_view(), name='integration_resources'),
+    path('resources/<uuid:pk>/', IntegrationResourceView.as_view(), name='integration_resource_detail'),
 ]

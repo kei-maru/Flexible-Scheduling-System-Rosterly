@@ -39,6 +39,13 @@ from .forms import VeludoLoginForm, VeludoRegisterForm, ProfileEditForm
 from .forms import UserRoleForm, CastCMSForm
 from utils.saas_client import SaaSClient
 from casts.models import CastProfile, CastMedia
+from casts.source import (
+    get_public_casts,
+    use_remote_cast_source,
+    build_cast_profile_payload,
+    build_cast_medias_payload,
+    sync_cast_profile_to_system_b,
+)
 from core.models import UserActivity
 from .forms import CastProfileForm, CastMediaFormSet
 
@@ -343,10 +350,8 @@ class BookingPageView(TemplateView):
     template_name = 'booking.html'
 
     def get_context_data(self, **kwargs):
-        
         context = super().get_context_data(**kwargs)
-        from casts.models import CastProfile
-        context['casts'] = CastProfile.objects.filter(is_active=True)
+        context['casts'] = get_public_casts()
         return context
 
 # --- 8. 预约提交 API ---
@@ -420,7 +425,12 @@ class CastSearchAPI(APIView):
             print(f"ERROR Parsing Date: {e}")
             return Response({'error': 'Invalid date format'}, status=400)
 
-        active_casts = CastProfile.objects.filter(is_active=True).exclude(saas_resource_id__isnull=True).exclude(saas_resource_id='')
+        source_casts = get_public_casts()
+        active_casts = []
+        for cast in source_casts:
+            remote_id = getattr(cast, 'saas_resource_id', None)
+            if remote_id:
+                active_casts.append(cast)
         available_casts = []
         client = SaaSClient()
 
@@ -450,7 +460,7 @@ class CastSearchAPI(APIView):
                 print(f"Error checking {cast.name}: {e}")
             return None
 
-        print(f"2. Concurrently checking {active_casts.count()} casts...")
+        print(f"2. Concurrently checking {len(active_casts)} casts...")
         
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_cast = {executor.submit(check_cast, cast): cast for cast in active_casts}
@@ -713,8 +723,25 @@ def admin_dashboard(request):
             data = json.loads(request.body)
             if data.get('action') == 'update_sort_order':
                 ordered_ids = data.get('order', [])
-                for index, cast_id in enumerate(ordered_ids):
-                    CastProfile.objects.filter(id=cast_id).update(display_order=index)
+                has_uuid_like_id = any('-' in str(cast_id) for cast_id in ordered_ids)
+                if use_remote_cast_source() and has_uuid_like_id:
+                    client = SaaSClient()
+                    failed_ids = []
+                    for index, cast_id in enumerate(ordered_ids):
+                        result = client.update_resource(
+                            resource_id=cast_id,
+                            profile={"display_order": index},
+                        )
+                        if result is None:
+                            failed_ids.append(cast_id)
+                    if failed_ids:
+                        return JsonResponse(
+                            {'status': 'error', 'message': f'Failed to update: {failed_ids}'},
+                            status=502
+                        )
+                else:
+                    for index, cast_id in enumerate(ordered_ids):
+                        CastProfile.objects.filter(id=cast_id).update(display_order=index)
                 return JsonResponse({'status': 'success'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
@@ -723,32 +750,49 @@ def admin_dashboard(request):
     # 2. 获取本地数据 (Users & Casts)
     # --------------------------------------------------------
     users = User.objects.all().order_by('-date_joined')
-    casts = CastProfile.objects.all().select_related('user').order_by('display_order', 'id')
+    casts = list(get_public_casts())
 
     # --------------------------------------------------------
     # 3. 获取 SaaS 数据 (Shifts & Orders)
     # --------------------------------------------------------
     client = SaaSClient()
     
-    # === [Debug] 打印本地 Cast 信息，方便在控制台查看 ===
-    print(f"--- [Local Casts Debug] ---")
+    # === [Debug] 打印 Cast 信息，方便在控制台查看 ===
+    print(f"--- [Dashboard Casts Debug] ---")
     for c in casts:
-        print(f"ID: {c.user.id} | VRCID: {c.user.vrc_id} | User: {c.user.username}")
+        print(
+            f"RID: {getattr(c, 'saas_resource_id', '')} | "
+            f"External: {getattr(c, 'external_id', '')} | "
+            f"Name: {getattr(c, 'name', '')}"
+        )
 
-    # 准备匹配字典 (全部转小写，方便忽略大小写匹配)
-    cast_map_by_id = {str(c.user.id): c for c in casts}
-    
-    # 字典只能做精确查找，所以我们保留列表用于模糊查找
+    cast_map_by_external_id = {}
+    cast_map_by_saas_resource_id = {}
     local_casts_list = list(casts)
+    for cast in local_casts_list:
+        external_id = str(getattr(cast, 'external_id', '')).strip()
+        if not external_id:
+            user_id = getattr(getattr(cast, 'user', None), 'id', '')
+            external_id = str(user_id).strip() if user_id else ''
+        saas_resource_id = str(getattr(cast, 'saas_resource_id', '')).strip()
+        if external_id:
+            cast_map_by_external_id[external_id] = cast
+        if saas_resource_id:
+            cast_map_by_saas_resource_id[saas_resource_id] = cast
 
     def find_local_cast(saas_item):
         """
-        超级匹配函数：ID -> VRCID精确 -> VRCID模糊 -> Username
+        匹配函数：优先外部ID -> 资源UUID -> 名称匹配
         """
-        # 1. 尝试 ID 匹配 (System A user_id vs System B resource_id)
-        r_id = str(saas_item.get('resource_id', ''))
-        if r_id in cast_map_by_id:
-            return cast_map_by_id[r_id]
+        # 1. 优先按 external_id 匹配（bookings API 当前返回 resource.external_id）
+        r_external_id = str(saas_item.get('resource_id', '')).strip()
+        if r_external_id and r_external_id in cast_map_by_external_id:
+            return cast_map_by_external_id[r_external_id]
+
+        # 2. 兼容按资源 UUID 匹配（如果未来 API 返回此字段）
+        r_uuid = str(saas_item.get('resource_uuid', '')).strip()
+        if r_uuid and r_uuid in cast_map_by_saas_resource_id:
+            return cast_map_by_saas_resource_id[r_uuid]
         
         # 获取 SaaS 端返回的名字 (去除空格，转小写)
         r_name_raw = str(saas_item.get('resource_name', ''))
@@ -759,7 +803,8 @@ def admin_dashboard(request):
 
         # 2. 尝试 VRCID 匹配 (这是你最需要的)
         for cast in local_casts_list:
-            vrcid = str(cast.user.vrc_id).strip().lower() if cast.user.vrc_id else ""
+            vrcid_val = getattr(getattr(cast, 'user', None), 'vrc_id', '')
+            vrcid = str(vrcid_val).strip().lower() if vrcid_val else ""
             
             # A. 精确匹配 (忽略大小写)
             if vrcid == r_name:
@@ -773,11 +818,12 @@ def admin_dashboard(request):
 
         # 3. 尝试 Username 匹配 (备用)
         for cast in local_casts_list:
-            uname = cast.user.username.strip().lower()
+            uname_val = getattr(getattr(cast, 'user', None), 'username', '')
+            uname = str(uname_val).strip().lower()
             if uname == r_name or uname in r_name or r_name in uname:
                 return cast
                 
-        print(f"⚠️ No Match for SaaS Resource: {r_name_raw} (ID: {r_id})")
+        print(f"⚠️ No Match for SaaS Resource: {r_name_raw} (external_id: {r_external_id})")
         return None
 
     # --- A. 处理排班数据 (Shifts) ---
@@ -786,7 +832,9 @@ def admin_dashboard(request):
     processed_shifts = []
 
     for cast in casts:
-        r_id = str(cast.user.id) 
+        r_id = str(getattr(cast, 'saas_resource_id', '') or getattr(cast, 'external_id', '')).strip()
+        if not r_id:
+            continue
         raw_shifts = client.get_availabilities(resource_id=r_id)
         
         if raw_shifts and isinstance(raw_shifts, list):
@@ -806,10 +854,15 @@ def admin_dashboard(request):
                 shift_type = 'RECURRING' if is_recurring else 'SINGLE'
 
                 if start_dt:
+                    display_name = (
+                        getattr(getattr(cast, 'user', None), 'vrc_id', '')
+                        or getattr(getattr(cast, 'user', None), 'username', '')
+                        or getattr(cast, 'name', 'Unknown')
+                    )
                     processed_shifts.append({
                         'cast': cast,
-                        'cast_id': cast.id, 
-                        'cast_name': cast.user.vrc_id or cast.user.username,
+                        'cast_id': str(cast.id),
+                        'cast_name': display_name,
                         'date': start_dt,
                         'start_time': start_dt,
                         'end_time': end_dt,
@@ -841,8 +894,13 @@ def admin_dashboard(request):
                 'status': o.get('status', 'pending').lower(),
                 'customer_name': o.get('customer_name', 'Unknown'),
                 'cast': local_cast,
-                'cast_id': local_cast.id if local_cast else 'unknown',
-                'cast_name': local_cast.user.vrc_id if local_cast else o.get('resource_name', 'Unknown'),
+                'cast_id': str(local_cast.id) if local_cast else 'unknown',
+                'cast_name': (
+                    getattr(getattr(local_cast, 'user', None), 'vrc_id', '')
+                    or getattr(getattr(local_cast, 'user', None), 'username', '')
+                    or getattr(local_cast, 'name', '')
+                    or o.get('resource_name', 'Unknown')
+                ),
                 'booking_date': start_dt,
                 'start_time': start_dt,
             })
@@ -1025,17 +1083,22 @@ def admin_dashboard(request):
                 if is_cast:
                     # [本地逻辑] 创建 CastProfile
                     display_name = target_user.vrc_id if target_user.vrc_id else target_user.username
-                    CastProfile.objects.get_or_create(
+                    cast_profile, _ = CastProfile.objects.get_or_create(
                         user=target_user, 
                         defaults={'name': display_name}
                     )
+                    if not cast_profile.name:
+                        cast_profile.name = display_name
+                        cast_profile.save(update_fields=['name'])
 
                     # [SaaS逻辑] 同步到 System B
                     try:
                         client.sync_cast_to_saas(
                             user_id=target_user.id,
                             name=display_name,
-                            email=target_user.email
+                            email=target_user.email,
+                            profile=build_cast_profile_payload(cast_profile),
+                            medias=build_cast_medias_payload(cast_profile),
                         )
                     except Exception as e:
                         print(f"SaaS Sync Warning: {e}")
@@ -1049,7 +1112,8 @@ def admin_dashboard(request):
             target_cast = get_object_or_404(CastProfile, id=cast_id)
             form = CastCMSForm(request.POST, request.FILES, instance=target_cast)
             if form.is_valid():
-                form.save()
+                saved_cast = form.save()
+                sync_cast_profile_to_system_b(saved_cast)
                 return redirect('admin_dashboard')
 
     # --------------------------------------------------------

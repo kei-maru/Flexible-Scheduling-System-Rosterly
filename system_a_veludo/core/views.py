@@ -16,7 +16,7 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.cache import cache
 from .models import UserActivity, BlockedIP
-from casts.models import CastProfile
+from casts.source import get_public_casts
 
 
 def _get_client_ip(request):
@@ -122,10 +122,7 @@ def index(request):
     """
     首页视图：负责渲染 index.html 并传递 Cast 数据给轮播图
     """
-    # 1. 获取所有状态为“公开”的 Cast
-    # 2. 按后台设定的 display_order 排序
-    # 3. prefetch_related('medias') 是为了优化性能，因为模板里用到了 cast.medias.first
-    casts = CastProfile.objects.filter(is_active=True).order_by('display_order').prefetch_related('medias')
+    casts = get_public_casts()
     
     context = {
         'casts': casts, # 把数据传给模板

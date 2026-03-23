@@ -9,6 +9,7 @@ from django.contrib import messages
 
 # 引入模型
 from .models import CastProfile, CastMedia
+from .source import get_public_casts, sync_cast_profile_to_system_b
 # 引入表单 (注意：确保你的 forms.py 在正确的位置，通常在 accounts 或 casts 下)
 # 假设你的 CastProfileForm 和 CastMediaFormSet 定义在 accounts.forms 或 casts.forms
 # 如果在 accounts.forms:
@@ -23,8 +24,7 @@ class CastListView(ListView):
     context_object_name = 'casts'
 
     def get_queryset(self):
-        # 按管理员设定的顺序 (display_order) 排序
-        return CastProfile.objects.filter(is_active=True).order_by('display_order').prefetch_related('medias')
+        return get_public_casts()
 
 # --- 2. 编辑个人资料视图 (从 accounts 移过来的) ---
 @login_required
@@ -44,7 +44,7 @@ def edit_cast_profile(request, user_id):
         formset = CastMediaFormSet(request.POST, request.FILES, instance=profile)
 
         if form.is_valid() and formset.is_valid():
-            form.save()
+            profile = form.save()
             
             # 处理 Media 数据
             instances = formset.save(commit=False)
@@ -53,6 +53,11 @@ def edit_cast_profile(request, user_id):
                 obj.save()
             for obj in formset.deleted_objects:
                 obj.delete()
+
+            # 保存后立刻同步到 System B
+            saas_id = sync_cast_profile_to_system_b(profile)
+            if not saas_id:
+                messages.warning(request, 'プロフィールは保存済みですが、System B 同期に失敗しました。')
                 
             messages.success(request, f'{target_user.username} のプロフィールを更新しました！')
             return redirect('edit_cast_profile', user_id=user_id)

@@ -149,6 +149,8 @@ SYSTEM_B_ROOT = os.environ.get('SYSTEM_B_ROOT', 'http://system-b:8001')
 SAAS_API_URL = os.environ.get('SAAS_API_URL', f'{SYSTEM_B_ROOT}/api/v1/integration')
 SAAS_API_KEY = os.environ.get('SAAS_API_KEY', 'veludo_secret_key_123')
 SAAS_API_KEY_HEADER = os.environ.get('SAAS_API_KEY_HEADER', 'X-Tenant-Key')
+CAST_SOURCE = os.environ.get('CAST_SOURCE', 'remote')
+CAST_SOURCE_FALLBACK_LOCAL = os.environ.get('CAST_SOURCE_FALLBACK_LOCAL', 'True') == 'True'
 
 SESSION_COOKIE_NAME = 'veludo_sessionid'
 CSRF_COOKIE_NAME = 'veludo_csrftoken'

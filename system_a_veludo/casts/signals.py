@@ -3,7 +3,7 @@ from django.dispatch import receiver
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from .models import CastProfile
-from utils.saas_client import SaaSClient
+from .source import sync_cast_profile_to_system_b
 import traceback
 
 User = get_user_model()
@@ -32,25 +32,17 @@ def auto_register_cast_on_saas(sender, instance, created, **kwargs):
                 profile.save(update_fields=['name'])
 
             # B. 准备数据
-            client = SaaSClient()
             user_id = instance.id
             cast_name = profile.name
-            email = instance.email
 
             print(f"SIGNAL: Syncing {cast_name} (ID: {user_id}) to SaaS...")
 
             # C. 调用 System B 接口
             # 注意：这里我们总是尝试同步，确保 System B 那边的数据是最新的
-            saas_uuid = client.sync_cast_to_saas(user_id, cast_name, email)
+            saas_uuid = sync_cast_profile_to_system_b(profile)
 
             if saas_uuid:
                 print(f"SIGNAL: >>> SUCCESS! SaaS ID: {saas_uuid}")
-                
-                # D. 回写 ID 到本地 (如果变了的话)
-                if profile.saas_resource_id != saas_uuid:
-                    profile.saas_resource_id = saas_uuid
-                    profile.save(update_fields=['saas_resource_id'])
-                    print("SIGNAL: Local profile updated with new SaaS ID.")
             else:
                 print("SIGNAL: >>> FAILED. No ID returned from SaaS.")
 

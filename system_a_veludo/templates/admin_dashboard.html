@@ -169,7 +169,7 @@
                     <div id="cast-sortable-list" class="space-y-3 flex-grow">
                         {% for cast in casts %}
                         <div data-id="{{ cast.id }}" 
-                            onclick="selectCast(this, '{{ cast.user.vrc_id|default:cast.user.username }}', '{{ cast.intro|escapejs }}', '{% if cast.avatar %}{{ cast.avatar.url }}{% endif %}', '{% url 'edit_cast_profile' cast.user.id %}')"
+                            onclick="selectCast(this, '{{ cast.user.vrc_id|default:cast.user.username|default:cast.name }}', '{{ cast.intro|escapejs }}', '{% if cast.avatar %}{{ cast.avatar.url }}{% endif %}', '{% if cast.edit_url %}{{ cast.edit_url }}{% elif cast.user.id %}{% url 'edit_cast_profile' cast.user.id %}{% endif %}')"
                             class="cast-item flex items-center gap-3 p-3 border border-white/5 hover:border-veludo-gold/50 bg-black/20 cursor-pointer transition-all group relative">
                             
                             <div class="drag-handle cursor-move px-2 text-gray-600 hover:text-white" onclick="event.stopPropagation()">
@@ -188,7 +188,7 @@
                             
                             <div class="overflow-hidden flex-grow select-none">
                                 <div class="text-veludo-gold font-bold font-english truncate text-sm">
-                                    {{ cast.user.vrc_id|default:cast.user.username }}
+                                    {{ cast.user.vrc_id|default:cast.user.username|default:cast.name }}
                                 </div>
                                 <div class="text-[10px] text-gray-500 uppercase tracking-widest truncate">
                                     @{{ cast.user.username }}
@@ -196,9 +196,19 @@
                             </div>
                             
                             <div class="ml-auto text-gray-600 group-hover:text-white z-20">
+                                {% if cast.edit_url %}
+                                <a href="{{ cast.edit_url }}" class="block p-2 hover:text-veludo-gold transition-colors" title="Edit Profile">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </a>
+                                {% elif cast.user.id %}
                                 <a href="{% url 'edit_cast_profile' cast.user.id %}" class="block p-2 hover:text-veludo-gold transition-colors" title="Edit Profile">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </a>
+                                {% else %}
+                                <span class="block p-2 text-gray-700 cursor-not-allowed" title="Edit disabled for remote-only cast">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </span>
+                                {% endif %}
                             </div>
                         </div>
                         {% endfor %}
@@ -276,7 +286,7 @@
                             
                             <div class="overflow-hidden flex-grow">
                                 <div class="text-veludo-gold font-bold font-english truncate text-sm">
-                                    {{ cast.user.vrc_id|default:cast.user.username }}
+                                    {{ cast.user.vrc_id|default:cast.user.username|default:cast.name }}
                                 </div>
                                 <div class="text-[10px] text-gray-500 uppercase tracking-widest truncate">
                                     @{{ cast.user.username }}
@@ -650,9 +660,17 @@
                 placeholderEl.classList.remove('hidden');
             }
             const editBtn = document.getElementById('preview-edit-btn');
-            editBtn.href = editUrl;
-            editBtn.classList.remove('bg-gray-600', 'text-gray-400', 'cursor-not-allowed', 'pointer-events-none');
-            editBtn.classList.add('bg-veludo-gold', 'text-black', 'hover:bg-white');
+            if (editUrl) {
+                editBtn.href = editUrl;
+                editBtn.classList.remove('bg-gray-600', 'text-gray-400', 'cursor-not-allowed', 'pointer-events-none');
+                editBtn.classList.add('bg-veludo-gold', 'text-black', 'hover:bg-white');
+                editBtn.innerText = 'OPEN EDITOR';
+            } else {
+                editBtn.href = '#';
+                editBtn.classList.remove('bg-veludo-gold', 'text-black', 'hover:bg-white');
+                editBtn.classList.add('bg-gray-600', 'text-gray-400', 'cursor-not-allowed', 'pointer-events-none');
+                editBtn.innerText = 'EDITOR UNAVAILABLE';
+            }
         }
 
         // Role Modal Logic

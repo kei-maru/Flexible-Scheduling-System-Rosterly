@@ -383,3 +383,34 @@ class SaaSClient:
         except requests.RequestException as e:
             print(f"Get Resource Detail Error: {e}")
             return None
+
+    def update_resource(self, resource_id, name=None, email=None, is_active=None, profile=None, medias=None):
+        """
+        更新 Resource / Profile
+        API: PATCH /resources/{id}/
+        """
+        url = f"{self.api_base_url}/resources/{resource_id}/"
+        payload = {}
+        if name is not None:
+            payload["name"] = name
+        if email is not None:
+            payload["email"] = email
+        if is_active is not None:
+            payload["is_active"] = bool(is_active)
+        if profile is not None:
+            payload["profile"] = profile
+        if medias is not None:
+            payload["medias"] = medias
+
+        if not payload:
+            return {}
+
+        try:
+            response = requests.patch(url, headers=self.headers, json=payload, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Update Resource Error: {e}")
+            if e.response is not None:
+                print(f"Detail: {e.response.text}")
+            return None

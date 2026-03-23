@@ -4,41 +4,60 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>System B Staff Login</title>
+  <title>Rosterly Login</title>
   <style>
-    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--dark:#111827;--dark2:#1f2937;--err-bg:#fff1f2;--err:#be123c}
+    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--dark:#111827;--dark2:#1f2937;--err-bg:#fff1f2;--err:#be123c;--ok-bg:#ecfeff;--ok:#155e75}
     *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 20% 15%,rgba(17,24,39,.06),transparent 38%),radial-gradient(circle at 80% 80%,rgba(30,64,175,.08),transparent 30%),var(--bg);color:var(--text)}
     .wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
     .card{width:min(760px,100%);background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 22px 60px -30px rgba(15,23,42,.35);padding:36px}
+    .grid{margin-top:20px;display:grid;gap:14px;grid-template-columns:repeat(2,minmax(0,1fr))}
+    .panel{border:1px solid var(--line);border-radius:14px;padding:16px}
+    .panel h3{margin:0 0 8px;font-size:17px}
+    .panel p{font-size:13px}
     .tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:11px;letter-spacing:.15em;color:var(--muted);font-weight:700}
     h1{margin:14px 0 8px;font-size:34px;line-height:1.2}
     p{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
-    .btn{margin-top:28px;width:320px;max-width:100%;padding:12px 14px;border:0;border-radius:12px;background:var(--dark);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+    .btn{margin-top:12px;width:100%;padding:12px 14px;border:0;border-radius:12px;background:var(--dark);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
     .btn:hover{background:var(--dark2)}
     .btn:disabled{background:#94a3b8;cursor:not-allowed}
     .alert{margin-top:16px;padding:12px 14px;border:1px solid #fecdd3;background:var(--err-bg);color:var(--err);border-radius:10px;font-size:14px}
     .warn{margin-top:18px;padding:12px 14px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;font-size:14px}
+    .info{margin-top:18px;padding:12px 14px;border:1px solid #bae6fd;background:var(--ok-bg);color:var(--ok);border-radius:10px;font-size:14px}
     .consent{margin-top:18px;display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--muted);line-height:1.6}
     .consent a{color:#0f172a;font-weight:700;text-decoration:none;border-bottom:1px solid #cbd5f5}
     .consent input{margin-top:2px}
+    @media (max-width: 760px){.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <section class="card">
       <span class="tag">VELUDO SYSTEM B</span>
-      <h1>员工 / 店长登录</h1>
-      <p>仅店铺员工与店长可访问管理后台。客户预约无需登录，直接从店铺预约链接进入。</p>
+      <h1>Rosterly 登录入口</h1>
+      <p>统一使用 Discord OAuth 登录。店长首次登录可开通店铺，员工/管理员需通过邀请或预授权后登录。</p>
 
       {% if discord_oauth_ready %}
-      <form action="{% provider_login_url 'discord' %}" method="post">
+      <form action="{% provider_login_url 'discord' process='login' next=next_url %}" method="post">
         {% csrf_token %}
         <label class="consent">
           <input id="agree-terms" type="checkbox" required>
           <span>利用規約に同意します（<a href="{% url 'dashboard_terms' %}" target="_blank" rel="noopener">利用規約</a>）</span>
         </label>
-        <button class="btn" id="discord-btn" type="submit" disabled>Continue with Discord</button>
+
+        <div class="grid">
+          <div class="panel">
+            <h3>店长首次开通</h3>
+            <p>系统无管理员时，首位 Discord 登录用户将自动创建店铺并授予 ADMIN 权限。</p>
+            <button class="btn" id="discord-btn-owner" type="submit" disabled>以 Discord 开始开通</button>
+          </div>
+          <div class="panel">
+            <h3>员工 / 管理员登录</h3>
+            <p>仅已获授权账号可登录。若提示无权限，请联系店长在后台开通或发送邀请链接。</p>
+            <button class="btn" id="discord-btn-staff" type="submit" disabled>以 Discord 登录后台</button>
+          </div>
+        </div>
       </form>
+      <div class="info">本地账号登录仅用于开发/测试，不作为正式生产登录流程。</div>
       <p style="margin-top:10px;font-size:12px;color:#64748b">Local test login: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
       {% else %}
       <div class="warn">Discord OAuth 未配置。请先设置 `SYSTEM_B_DISCORD_CLIENT_ID` / `SYSTEM_B_DISCORD_SECRET`。</div>
@@ -54,9 +73,14 @@
   </div>
   <script>
     const agree = document.getElementById('agree-terms');
-    const btn = document.getElementById('discord-btn');
-    if (agree && btn) {
-      const toggle = () => { btn.disabled = !agree.checked; };
+    const ownerBtn = document.getElementById('discord-btn-owner');
+    const staffBtn = document.getElementById('discord-btn-staff');
+    if (agree && ownerBtn && staffBtn) {
+      const toggle = () => {
+        const disabled = !agree.checked;
+        ownerBtn.disabled = disabled;
+        staffBtn.disabled = disabled;
+      };
       agree.addEventListener('change', toggle);
       toggle();
     }

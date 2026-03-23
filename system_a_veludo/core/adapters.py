@@ -17,20 +17,8 @@ class MySocialAccountAdapter(DefaultSocialAccountAdapter):
         # 获取 Discord 返回的原始数据
         extra_data = sociallogin.account.extra_data
         
-        # [修改] 1. 保存 Discord 真实 ID (用户名) 而不是数字 ID
-        # 优先获取 username (例如: keimaru)
-        discord_handle = extra_data.get('username')
-        discriminator = extra_data.get('discriminator')
-
-        # 如果存在旧版后缀 (且不是 '0')，则拼接 (例如: keimaru#1234)
-        if discord_handle and discriminator and discriminator != '0':
-            discord_handle = f"{discord_handle}#{discriminator}"
-        
-        if discord_handle:
-            user.discord_id = discord_handle
-        else:
-            #以此为备用，万一取不到用户名才存数字ID
-            user.discord_id = extra_data.get('id')
+        # [修改] 1. 保存 Discord 稳定唯一 ID（长数字 uid）
+        user.discord_id = extra_data.get('id')
 
         # 2. 自动下载并保存头像
         discord_id_num = extra_data.get('id') # 头像URL还是要用数字ID

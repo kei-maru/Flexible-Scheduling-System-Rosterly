@@ -4,6 +4,7 @@ Django settings for System B (SaaS API).
 
 from pathlib import Path
 import os 
+import json
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -191,8 +192,9 @@ ACCOUNT_USERNAME_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = False
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
-SOCIALACCOUNT_AUTO_SIGNUP = False
+SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_QUERY_EMAIL = False
+SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_ADAPTER = 'tenants.adapters.SaaSDiscordSocialAdapter'
 
 SYSTEM_B_DISCORD_CLIENT_ID = os.environ.get('SYSTEM_B_DISCORD_CLIENT_ID', '')
@@ -210,6 +212,31 @@ SOCIALACCOUNT_PROVIDERS = {
         'AUTH_PARAMS': {'prompt': 'none'},
     }
 }
+
+SYSTEM_B_SSO_CODE_TTL_SECONDS = int(os.environ.get('SYSTEM_B_SSO_CODE_TTL_SECONDS', '60'))
+SYSTEM_B_SSO_CLIENTS = {}
+
+_sso_clients_raw = os.environ.get('SYSTEM_B_SSO_CLIENTS', '').strip()
+if _sso_clients_raw:
+    try:
+        parsed = json.loads(_sso_clients_raw)
+        if isinstance(parsed, dict):
+            SYSTEM_B_SSO_CLIENTS = parsed
+    except json.JSONDecodeError:
+        SYSTEM_B_SSO_CLIENTS = {}
+
+single_client_id = os.environ.get('SYSTEM_B_SSO_CLIENT_ID', '').strip()
+single_client_secret = os.environ.get('SYSTEM_B_SSO_CLIENT_SECRET', '').strip()
+single_redirect_uris = [
+    uri.strip()
+    for uri in os.environ.get('SYSTEM_B_SSO_REDIRECT_URIS', '').split(',')
+    if uri.strip()
+]
+if single_client_id and single_client_secret and single_redirect_uris:
+    SYSTEM_B_SSO_CLIENTS[single_client_id] = {
+        'client_secret': single_client_secret,
+        'redirect_uris': single_redirect_uris,
+    }
 
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')

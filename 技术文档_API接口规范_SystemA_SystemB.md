@@ -5,6 +5,13 @@
 
 ## 1. 认证与约定
 
+### 1.3 Discord 身份字段术语（重要）
+
+- `discord_uid`：Discord 平台稳定唯一 ID（通常为 15~22 位长数字串）。
+- `discord_id`：历史兼容展示字段（可能是用户名、`name#1234` 或其他显示形态）。
+- 若你口中的“Discord ID 是用户名下面那串长数字”，在本文统一称为 `discord_uid`。
+- 跨系统映射必须优先使用 `saas_user_id` / `discord_uid`，不要把展示名当唯一键。
+
 ### 1.1 System A API（给前端页面调用）
 
 - 认证方式：Django Session（登录态）
@@ -16,7 +23,7 @@
 - 基础路径：`/api/v1/integration/`
 - 认证 Header：`X-Tenant-Key: <tenant_api_key>`
 - 数据格式：JSON
-- 说明：System B 的店长建店、邀请链接注册、Discord OAuth 登录等正式账号体系 API 目前尚未设计，因此本文档暂不覆盖该部分。
+- 说明：除 Integration API 外，System B 还提供 SSO 统一登录相关接口（见第 4 节）。
 
 ---
 
@@ -419,7 +426,65 @@
 
 ---
 
-## 4. 常见状态码
+## 4. SSO 接口（System B 作为 IdP）
+
+### 4.1 `GET /sso/authorize`
+
+- 功能：SSO 授权入口（浏览器跳转）。
+- Query：
+  - `client_id`（必填）
+  - `redirect_uri`（必填，必须命中白名单）
+  - `state`（必填）
+  - `nonce`（必填）
+- 行为：
+  - 未登录：跳转到 B 的 Discord 登录。
+  - 已登录：签发一次性 `code` 并 302 到 `redirect_uri?code=...&state=...`。
+
+### 4.2 `POST /api/v1/auth/sso/exchange`
+
+- 功能：服务端交换授权码（只能后端调用）。
+- 请求体：
+
+```json
+{
+  "code": "one_time_code",
+  "client_id": "veludo-system-a",
+  "client_secret": "***",
+  "redirect_uri": "https://xxx/accounts/sso/callback"
+}
+```
+
+- 成功响应：
+
+```json
+{
+  "user_id": "3",
+  "discord_uid": "812928114665324544",
+  "discord_id": "usamaru6090",
+  "username": "usamaru6090",
+  "tenant_id": null,
+  "role": "STAFF",
+  "nonce": "...",
+  "exp": 1770000000
+}
+```
+
+- 字段约定：
+  - `user_id`：System B 用户主键（稳定主身份键）。
+  - `discord_uid`：Discord 不可变 UID（强烈建议作为跨系统回填键）。
+  - `discord_id`：显示名/兼容字段，可能随用户改名变化。
+
+### 4.3 System A 映射优先级（落地口径）
+
+- 必须按以下顺序匹配本地影子用户：
+  1. `saas_user_id == user_id`
+  2. `discord_uid`（若本地已存或可回填）
+  3. `discord_id`（仅历史兼容兜底）
+- 禁止仅按显示名做长期唯一映射。
+
+---
+
+## 5. 常见状态码
 
 - `200`: 查询/更新成功
 - `201`: 创建成功
@@ -432,7 +497,7 @@
 
 ---
 
-## 5. 联调建议
+## 6. 联调建议
 
 1. 先验证 `resources/` 同步成功（拿到 `saas_id`）。
 2. 再验证 `availability/`（能查到可预约窗口）。

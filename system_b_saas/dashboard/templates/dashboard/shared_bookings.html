@@ -34,7 +34,9 @@
                 <a href="{% url 'tenant_dashboard' %}" class="text-xs border border-indigo-200/40 px-3 py-2 text-indigo-200 hover:text-white hover:border-indigo-200 transition-colors">管理员面板</a>
                 {% endif %}
             </div>
-            <div class="relative group self-end md:self-auto">
+            <div class="flex items-center gap-2 self-end md:self-auto">
+                <a href="{% url 'logout' %}" class="text-xs border border-rose-300/40 px-3 py-2 text-rose-200 hover:text-white hover:border-rose-200 transition-colors">Logout</a>
+                <div class="relative group">
                 <button class="flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-2 py-1 hover:border-veludo-gold transition-colors">
                     {% if user_avatar_url %}
                     <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
@@ -45,6 +47,7 @@
                 </button>
                 <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-white/20 bg-black/90 p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
                     <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20">Logout</a>
+                </div>
                 </div>
             </div>
         </div>

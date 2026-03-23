@@ -3,11 +3,17 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.views.static import serve
+from django.views.generic import RedirectView
 from dashboard.schedule_views import SharedBookingListView, SharedHomeView, SharedProfileView, SharedScheduleView
 from dashboard.views import LocalPasswordLoginView
+from tenants.views import sso_authorize, sso_exchange
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('login/', RedirectView.as_view(pattern_name='dashboard_login', permanent=False), name='login_alias'),
+    path('sso/authorize', sso_authorize, name='sso_authorize'),
+    path('api/v1/auth/sso/exchange', sso_exchange, name='sso_exchange'),
+    path('sso/exchange', sso_exchange, name='sso_exchange_legacy'),
     
     # 架构文档 Source 169: Base URL: /api/v1/integration
     # 我们将 include 指向 resources.urls

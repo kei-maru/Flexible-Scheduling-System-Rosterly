@@ -3,11 +3,14 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import logout
+from django.contrib.messages import get_messages
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
 from django.db.models import Max
 from django.shortcuts import redirect
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views.generic import TemplateView
 
@@ -19,16 +22,44 @@ from tenants.models import SaaSUser, Tenant
 class DashboardLoginView(TemplateView):
     template_name = "dashboard/login.html"
 
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if not getattr(request.user, "tenant_id", None):
+                list(get_messages(request))
+                logout(request)
+                messages.warning(request, "该账号未开通员工系统权限，请联系管理员。")
+                return redirect("dashboard_login")
+
+            role = getattr(request.user, "role", "STAFF")
+            if request.user.is_superuser or role == "ADMIN":
+                return redirect("tenant_dashboard")
+            return redirect("shared_schedule")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        next_url = self.request.GET.get("next", "")
+        if next_url and not url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            next_url = ""
+
         context["discord_oauth_ready"] = bool(
             settings.SYSTEM_B_DISCORD_CLIENT_ID and settings.SYSTEM_B_DISCORD_SECRET
         )
+        context["next_url"] = next_url
         return context
 
 
 class DashboardTermsView(TemplateView):
     template_name = "dashboard/terms.html"
+
+
+def dashboard_logout(request):
+    logout(request)
+    return redirect("dashboard_login")
 
 
 class LocalPasswordLoginView(LoginView):

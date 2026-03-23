@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 import uuid
 
 class Tenant(models.Model):
@@ -35,3 +36,23 @@ class SaaSUser(AbstractUser):
     
     class Meta:
         db_table = 'saas_users'
+
+
+class SSOAuthCode(models.Model):
+    code_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    client_id = models.CharField(max_length=128, db_index=True)
+    redirect_uri = models.URLField(max_length=512)
+    nonce = models.CharField(max_length=128, blank=True)
+    user = models.ForeignKey(SaaSUser, on_delete=models.CASCADE, related_name='sso_codes')
+    tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'sso_auth_codes'
+        ordering = ['-created_at']
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at

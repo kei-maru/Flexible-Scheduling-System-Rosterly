@@ -5,7 +5,7 @@ from django.contrib.auth import logout, login
 from django.contrib.auth import get_user_model 
 from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render, get_object_or_404
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.generic import TemplateView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ObjectDoesNotExist
@@ -20,6 +20,7 @@ import json
 import pytz
 import traceback
 import logging
+import secrets
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -55,15 +56,183 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_B_ROOT = getattr(settings, "SYSTEM_B_ROOT", "http://system-b:8001")
 SYSTEM_B_API_KEY = getattr(settings, "SAAS_API_KEY", "veludo_secret_key_123")
+SYSTEM_B_SSO_AUTHORIZE_URL = getattr(settings, "SYSTEM_B_SSO_AUTHORIZE_URL", f"{SYSTEM_B_ROOT}/sso/authorize")
+SYSTEM_B_SSO_EXCHANGE_URL = getattr(settings, "SYSTEM_B_SSO_EXCHANGE_URL", f"{SYSTEM_B_ROOT}/api/v1/auth/sso/exchange")
+SYSTEM_B_SSO_CLIENT_ID = getattr(settings, "SYSTEM_B_SSO_CLIENT_ID", "")
+SYSTEM_B_SSO_CLIENT_SECRET = getattr(settings, "SYSTEM_B_SSO_CLIENT_SECRET", "")
+SYSTEM_A_BASE_URL = getattr(settings, "SYSTEM_A_BASE_URL", "")
+
+
+def _current_login_mode() -> str:
+    return (getattr(settings, 'A_LOGIN_MODE', 'hybrid') or 'hybrid').lower().strip()
+
+
+def _is_sso_ready() -> bool:
+    return bool(
+        SYSTEM_B_SSO_CLIENT_ID
+        and SYSTEM_B_SSO_CLIENT_SECRET
+        and SYSTEM_B_SSO_AUTHORIZE_URL
+        and SYSTEM_B_SSO_EXCHANGE_URL
+    )
+
+
+def _build_sso_callback_url(request) -> str:
+    callback_path = reverse('sso_callback')
+    if SYSTEM_A_BASE_URL:
+        return f"{SYSTEM_A_BASE_URL}{callback_path}"
+    return request.build_absolute_uri(callback_path)
+
+
+def _build_unique_username(seed_name: str) -> str:
+    normalized = (seed_name or 'user').strip()[:120] or 'user'
+    candidate = normalized
+    suffix = 0
+    while User.objects.filter(username=candidate).exists():
+        suffix += 1
+        candidate = f"{normalized[:110]}_{suffix}"
+    return candidate
+
+
+def _upsert_shadow_user(identity_payload: dict):
+    saas_user_id = (identity_payload.get('user_id') or '').strip()
+    discord_id = (identity_payload.get('discord_id') or '').strip()
+    discord_uid = (identity_payload.get('discord_uid') or '').strip()
+    username_from_b = (identity_payload.get('username') or '').strip()
+    saas_tenant_id = identity_payload.get('tenant_id')
+    saas_role = identity_payload.get('role')
+
+    if not saas_user_id:
+        raise ValueError('Missing user_id from SSO payload')
+
+    user = User.objects.filter(saas_user_id=saas_user_id).first()
+    if user is None and discord_uid:
+        user = User.objects.filter(discord_id=discord_uid).first()
+    if user is None and discord_id:
+        user = User.objects.filter(discord_id=discord_id).first()
+
+    if user is None:
+        base_name = username_from_b or (discord_id.split('#')[0] if discord_id else 'user')
+        user = User(username=_build_unique_username(base_name))
+        user.set_unusable_password()
+
+    if username_from_b and user.username != username_from_b and not User.objects.filter(username=username_from_b).exclude(pk=user.pk).exists():
+        user.username = username_from_b
+
+    if discord_uid:
+        user.discord_id = discord_uid
+    elif discord_id and not user.discord_id:
+        user.discord_id = discord_id
+
+    user.saas_user_id = saas_user_id
+    user.saas_tenant_id = str(saas_tenant_id) if saas_tenant_id else None
+    user.saas_role = str(saas_role) if saas_role else None
+    user.is_staff = user.is_staff or (user.saas_role == 'ADMIN')
+    user.save()
+    return user
 
 # --- 1. 登录视图 ---
 class CustomLoginView(LoginView):
     template_name = 'login.html'
     authentication_form = VeludoLoginForm
     redirect_authenticated_user = True
+
+    def dispatch(self, request, *args, **kwargs):
+        login_mode = _current_login_mode()
+        if login_mode == 'sso' and _is_sso_ready():
+            return redirect('sso_login')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['login_mode'] = _current_login_mode()
+        context['sso_enabled'] = _is_sso_ready()
+        return context
     
     def get_success_url(self):
         return reverse_lazy('index')
+
+
+@require_GET
+def sso_login(request):
+    if not _is_sso_ready():
+        messages.error(request, 'SSO is not configured. Please contact administrator.')
+        return redirect('login')
+
+    state = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    request.session['sso_state'] = state
+    request.session['sso_nonce'] = nonce
+    request.session['sso_started_at'] = timezone.now().isoformat()
+
+    query_params = {
+        'client_id': SYSTEM_B_SSO_CLIENT_ID,
+        'redirect_uri': _build_sso_callback_url(request),
+        'state': state,
+        'nonce': nonce,
+    }
+    return redirect(f"{SYSTEM_B_SSO_AUTHORIZE_URL}?{requests.compat.urlencode(query_params)}")
+
+
+@require_GET
+def sso_callback(request):
+    state = (request.GET.get('state') or '').strip()
+    code = (request.GET.get('code') or '').strip()
+
+    session_state = request.session.pop('sso_state', None)
+    session_nonce = request.session.pop('sso_nonce', None)
+    session_started_at = request.session.pop('sso_started_at', None)
+
+    if not code or not state or not session_state or state != session_state:
+        logger.warning('SSO callback state validation failed')
+        messages.error(request, 'SSO validation failed. Please try again.')
+        return redirect('login')
+
+    if session_started_at:
+        started_at = parse_datetime(session_started_at)
+        if started_at and timezone.now() - started_at > timedelta(minutes=5):
+            messages.error(request, 'SSO request expired. Please retry login.')
+            return redirect('login')
+
+    exchange_payload = {
+        'code': code,
+        'client_id': SYSTEM_B_SSO_CLIENT_ID,
+        'client_secret': SYSTEM_B_SSO_CLIENT_SECRET,
+        'redirect_uri': _build_sso_callback_url(request),
+    }
+
+    try:
+        exchange_resp = requests.post(SYSTEM_B_SSO_EXCHANGE_URL, json=exchange_payload, timeout=10)
+    except requests.RequestException as exc:
+        logger.exception('SSO exchange request failed: %s', exc)
+        messages.error(request, 'SSO service unavailable. Please try again later.')
+        return redirect('login')
+
+    if exchange_resp.status_code != 200:
+        logger.warning('SSO exchange failed with status=%s', exchange_resp.status_code)
+        messages.error(request, 'SSO login failed. Please retry.')
+        return redirect('login')
+
+    try:
+        identity_payload = exchange_resp.json()
+    except ValueError:
+        logger.warning('SSO exchange returned invalid JSON')
+        messages.error(request, 'SSO response invalid. Please retry.')
+        return redirect('login')
+
+    if session_nonce and identity_payload.get('nonce') != session_nonce:
+        logger.warning('SSO callback nonce mismatch')
+        messages.error(request, 'SSO nonce check failed. Please retry.')
+        return redirect('login')
+
+    try:
+        local_user = _upsert_shadow_user(identity_payload)
+    except Exception as exc:
+        logger.exception('SSO shadow user sync failed: %s', exc)
+        messages.error(request, 'Login succeeded but account mapping failed. Please contact support.')
+        return redirect('login')
+
+    login(request, local_user, backend='django.contrib.auth.backends.ModelBackend')
+    return redirect('index')
 
 # --- 2. 登出视图 ---
 def logout_view(request):

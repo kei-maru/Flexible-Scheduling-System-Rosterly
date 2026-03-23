@@ -4,6 +4,8 @@ from . import views
 urlpatterns = [
     # --- 认证相关 ---
     path('login/', views.CustomLoginView.as_view(), name='login'),
+    path('sso/login', views.sso_login, name='sso_login'),
+    path('sso/callback', views.sso_callback, name='sso_callback'),
     path('terms/', views.TermsView.as_view(), name='terms'),
     #path('register/', views.RegisterView.as_view(), name='register'),
     path('logout/', views.logout_view, name='logout'),

@@ -138,6 +138,7 @@
                     <span class="w-2 h-2 rounded-full bg-gray-500 inline-block mr-1" id="status-dot"></span>
                     System B: <span id="status-text">Standing By</span>
                 </div>
+                <a href="{% url 'logout' %}" class="text-xs border border-rose-300/40 px-3 py-2 text-rose-200 hover:text-white hover:border-rose-200 transition-colors">Logout</a>
                 <div class="relative group">
                     <button class="flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-2 py-1 hover:border-veludo-accent-gold transition-colors">
                         {% if user_avatar_url %}

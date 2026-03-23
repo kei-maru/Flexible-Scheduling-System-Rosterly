@@ -152,6 +152,13 @@ SAAS_API_KEY_HEADER = os.environ.get('SAAS_API_KEY_HEADER', 'X-Tenant-Key')
 CAST_SOURCE = os.environ.get('CAST_SOURCE', 'remote')
 CAST_SOURCE_FALLBACK_LOCAL = os.environ.get('CAST_SOURCE_FALLBACK_LOCAL', 'True') == 'True'
 
+A_LOGIN_MODE = os.environ.get('A_LOGIN_MODE', 'hybrid').strip().lower()
+SYSTEM_B_SSO_CLIENT_ID = os.environ.get('SYSTEM_B_SSO_CLIENT_ID', '').strip()
+SYSTEM_B_SSO_CLIENT_SECRET = os.environ.get('SYSTEM_B_SSO_CLIENT_SECRET', '').strip()
+SYSTEM_A_BASE_URL = os.environ.get('SYSTEM_A_BASE_URL', '').strip().rstrip('/')
+SYSTEM_B_SSO_AUTHORIZE_URL = os.environ.get('SYSTEM_B_SSO_AUTHORIZE_URL', f'{SYSTEM_B_ROOT}/sso/authorize').strip()
+SYSTEM_B_SSO_EXCHANGE_URL = os.environ.get('SYSTEM_B_SSO_EXCHANGE_URL', f'{SYSTEM_B_ROOT}/api/v1/auth/sso/exchange').strip()
+
 SESSION_COOKIE_NAME = 'veludo_sessionid'
 CSRF_COOKIE_NAME = 'veludo_csrftoken'
 

@@ -13,6 +13,9 @@ class User(AbstractUser):
     vrc_id = models.CharField("VRCID", max_length=100, blank=True, null=True, help_text="VRChat上の表示名")
     discord_id = models.CharField("Discord ID", max_length=50, blank=True, null=True, help_text="例: user#1234")
     twitter_id = models.CharField("X (Twitter) ID", max_length=50, blank=True, null=True, help_text="例: @username")
+    saas_user_id = models.CharField("SaaS User ID", max_length=64, blank=True, null=True, unique=True, db_index=True)
+    saas_tenant_id = models.CharField("SaaS Tenant ID", max_length=64, blank=True, null=True)
+    saas_role = models.CharField("SaaS Role", max_length=32, blank=True, null=True)
     
     # [新增] 用户头像
     avatar = models.ImageField("アイコン", upload_to="users/avatars/", blank=True, null=True)

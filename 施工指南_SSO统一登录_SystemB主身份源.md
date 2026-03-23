@@ -72,7 +72,7 @@
 
 2. `POST /api/v1/auth/sso/exchange`
 - 入参：`code`, `client_id`, `client_secret`, `redirect_uri`
-- 返回：`user_id`, `discord_id`, `username`, `tenant_id`, `role`, `exp`（或签名 token）
+- 返回：`user_id`, `discord_uid`, `discord_id`, `username`, `tenant_id`, `role`, `exp`（或签名 token）
 
 数据要求：
 - `code` 一次性使用。
@@ -98,7 +98,7 @@
 2. `GET /accounts/sso/callback`
 - 校验 `state`。
 - 服务端调用 B `/sso/exchange`。
-- 以 `saas_user_id` 或 `discord_id` 幂等 `update_or_create` A 影子用户。
+- 以 `saas_user_id` → `discord_uid` → `discord_id` 顺序幂等 `update_or_create` A 影子用户。
 - 调用 `login(request, user)` 建立 A Session。
 
 3. `GET /accounts/login/`
@@ -116,8 +116,32 @@
 
 映射策略：
 - 优先按 `saas_user_id`。
-- 无 `saas_user_id` 时按 `discord_id` 回填。
+- 无 `saas_user_id` 时优先按不可变 `discord_uid` 回填。
+- 仅在缺少 `discord_uid` 的历史账号上，才按 `discord_id`（显示名）兜底回填。
 - 禁止按可变显示名做主键匹配。
+
+### 4.3.1 `discord_id` 作为主键/主映射键的迁移风险
+
+结论：
+- 若把 `discord_id`（显示名）当作主键或主映射键，存在中高迁移风险；线上会出现“同一人被识别为新账号”的概率性事故。
+
+主要风险点：
+- Discord 显示名可变（改名、去 discriminator、大小写/格式变化），会导致老映射失效。
+- 同一用户在不同历史阶段可能出现不同展示形式（`name#1234` / `name`），造成误判。
+- 旧数据若无稳定 UID，仅靠显示名回填会把“新登录”误当“新用户”，形成 A 侧影子账号分叉。
+
+推荐基线（必须执行）：
+- System B 以 `SaaSUser.id` 作为身份主键（`user_id`），并在 exchange 返回 `discord_uid`。
+- System A 永久保存 `saas_user_id`（首选）并支持 `discord_uid` 回填（次选）。
+- `discord_id` 仅作展示/兼容字段，不再作为长期唯一键。
+
+上线前检查：
+- 检查 A 是否存在重复 `saas_user_id`（必须为 0）。
+- 检查 A 是否存在同 `discord_id` 多账号（建议为 0，至少要可解释）。
+- 抽样核对 B 的 `SocialAccount.uid` 与 A 的映射命中率。
+
+回滚口径：
+- 若上线后出现“用户像丢数据”，优先检查是否命中新建影子账号；将 A_LOGIN_MODE 回切 `hybrid`，按 `saas_user_id` 合并映射后再放量。
 
 灰度策略：
 - 第 1 阶段：`A_LOGIN_MODE=hybrid`，仅内部账号试用。
@@ -219,4 +243,21 @@
 - A 不再直连 Discord OAuth。
 - A/B 身份映射稳定无重复账户增长。
 - 线上运行 7 天无 P1 登录事故。
+
+---
+
+## 11. 历史数据迁移建议（从 `discord_id` 过渡）
+
+适用场景：
+- 你的历史系统长期依赖 `discord_id` 作为主映射字段。
+
+建议步骤：
+1. 先上线 B 端 `discord_uid` 透出（exchange 返回）。
+2. A 侧先读后写：登录成功时优先写入 `saas_user_id`，其次回填稳定 `discord_uid`。
+3. 观察 1 个版本周期：统计“新增影子用户数 / 登录用户数”是否异常。
+4. 观察稳定后，降低 `discord_id` 兜底权重，仅保留历史兼容。
+
+验收阈值（建议）：
+- 新增影子用户占比 < 0.5%（且可解释为真实新用户）。
+- 客服“登录后像新号”工单为 0 或可在当天完成映射修复。
 

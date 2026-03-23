@@ -1,5 +1,7 @@
 import json
 
+from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.serializers.json import DjangoJSONEncoder
 from django.http import JsonResponse
@@ -16,11 +18,15 @@ from tenants.models import Tenant
 
 
 class SharedBaseMixin(LoginRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not getattr(request.user, "tenant_id", None):
+            logout(request)
+            messages.warning(request, "该账号未开通员工系统权限，请使用业务端入口登录。")
+            return redirect("dashboard_login")
+        return super().dispatch(request, *args, **kwargs)
+
     def _tenant(self):
-        tenant = getattr(self.request.user, "tenant", None)
-        if tenant:
-            return tenant
-        return Tenant.objects.first()
+        return getattr(self.request.user, "tenant", None)
 
     def _staff_default_resource(self, tenant):
         linked = getattr(self.request.user, "resource_profile", None)
@@ -144,10 +150,7 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
 
 class _ScheduleApiBase(LoginRequiredMixin, View):
     def _tenant(self, request):
-        tenant = getattr(request.user, "tenant", None)
-        if tenant:
-            return tenant
-        return Tenant.objects.first()
+        return getattr(request.user, "tenant", None)
 
     def _staff_default_resource(self, request, tenant):
         linked = getattr(request.user, "resource_profile", None)

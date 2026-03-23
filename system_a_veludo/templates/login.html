@@ -71,6 +71,34 @@
             </p>
         </div>
 
+        {% if messages %}
+        <div class="mb-4 space-y-2">
+            {% for message in messages %}
+            <div class="rounded-sm border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if sso_enabled %}
+        <form action="{% url 'sso_login' %}" method="get" class="mb-4">
+            <label class="flex items-start gap-3 text-[10px] text-gray-400 mb-4">
+                <input id="agree-terms" type="checkbox" class="mt-1 accent-veludo-accent-gold" required>
+                <span>
+                    サイト利用規約に同意します（
+                    <a href="{% url 'terms' %}" target="_blank" rel="noopener" class="text-veludo-accent-gold hover:underline">利用規約</a>
+                    ）
+                </span>
+            </label>
+            <button id="discord-btn" type="submit" class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer">
+                <i class="fa-brands fa-discord text-xl"></i>
+                <span class="text-sm font-bold tracking-widest uppercase font-english">Login with Discord</span>
+
+                <div class="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-12"></div>
+            </button>
+        </form>
+        {% else %}
         <form action="{% provider_login_url 'discord' %}" method="post">
             {% csrf_token %}
             <label class="flex items-start gap-3 text-[10px] text-gray-400 mb-4">
@@ -81,13 +109,14 @@
                     ）
                 </span>
             </label>
-            <button id="discord-btn" type="submit" disabled class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            <button id="discord-btn" type="submit" class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer">
                 <i class="fa-brands fa-discord text-xl"></i>
                 <span class="text-sm font-bold tracking-widest uppercase font-english">Login with Discord</span>
-                
+
                 <div class="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-12"></div>
             </button>
         </form>
+        {% endif %}
 
         <div class="mt-12 text-center">
             <a href="{% url 'index' %}" class="text-white/30 text-[10px] tracking-[0.3em] hover:text-white transition-colors flex items-center justify-center gap-2 group">
@@ -96,14 +125,5 @@
         </div>
     </div>
 
-    <script>
-        const agree = document.getElementById('agree-terms');
-        const btn = document.getElementById('discord-btn');
-        if (agree && btn) {
-            const toggle = () => { btn.disabled = !agree.checked; };
-            agree.addEventListener('change', toggle);
-            toggle();
-        }
-    </script>
 </body>
 </html>

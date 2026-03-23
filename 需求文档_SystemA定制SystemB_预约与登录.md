@@ -218,6 +218,14 @@
   - 服务预设管理
   - 记账功能
 
+## 13. 实施状态（2026-03-23）
+
+- 已完成：System B 新增 ResourceProfile/ResourceMedia 作为 Cast 主数据落点。
+- 已完成：System A 默认改为远端读取 Cast（`CAST_SOURCE=remote`），并保留本地回退开关。
+- 已完成：System A 管理员编辑 CastProfile 后实时同步到 System B。
+- 已完成：`sync_casts_to_system_b --only-active` 线上迁移成功（17/17）。
+- 待后续：System B 店长建店、邀请链接、Discord OAuth 正式账号体系 API 设计与落地。
+
 ## 13. System A 作为定制版的保留原则
 
 - System A 继续保留其品牌前台与特定交互。

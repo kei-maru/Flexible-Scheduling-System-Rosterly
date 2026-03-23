@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-03-20  
+**最后更新**: 2026-03-23  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -216,6 +216,9 @@
 #### `POST /api/v1/integration/resources/`
 
 - 功能：创建/更新 Resource（Cast 同步，幂等 upsert）
+- 线上用途：
+  - `sync_casts_to_system_b` 批量迁移命令调用该接口
+  - 管理员在 System A 编辑 CastProfile 后也调用该接口做实时同步
 - 请求体：
 
 ```json

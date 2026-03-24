@@ -181,11 +181,12 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_QUERY_EMAIL = False
 SOCIALACCOUNT_ADAPTER = 'core.adapters.MySocialAccountAdapter'
+SYSTEM_A_DISCORD_AUTH_PROMPT = os.environ.get('SYSTEM_A_DISCORD_AUTH_PROMPT', 'consent')
 
 SOCIALACCOUNT_PROVIDERS = {
     'discord': {
         'SCOPE': ['identify'],
-        'AUTH_PARAMS': {'prompt': 'none'},
+        'AUTH_PARAMS': {'prompt': SYSTEM_A_DISCORD_AUTH_PROMPT},
     }
 }
 

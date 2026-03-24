@@ -213,6 +213,29 @@ docker compose -f compose.veludo.yml up -d --no-deps --force-recreate system_a
 - A/B 使用不同 `SYSTEM_B_SSO_CLIENT_SECRET`
 - Discord 回调 URL 没改成生产域名
 
+### 6.1 故障：`SSO validation failed. Please try again.`
+
+典型根因：
+- A 发起登录与 A 回调使用了不同主机（`vr-veludo.com` vs `IP`），导致 Session Cookie 不一致，`state` 校验失败。
+
+必须同时满足：
+- 浏览器入口固定使用同一个主机（推荐全程 `https://vr-veludo.com`）。
+- `SYSTEM_A_BASE_URL` 与浏览器入口一致。
+- B 侧 `SYSTEM_B_SSO_REDIRECT_URIS` 包含同一个 callback（不能只配 localhost / IP）。
+
+修复步骤：
+1. A `.env` 设置：
+  - `SYSTEM_A_BASE_URL=https://vr-veludo.com`
+  - `SYSTEM_B_SSO_AUTHORIZE_URL=https://api.vr-veludo.com/sso/authorize`（或你的 B 对外域名）
+2. B `.env` 设置：
+  - `SYSTEM_B_SSO_REDIRECT_URIS=https://vr-veludo.com/accounts/sso/callback`
+3. Discord Developer Portal 增加完全一致回调：
+  - `https://api.vr-veludo.com/accounts/discord/login/callback/`
+4. 重建容器（不是 restart）：
+  - A: `docker compose -f compose.veludo.yml up -d --no-deps --force-recreate system_a`
+  - B: `docker compose -f compose.rosterly.yml up -d --no-deps --force-recreate rosterly-core rosterly-worker`
+5. 清理浏览器旧 cookie（A/B 域名都清）后重新登录。
+
 ---
 
 ## 7. 单行速查命令

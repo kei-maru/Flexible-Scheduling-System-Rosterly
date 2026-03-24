@@ -200,6 +200,7 @@ SOCIALACCOUNT_ADAPTER = 'tenants.adapters.SaaSDiscordSocialAdapter'
 SYSTEM_B_DISCORD_CLIENT_ID = os.environ.get('SYSTEM_B_DISCORD_CLIENT_ID', '')
 SYSTEM_B_DISCORD_SECRET = os.environ.get('SYSTEM_B_DISCORD_SECRET', '')
 SYSTEM_B_DISCORD_KEY = os.environ.get('SYSTEM_B_DISCORD_KEY', '')
+SYSTEM_B_DISCORD_AUTH_PROMPT = os.environ.get('SYSTEM_B_DISCORD_AUTH_PROMPT', 'consent')
 
 SOCIALACCOUNT_PROVIDERS = {
     'discord': {
@@ -209,7 +210,7 @@ SOCIALACCOUNT_PROVIDERS = {
             'key': SYSTEM_B_DISCORD_KEY,
         },
         'SCOPE': ['identify'],
-        'AUTH_PARAMS': {'prompt': 'none'},
+        'AUTH_PARAMS': {'prompt': SYSTEM_B_DISCORD_AUTH_PROMPT},
     }
 }
 

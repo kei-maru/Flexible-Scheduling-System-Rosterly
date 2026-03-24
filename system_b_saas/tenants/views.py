@@ -31,6 +31,12 @@ def _append_query_params(url: str, extra_params: dict) -> str:
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
+def _drop_query_params(url: str, keys: set) -> str:
+    parsed = urlparse(url)
+    query_items = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k not in keys]
+    return urlunparse(parsed._replace(query=urlencode(query_items)))
+
+
 def _get_client_conf(client_id: str):
     clients = getattr(settings, 'SYSTEM_B_SSO_CLIENTS', {}) or {}
     client_conf = clients.get(client_id)
@@ -65,20 +71,17 @@ def sso_authorize(request):
         logger.warning('SSO authorize rejected: redirect_uri mismatch for client_id=%s', client_id)
         return JsonResponse({'error': 'invalid_redirect_uri'}, status=400)
 
-    if force_login and not request.session.get('sso_force_login_passed'):
-        request.session['sso_force_login_passed'] = True
-        if request.user.is_authenticated:
-            logout(request)
+    if force_login and request.user.is_authenticated:
+        logout(request)
         request.session['allow_public_sso_login'] = True
-        next_path = request.get_full_path()
+        next_path = _drop_query_params(request.get_full_path(), {'force_login'})
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
     if not request.user.is_authenticated:
         request.session['allow_public_sso_login'] = True
-        next_path = request.get_full_path()
+        next_path = _drop_query_params(request.get_full_path(), {'force_login'})
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
-    request.session.pop('sso_force_login_passed', None)
     public_sso_flow = bool(request.session.get('allow_public_sso_login'))
     request.session.pop('allow_public_sso_login', None)
 

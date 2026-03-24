@@ -29,6 +29,7 @@ class SaaSUser(AbstractUser):
     ROLE_CHOICES = [
         ('ADMIN', '店铺管理员'),
         ('STAFF', '员工/Cast'),
+        ('CONSUMER', 'A端用户'),
     ]
     tenant = models.ForeignKey(Tenant, related_name='users', on_delete=models.CASCADE, null=True, blank=True)
     role = models.CharField(choices=ROLE_CHOICES, default='STAFF')

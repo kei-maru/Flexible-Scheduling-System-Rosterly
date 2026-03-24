@@ -156,6 +156,18 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         logger.info("save_user: first_bootstrap=%s public_sso_flow=%s", is_first_bootstrap, public_sso_flow)
         user = super().save_user(request, sociallogin, form=form)
 
+        if public_sso_flow and not user.tenant_id and not user.is_superuser:
+            update_fields = []
+            if user.role != "CONSUMER":
+                user.role = "CONSUMER"
+                update_fields.append("role")
+            if user.is_staff:
+                user.is_staff = False
+                update_fields.append("is_staff")
+            if update_fields:
+                user.save(update_fields=update_fields)
+                logger.info("save_user: public sso user updated id=%s fields=%s", user.id, update_fields)
+
         if is_first_bootstrap and not public_sso_flow:
             tenant = self._ensure_bootstrap_tenant()
             update_fields = []

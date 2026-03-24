@@ -12,6 +12,7 @@ class User(AbstractUser):
     # [新增] 社交账号 ID
     vrc_id = models.CharField("VRCID", max_length=100, blank=True, null=True, help_text="VRChat上の表示名")
     discord_id = models.CharField("Discord ID", max_length=50, blank=True, null=True, help_text="例: user#1234")
+    discord_uid = models.CharField("Discord UID", max_length=64, blank=True, null=True, db_index=True, help_text="Discord stable numeric uid")
     twitter_id = models.CharField("X (Twitter) ID", max_length=50, blank=True, null=True, help_text="例: @username")
     saas_user_id = models.CharField("SaaS User ID", max_length=64, blank=True, null=True, unique=True, db_index=True)
     saas_tenant_id = models.CharField("SaaS Tenant ID", max_length=64, blank=True, null=True)

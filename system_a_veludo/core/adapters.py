@@ -16,12 +16,24 @@ class MySocialAccountAdapter(DefaultSocialAccountAdapter):
 
         # 获取 Discord 返回的原始数据
         extra_data = sociallogin.account.extra_data
-        
-        # [修改] 1. 保存 Discord 稳定唯一 ID（长数字 uid）
-        user.discord_id = extra_data.get('id')
+
+        discord_handle = extra_data.get('username')
+        discriminator = extra_data.get('discriminator')
+        discord_uid = extra_data.get('id')
+
+        if discord_handle and discriminator and discriminator != '0':
+            discord_handle = f"{discord_handle}#{discriminator}"
+
+        if discord_handle:
+            user.discord_id = discord_handle
+        elif discord_uid:
+            user.discord_id = discord_uid
+
+        if hasattr(user, 'discord_uid'):
+            user.discord_uid = discord_uid
 
         # 2. 自动下载并保存头像
-        discord_id_num = extra_data.get('id') # 头像URL还是要用数字ID
+        discord_id_num = discord_uid # 头像URL还是要用数字ID
         avatar_hash = extra_data.get('avatar')
         
         if discord_id_num and avatar_hash:

@@ -82,6 +82,11 @@ def sso_authorize(request):
         next_path = _drop_query_params(request.get_full_path(), {'force_login'})
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
+    if not getattr(request.user, 'tenant_id', None) and getattr(request.user, 'role', None) == 'STAFF' and not request.user.is_superuser:
+        request.user.role = 'CONSUMER'
+        request.user.is_staff = False
+        request.user.save(update_fields=['role', 'is_staff'])
+
     public_sso_flow = bool(request.session.get('allow_public_sso_login'))
     request.session.pop('allow_public_sso_login', None)
 

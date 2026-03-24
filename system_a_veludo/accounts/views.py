@@ -106,7 +106,7 @@ def _upsert_shadow_user(identity_payload: dict):
 
     user = User.objects.filter(saas_user_id=saas_user_id).first()
     if user is None and discord_uid:
-        user = User.objects.filter(discord_id=discord_uid).first()
+        user = User.objects.filter(discord_uid=discord_uid).first()
     if user is None and discord_id:
         user = User.objects.filter(discord_id=discord_id).first()
 
@@ -119,9 +119,12 @@ def _upsert_shadow_user(identity_payload: dict):
         user.username = username_from_b
 
     if discord_uid:
-        user.discord_id = discord_uid
-    elif discord_id and not user.discord_id:
+        user.discord_uid = discord_uid
+
+    if discord_id:
         user.discord_id = discord_id
+    elif discord_uid and not user.discord_id:
+        user.discord_id = discord_uid
 
     user.saas_user_id = saas_user_id
     user.saas_tenant_id = str(saas_tenant_id) if saas_tenant_id else None

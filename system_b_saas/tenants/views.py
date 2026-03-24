@@ -51,6 +51,7 @@ def sso_authorize(request):
     redirect_uri = (request.GET.get('redirect_uri') or '').strip()
     state = (request.GET.get('state') or '').strip()
     nonce = (request.GET.get('nonce') or '').strip()
+    force_login = (request.GET.get('force_login') or '').strip() == '1'
 
     if not client_id or not redirect_uri or not state or not nonce:
         return JsonResponse({'error': 'invalid_request'}, status=400)
@@ -64,11 +65,20 @@ def sso_authorize(request):
         logger.warning('SSO authorize rejected: redirect_uri mismatch for client_id=%s', client_id)
         return JsonResponse({'error': 'invalid_redirect_uri'}, status=400)
 
+    if force_login and not request.session.get('sso_force_login_passed'):
+        request.session['sso_force_login_passed'] = True
+        if request.user.is_authenticated:
+            logout(request)
+        request.session['allow_public_sso_login'] = True
+        next_path = request.get_full_path()
+        return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
+
     if not request.user.is_authenticated:
         request.session['allow_public_sso_login'] = True
         next_path = request.get_full_path()
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
+    request.session.pop('sso_force_login_passed', None)
     public_sso_flow = bool(request.session.get('allow_public_sso_login'))
     request.session.pop('allow_public_sso_login', None)
 
@@ -85,8 +95,7 @@ def sso_authorize(request):
 
     callback_url = _append_query_params(redirect_uri, {'code': raw_code, 'state': state})
 
-    if public_sso_flow:
-        logout(request)
+    logout(request)
 
     return redirect(callback_url)
 

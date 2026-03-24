@@ -158,6 +158,9 @@ def sso_login(request):
         messages.error(request, 'SSO is not configured. Please contact administrator.')
         return redirect('login')
 
+    if request.user.is_authenticated:
+        logout(request)
+
     state = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
     request.session['sso_state'] = state
@@ -169,6 +172,7 @@ def sso_login(request):
         'redirect_uri': _build_sso_callback_url(request),
         'state': state,
         'nonce': nonce,
+        'force_login': '1',
     }
     return redirect(f"{SYSTEM_B_SSO_AUTHORIZE_URL}?{requests.compat.urlencode(query_params)}")
 

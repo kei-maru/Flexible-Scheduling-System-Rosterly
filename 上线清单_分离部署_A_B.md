@@ -18,6 +18,21 @@
 - 备份配置：
   - `cp .env .env.backup.$(date +%F_%H%M)`
 
+## 0.1 备份文件与 Git 规范（必须）
+
+- **备份文件不要提交到 Git**（SQL / `.env.backup*` 都属于敏感数据）
+- 确保 `.gitignore` 至少包含：
+  - `backups/`
+  - `.env.backup*`
+  - `*.sql`
+- 如果已经误执行过 `git add`，先取消追踪：
+
+```bash
+git rm -r --cached backups || true
+git restore --staged .
+git status
+```
+
 ---
 
 ## 1. 生产配置检查（两端）
@@ -48,6 +63,20 @@
   - `DB_HOST=<ServerB_IP>`（按 `compose.veludo.yml` 设计）
   - `CELERY_BROKER_URL=redis://<ServerB_IP>:6379/0`
 
+## 1.3 无域名（IP 模式）推荐值
+
+当 A/B 还未配置域名与 HTTPS，可先用以下 IP 方案联调：
+
+- Server B（Rosterly）
+  - `SYSTEM_B_SSO_AUTHORIZE_URL=http://<ServerB_IP>:8001/sso/authorize`
+  - `SYSTEM_B_SSO_EXCHANGE_URL=http://<ServerB_IP>:8001/api/v1/auth/sso/exchange`
+  - Discord Portal 回调：`http://<ServerB_IP>:8001/accounts/discord/login/callback/`
+- Server A（Veludo）
+  - `SYSTEM_A_BASE_URL=http://<ServerA_IP>`
+  - `SYSTEM_B_SSO_REDIRECT_URIS=http://<ServerA_IP>/accounts/sso/callback`
+
+> 注意：Discord 回调必须与系统实际发出的 `redirect_uri` **完全一致**（协议/IP/端口/路径）。
+
 ---
 
 ## 2. 发布顺序（必须按顺序）
@@ -76,6 +105,41 @@ docker compose -f compose.veludo.yml exec -T system_a python /app/system_a_velud
 docker compose -f compose.veludo.yml ps
 ```
 
+## 2.3 Server A（1G 机器）无 build 发布流程（推荐）
+
+适用场景：A 机内存紧张，无法稳定执行 `docker build`。
+
+### 2.3.1 仅 `.env` 变更（最常见）
+
+```bash
+docker compose -f compose.veludo.yml up -d --no-deps --force-recreate system_a
+docker compose -f compose.veludo.yml exec -T system_a python /app/system_a_veludo/manage.py check
+docker compose -f compose.veludo.yml ps
+```
+
+### 2.3.2 代码已更新，但不在 A 机构建
+
+```bash
+git pull origin main
+docker compose -f compose.veludo.yml up -d --no-build
+docker compose -f compose.veludo.yml exec -T system_a python /app/system_a_veludo/manage.py migrate
+docker compose -f compose.veludo.yml exec -T system_a python /app/system_a_veludo/manage.py check
+docker compose -f compose.veludo.yml ps
+```
+
+若 `--no-build` 提示镜像不存在，说明 A 机没有可用镜像：
+- 方案 A：在高配机构建并 `docker save`/`docker load` 到 A
+- 方案 B：短时开 swap 后构建（不推荐长期）
+
+### 2.3.3 A 端 SSO 回调自检（必须）
+
+```bash
+curl -I "http://<ServerA_IP>/accounts/sso/callback?code=fake&state=fake"
+```
+
+通过标准：
+- **不能是 404**（404 代表 Nginx 或路由未接入 Django）
+
 ---
 
 ## 3. 冒烟测试（上线后立刻）
@@ -86,6 +150,9 @@ docker compose -f compose.veludo.yml ps
 - 点击 Discord 登录
 - 期望：跳转 B 授权 -> 回到 A 成功登录
 - 期望：A 数据不出现重复账号（`saas_user_id` 不重复）
+- 若使用 IP 模式，先验证：
+  - `http://<ServerB_IP>:8001/sso/authorize?...` 返回 `302` 或参数校验 `400`
+  - `http://<ServerA_IP>/accounts/sso/callback?...` 非 `404`
 
 ## 3.2 后台权限链路（B）
 

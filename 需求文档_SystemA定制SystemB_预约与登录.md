@@ -32,6 +32,10 @@
 - 系统采用 `Discord OAuth` 作为注册与登录的统一入口。
 - 不设计传统用户名密码注册作为正式主流程。
 - 本地账号登录仅保留开发/测试用途，不作为正式产品方案。
+- 最终口径（2026-03-24）：
+  - C 端用户在 System A 触发登录，链路为 `A -> B 授权 -> A`。
+  - 用户体验侧不暴露 B 的后台概念（无“去 B 登录”心智负担）。
+  - 切换账号时，A 发起链路会重新触发认证，不依赖旧会话。
 
 ### 4.2 店长注册店铺
 
@@ -65,6 +69,12 @@
 - 管理员授权属于租户内权限行为，不影响其他租户。
 
 ## 5. 角色定义与权限
+
+### 5.0 角色补充（跨系统口径）
+
+- `System B` 新增 `CONSUMER` 角色用于标识“由 A 端登录、且无租户绑定”的用户。
+- `CONSUMER` 不属于员工体系，不应进入 B 员工后台能力。
+- `STAFF/ADMIN` 仍只用于店铺员工/管理员运营体系。
 
 ### 5.1 Staff（店员）
 
@@ -224,7 +234,11 @@
 - 已完成：System A 默认改为远端读取 Cast（`CAST_SOURCE=remote`），并保留本地回退开关。
 - 已完成：System A 管理员编辑 CastProfile 后实时同步到 System B。
 - 已完成：`sync_casts_to_system_b --only-active` 线上迁移成功（17/17）。
-- 待后续：System B 店长建店、邀请链接、Discord OAuth 正式账号体系 API 设计与落地。
+- 已完成（2026-03-24）：
+  - System B 作为统一身份源（IdP）上线 `authorize/exchange`。
+  - System A 改为 SSO 消费方（SP），完成 callback 映射与会话建立。
+  - A/B 账号映射口径统一为 `saas_user_id -> discord_uid -> discord_id`。
+  - B 中 A 端用户与员工用户完成角色区分（`CONSUMER` vs `STAFF/ADMIN`）。
 
 ## 13. System A 作为定制版的保留原则
 

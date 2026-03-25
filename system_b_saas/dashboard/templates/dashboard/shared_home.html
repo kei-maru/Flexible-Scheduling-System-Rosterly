@@ -15,8 +15,8 @@
                 <a href="{% url 'shared_home' %}" class="text-sm font-semibold tracking-wide text-slate-700">SYSTEM B PORTAL</a>
                 <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
             </div>
-            <div class="relative group">
-                <button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
+            <div class="relative" data-user-menu>
+                <button type="button" data-menu-button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
                     {% if user_avatar_url %}
                     <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
                     {% else %}
@@ -24,7 +24,7 @@
                     {% endif %}
                     <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
                 </button>
-                <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+                <div data-menu class="invisible absolute right-0 top-full z-30 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition">
                     <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">ログアウト</a>
                 </div>
             </div>
@@ -32,6 +32,16 @@
     </header>
 
     <main class="mx-auto max-w-6xl px-4 py-10">
+        <div class="mb-6 flex flex-wrap gap-2">
+            <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm text-white">ホーム</a>
+            <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">プロフィール管理</a>
+            <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">シフト管理</a>
+            <a href="{% url 'shared_bookings' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">予約一覧</a>
+            {% if is_admin %}
+            <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">管理者ダッシュボード</a>
+            {% endif %}
+        </div>
+
         <h1 class="mb-2 text-3xl font-bold">ホーム</h1>
         <p class="mb-8 text-sm text-slate-500">ログイン後の共通入口です。下記の機能カードから移動してください。</p>
 
@@ -39,7 +49,7 @@
             <a href="{% url 'shared_profile' %}" class="group rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><i class="fa-regular fa-user"></i></div>
                 <h2 class="text-lg font-semibold">プロフィール管理</h2>
-                <p class="mt-2 text-sm text-slate-500">ユーザー名、メール、Discord 情報を編集します。</p>
+                <p class="mt-2 text-sm text-slate-500">ユーザー情報と公開プロフィールを編集します。</p>
             </a>
 
             <a href="{% url 'shared_schedule' %}" class="group rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -54,14 +64,44 @@
                 <p class="mt-2 text-sm text-slate-500">予約確認、完了・キャンセル操作（権限別）を行います。</p>
             </a>
         </div>
-
-        {% if is_admin %}
-        <div class="mt-8">
-            <a href="{% url 'tenant_dashboard' %}" class="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-700 hover:bg-indigo-100">
-                <i class="fa-solid fa-user-shield"></i> 管理者ダッシュボード
-            </a>
-        </div>
-        {% endif %}
     </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const menus = document.querySelectorAll('[data-user-menu]');
+    menus.forEach(function (wrap) {
+        const button = wrap.querySelector('[data-menu-button]');
+        const menu = wrap.querySelector('[data-menu]');
+        if (!button || !menu) return;
+
+        function closeMenu() {
+            menu.classList.add('invisible', 'opacity-0');
+            menu.classList.remove('visible', 'opacity-100');
+        }
+
+        function openMenu() {
+            menu.classList.remove('invisible', 'opacity-0');
+            menu.classList.add('visible', 'opacity-100');
+        }
+
+        button.addEventListener('click', function (event) {
+            event.stopPropagation();
+            if (menu.classList.contains('invisible')) {
+                openMenu();
+            } else {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!wrap.contains(event.target)) closeMenu();
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeMenu();
+        });
+    });
+});
+</script>
 </body>
 </html>

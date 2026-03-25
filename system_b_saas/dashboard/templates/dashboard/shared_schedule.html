@@ -33,18 +33,22 @@
             -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
             touch-action: manipulation;
+            background:
+                radial-gradient(circle at 8% 8%, rgba(99, 102, 241, 0.08), transparent 36%),
+                radial-gradient(circle at 92% 16%, rgba(16, 185, 129, 0.07), transparent 32%),
+                #f8fafc;
         }
         .surface {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #dbe3ef;
             border-radius: 12px;
-            box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.45);
+            box-shadow: 0 18px 36px -28px rgba(30, 41, 59, 0.38);
         }
         .glass-panel {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #dbe3ef;
             border-radius: 12px;
-            box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.45);
+            box-shadow: 0 20px 38px -26px rgba(30, 41, 59, 0.45);
         }
         .nav-chip {
             border: 1px solid #cbd5e1;
@@ -66,6 +70,8 @@
         .fc {
             border: none !important;
             font-family: "Noto Sans JP", sans-serif;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 10px;
         }
         .fc-toolbar-title { 
             font-size: 1.4rem !important;
@@ -92,7 +98,13 @@
         .fc-button:hover { border-color: #4F46E5 !important; color: #4F46E5 !important; }
         .fc-button-active { background-color: #4F46E5 !important; color: #fff !important; border-color: #4F46E5 !important; }
         
-        .fc-theme-standard td, .fc-theme-standard th { border-color: #e2e8f0 !important; }
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #dbe4ef !important; }
+        .fc-day-today {
+            background: rgba(79, 70, 229, 0.06) !important;
+        }
+        .fc-timegrid-col:nth-child(2n) {
+            background: rgba(248, 250, 252, 0.55);
+        }
         
         .fc-timegrid-slot-label-cushion { 
             color: #475569 !important;
@@ -108,64 +120,78 @@
         
         .fc-event {
             border: none;
-            border-left: 3px solid #4F46E5;
-            border-radius: 0 2px 2px 0;
-            font-size: 0.75rem;
-            line-height: 1.1;
-            padding: 1px 4px;
+            border-left: 4px solid #4F46E5;
+            border-radius: 0 6px 6px 0;
+            font-size: 0.76rem;
+            line-height: 1.15;
+            padding: 2px 6px;
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
+            box-shadow: 0 8px 20px -16px rgba(15, 23, 42, 0.45);
         }
         .fc-event:hover {
             opacity: .9;
             cursor: pointer;
         }
+        .fc-event.single-slot {
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.12)) !important;
+            border-left-color: #059669 !important;
+            color: #065f46 !important;
+        }
+        .fc-event.recurring-slot {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.24), rgba(99, 102, 241, 0.1)) !important;
+            border-left-color: #4f46e5 !important;
+            color: #3730a3 !important;
+        }
         .fc-event.booked-slot {
-            background-color: rgba(239, 68, 68, 0.2) !important;
-            border-left-color: #ef4444 !important;
+            background: linear-gradient(90deg, rgba(244, 63, 94, 0.28), rgba(244, 63, 94, 0.12)) !important;
+            border-left-color: #e11d48 !important;
+            color: #881337 !important;
         }
 
-        #calendar { min-height: 680px; }
+        #calendar {
+            min-height: 680px;
+            border: 1px solid #dbe4ef;
+            border-radius: 10px;
+            padding: 0.25rem;
+            background: #ffffff;
+        }
     </style>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900 py-6 md:py-10">
-    <div class="w-full max-w-7xl mx-auto px-4">
-        <header class="sticky top-0 z-20 mb-6 border border-slate-200 bg-white/95 px-4 py-3 backdrop-blur rounded-xl">
-            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
-                    <a href="{% url 'shared_home' %}" class="nav-chip">ホーム</a>
-                    <a href="{% url 'shared_profile' %}" class="nav-chip">プロフィール管理</a>
-                    <a href="{% url 'shared_schedule' %}" class="nav-chip active">シフト管理</a>
-                    <a href="{% url 'shared_bookings' %}" class="nav-chip">予約一覧</a>
-                    {% if is_admin %}
-                    <a href="{% url 'tenant_dashboard' %}" class="nav-chip">管理者ダッシュボード</a>
+<body class="min-h-screen text-slate-900">
+    <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+            <div class="flex items-center gap-3">
+                <a href="{% url 'shared_home' %}" class="text-sm font-semibold tracking-wide text-slate-700">SYSTEM B PORTAL</a>
+                <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
+            </div>
+            <div class="relative" data-user-menu>
+                <button type="button" data-menu-button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
+                    {% if user_avatar_url %}
+                    <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
+                    {% else %}
+                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ user_initial }}</span>
                     {% endif %}
-                </div>
-
-                <div class="flex items-center gap-3 self-end md:self-auto">
-                    <div id="status-indicator" class="text-xs font-mono text-slate-500">
-                        <span class="w-2 h-2 rounded-full bg-slate-500 inline-block mr-1" id="status-dot"></span>
-                        接続状態: <span id="status-text">待機中</span>
-                    </div>
-                    <a href="{% url 'logout' %}" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 hover:bg-rose-100">ログアウト</a>
-                    <div class="relative group">
-                        <button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
-                            {% if user_avatar_url %}
-                            <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
-                            {% else %}
-                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ user_initial }}</span>
-                            {% endif %}
-                            <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
-                        </button>
-                        <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
-                            <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">ログアウト</a>
-                        </div>
-                    </div>
+                    <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
+                </button>
+                <div data-menu class="invisible absolute right-0 top-full z-30 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition">
+                    <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">ログアウト</a>
                 </div>
             </div>
-        </header>
+        </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-6xl px-4 py-8 md:py-10">
+        <div class="mb-6 flex flex-wrap gap-2">
+            <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">ホーム</a>
+            <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">プロフィール管理</a>
+            <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm text-white">シフト管理</a>
+            <a href="{% url 'shared_bookings' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">予約一覧</a>
+            {% if is_admin %}
+            <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">管理者ダッシュボード</a>
+            {% endif %}
+        </div>
 
         {% if not is_cast %}
             <div class="surface p-8 text-center">
@@ -206,10 +232,15 @@
                 </div>
             </div>
 
-            <div id='calendar' class="rounded-md border border-slate-200 bg-white p-2"></div>
+            <div id="status-indicator" class="mb-4 text-xs font-mono text-slate-500">
+                <span class="w-2 h-2 rounded-full bg-slate-500 inline-block mr-1" id="status-dot"></span>
+                接続状態: <span id="status-text">待機中</span>
+            </div>
+
+            <div id='calendar'></div>
         </div>
         {% endif %}
-    </div>
+    </main>
 
     <!-- Recurring Modal -->
     <div id="recurringModal" class="fixed inset-0 z-50 hidden">
@@ -274,6 +305,40 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const menus = document.querySelectorAll('[data-user-menu]');
+            menus.forEach(function (wrap) {
+                const button = wrap.querySelector('[data-menu-button]');
+                const menu = wrap.querySelector('[data-menu]');
+                if (!button || !menu) return;
+
+                function closeMenu() {
+                    menu.classList.add('invisible', 'opacity-0');
+                    menu.classList.remove('visible', 'opacity-100');
+                }
+
+                function openMenu() {
+                    menu.classList.remove('invisible', 'opacity-0');
+                    menu.classList.add('visible', 'opacity-100');
+                }
+
+                button.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                    if (menu.classList.contains('invisible')) {
+                        openMenu();
+                    } else {
+                        closeMenu();
+                    }
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (!wrap.contains(event.target)) closeMenu();
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') closeMenu();
+                });
+            });
+
             var calendarEl = document.getElementById('calendar');
             if (!calendarEl) return;
 
@@ -424,19 +489,19 @@
 
                                 if (isBooked) {
                                     titleText = '予約済み';
-                                    bgColor = 'rgba(239, 68, 68, 0.22)';
-                                    borderColor = '#ef4444';
-                                    textColor = '#991b1b';
+                                    bgColor = 'rgba(244, 63, 94, 0.22)';
+                                    borderColor = '#e11d48';
+                                    textColor = '#9f1239';
                                 } else if (isRecurring) {
                                     titleText = isMobile ? '周期' : '空きシフト (周期)';
-                                    bgColor = 'rgba(79, 70, 229, 0.15)';
-                                    borderColor = '#4F46E5';
-                                    textColor = '#4338ca';
+                                    bgColor = 'rgba(99, 102, 241, 0.18)';
+                                    borderColor = '#4f46e5';
+                                    textColor = '#3730a3';
                                 } else {
                                     titleText = isMobile ? '単発' : '空きシフト (単発)';
-                                    bgColor = 'rgba(16, 185, 129, 0.18)';
-                                    borderColor = '#10b981';
-                                    textColor = '#047857';
+                                    bgColor = 'rgba(16, 185, 129, 0.2)';
+                                    borderColor = '#059669';
+                                    textColor = '#065f46';
                                 }
 
                                 return {

@@ -14,10 +14,8 @@
             <a href="{% url 'shared_home' %}" class="text-sm font-semibold tracking-wide text-slate-700">SYSTEM B PORTAL</a>
             <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
         </div>
-        <div class="flex items-center gap-2">
-            <a href="{% url 'logout' %}" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 hover:bg-rose-100">ログアウト</a>
-            <div class="relative group">
-            <button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
+        <div class="relative" data-user-menu>
+            <button type="button" data-menu-button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
                 {% if user_avatar_url %}
                 <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
                 {% else %}
@@ -25,9 +23,8 @@
                 {% endif %}
                 <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
             </button>
-            <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+            <div data-menu class="invisible absolute right-0 top-full z-30 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition">
                 <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">ログアウト</a>
-            </div>
             </div>
         </div>
     </div>
@@ -36,37 +33,137 @@
 <main class="mx-auto max-w-6xl px-4 py-10">
     <div class="mb-6 flex flex-wrap gap-2">
         <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">ホーム</a>
-        <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">シフト管理</a>
         <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm text-white">プロフィール管理</a>
+        <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">シフト管理</a>
         <a href="{% url 'shared_bookings' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">予約一覧</a>
         {% if is_admin %}
         <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">管理者ダッシュボード</a>
         {% endif %}
     </div>
 
+    {% if messages %}
+    <div class="mb-4 space-y-2">
+        {% for message in messages %}
+        <div class="rounded-md border px-3 py-2 text-sm
+            {% if 'success' in message.tags %}border-emerald-200 bg-emerald-50 text-emerald-700
+            {% elif 'warning' in message.tags %}border-amber-200 bg-amber-50 text-amber-700
+            {% elif 'error' in message.tags %}border-rose-200 bg-rose-50 text-rose-700
+            {% else %}border-slate-200 bg-slate-100 text-slate-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 class="mb-1 text-2xl font-bold">プロフィール管理</h1>
-        <p class="mb-6 text-sm text-slate-500">ユーザー名、メールアドレス、Discord ID を更新できます。</p>
+        <p class="mb-6 text-sm text-slate-500">基本情報と公開プロフィール設定を更新できます。</p>
 
-        <form method="post" class="grid gap-4 md:grid-cols-2">
+        <form method="post" class="space-y-6">
             {% csrf_token %}
-            <div>
-                <label class="mb-1 block text-xs text-slate-500">ユーザー名</label>
-                <input type="text" name="username" value="{{ request.user.username }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">ユーザー名</label>
+                    <input type="text" name="username" value="{{ request.user.username }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">メールアドレス</label>
+                    <input type="email" name="email" value="{{ request.user.email|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="mb-1 block text-xs text-slate-500">Discord ID（変更不可）</label>
+                    <input type="text" name="discord_id" value="{{ request.user.discord_id|default:'' }}" readonly class="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500">
+                </div>
             </div>
-            <div>
-                <label class="mb-1 block text-xs text-slate-500">メールアドレス</label>
-                <input type="email" name="email" value="{{ request.user.email|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h2 class="text-sm font-semibold text-slate-800">公開プロフィール</h2>
+                {% if profile_resource %}
+                <p class="mt-1 text-xs text-slate-500">紐付けリソース: {{ profile_resource.name }}</p>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div class="md:col-span-2">
+                        <label class="mb-1 block text-xs text-slate-500">自己紹介</label>
+                        <textarea name="profile_intro" rows="4" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">{{ profile_intro }}</textarea>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-slate-500">プロフィール画像 URL</label>
+                        <input type="url" name="profile_avatar_url" value="{{ profile_avatar_url|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-slate-500">YouTube URL</label>
+                        <input type="url" name="profile_youtube_url" value="{{ profile_youtube_url|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="mb-1 block text-xs text-slate-500">タグ（カンマ区切り）</label>
+                        <input type="text" name="profile_tags" value="{{ profile_tags_text|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: 深夜対応, 英語OK, 初心者歓迎">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="mb-2 block text-xs text-slate-500">対応モジュール（施術時間）</label>
+                        <div class="flex flex-wrap gap-3">
+                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                                <input type="checkbox" name="allow_30_min" {% if allow_30_min %}checked{% endif %}>
+                                30分
+                            </label>
+                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                                <input type="checkbox" name="allow_60_min" {% if allow_60_min %}checked{% endif %}>
+                                60分
+                            </label>
+                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                                <input type="checkbox" name="allow_120_min" {% if allow_120_min %}checked{% endif %}>
+                                120分
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="mt-2 text-sm text-amber-700">紐付けリソースが見つからないため、公開プロフィールは保存できません。管理者に連携設定をご依頼ください。</p>
+                {% endif %}
             </div>
-            <div class="md:col-span-2">
-                <label class="mb-1 block text-xs text-slate-500">Discord ID</label>
-                <input type="text" name="discord_id" value="{{ request.user.discord_id|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-            </div>
-            <div class="md:col-span-2 pt-2">
+
+            <div class="pt-2">
                 <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">保存する</button>
             </div>
         </form>
     </section>
 </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const menus = document.querySelectorAll('[data-user-menu]');
+    menus.forEach(function (wrap) {
+        const button = wrap.querySelector('[data-menu-button]');
+        const menu = wrap.querySelector('[data-menu]');
+        if (!button || !menu) return;
+
+        function closeMenu() {
+            menu.classList.add('invisible', 'opacity-0');
+            menu.classList.remove('visible', 'opacity-100');
+        }
+
+        function openMenu() {
+            menu.classList.remove('invisible', 'opacity-0');
+            menu.classList.add('visible', 'opacity-100');
+        }
+
+        button.addEventListener('click', function (event) {
+            event.stopPropagation();
+            if (menu.classList.contains('invisible')) {
+                openMenu();
+            } else {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!wrap.contains(event.target)) closeMenu();
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeMenu();
+        });
+    });
+});
+</script>
 </body>
 </html>

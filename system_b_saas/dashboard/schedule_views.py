@@ -12,7 +12,7 @@ from django.views.generic import TemplateView
 
 from allauth.socialaccount.models import SocialAccount
 from bookings.models import Booking
-from resources.models import Resource
+from resources.models import Resource, ResourceProfile
 from resources.services import schedule_service
 from tenants.models import Tenant
 
@@ -74,17 +74,60 @@ class SharedHomeView(SharedBaseMixin, TemplateView):
 class SharedProfileView(SharedBaseMixin, TemplateView):
     template_name = "dashboard/shared_profile.html"
 
+    def _profile_resource(self):
+        tenant = self._tenant()
+        if not tenant:
+            return None
+        return self._staff_default_resource(tenant)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        resource = self._profile_resource()
+        profile = getattr(resource, "profile", None) if resource else None
+        tags = profile.tags if profile and isinstance(profile.tags, list) else []
+
         context.update(self._base_nav_context())
+        context.update(
+            {
+                "profile_resource": resource,
+                "profile_intro": profile.intro if profile else "",
+                "profile_tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
+                "profile_avatar_url": profile.avatar_url if profile else "",
+                "profile_youtube_url": profile.youtube_url if profile else "",
+                "allow_30_min": profile.allow_30_min if profile else False,
+                "allow_60_min": profile.allow_60_min if profile else True,
+                "allow_120_min": profile.allow_120_min if profile else False,
+            }
+        )
         return context
 
     def post(self, request, *args, **kwargs):
         user = request.user
         user.username = (request.POST.get("username") or user.username).strip() or user.username
         user.email = (request.POST.get("email") or "").strip()
-        user.discord_id = (request.POST.get("discord_id") or "").strip() or None
-        user.save(update_fields=["username", "email", "discord_id"])
+        user.save(update_fields=["username", "email"])
+
+        resource = self._profile_resource()
+        if resource:
+            profile, _ = ResourceProfile.objects.get_or_create(resource=resource)
+            raw_tags = (request.POST.get("profile_tags") or "").replace("，", ",")
+            parsed_tags = [tag.strip() for tag in raw_tags.split(",") if tag.strip()]
+
+            profile.intro = (request.POST.get("profile_intro") or "").strip()
+            profile.avatar_url = (request.POST.get("profile_avatar_url") or "").strip() or None
+            profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
+            profile.tags = parsed_tags
+            profile.allow_30_min = request.POST.get("allow_30_min") == "on"
+            profile.allow_60_min = request.POST.get("allow_60_min") == "on"
+            profile.allow_120_min = request.POST.get("allow_120_min") == "on"
+            profile.save()
+            messages.success(request, "プロフィール情報を保存しました。")
+        else:
+            messages.warning(
+                request,
+                "基本プロフィールは保存しましたが、紐付けリソースが未設定のため拡張プロフィールは保存されませんでした。",
+            )
+
         return redirect("shared_profile")
 
 

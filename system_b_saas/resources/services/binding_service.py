@@ -24,10 +24,13 @@ def normalize_profile_text(value):
     return text.strip()
 
 
-def _discord_keys(user):
+def _identity_keys(user):
     keys = []
     if user is None:
         return keys
+
+    if getattr(user, "id", None) is not None:
+        keys.append(str(user.id).strip())
 
     social_uid = (
         SocialAccount.objects.filter(user=user, provider="discord")
@@ -51,8 +54,8 @@ def _discord_keys(user):
     return result
 
 
-def _pick_external_id(tenant, discord_keys, exclude_resource_id=None):
-    for key in discord_keys:
+def _pick_external_id(tenant, identity_keys, exclude_resource_id=None):
+    for key in identity_keys:
         q = Resource.objects.filter(tenant=tenant, external_id=key)
         if exclude_resource_id:
             q = q.exclude(id=exclude_resource_id)
@@ -61,11 +64,11 @@ def _pick_external_id(tenant, discord_keys, exclude_resource_id=None):
     return None
 
 
-def migrate_staff_schedule_data(tenant, user, target_resource, discord_keys=None):
+def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=None):
     if not tenant or not user or not target_resource:
         return
 
-    keys = discord_keys or _discord_keys(user)
+    keys = identity_keys or _identity_keys(user)
     match_q = Q(linked_user=user)
     if user.email:
         match_q |= Q(linked_user__isnull=True, email=user.email)
@@ -120,7 +123,7 @@ def ensure_staff_resource_binding(user, tenant=None):
     if tenant_obj is None:
         return None
 
-    keys = _discord_keys(user)
+    keys = _identity_keys(user)
 
     linked = Resource.objects.filter(tenant=tenant_obj, linked_user=user).first()
     if linked:
@@ -142,7 +145,7 @@ def ensure_staff_resource_binding(user, tenant=None):
                 update_fields.append("external_id")
         if update_fields:
             linked.save(update_fields=update_fields)
-        migrate_staff_schedule_data(tenant_obj, user, linked, discord_keys=keys)
+        migrate_staff_schedule_data(tenant_obj, user, linked, identity_keys=keys)
         return linked
 
     reusable = None
@@ -183,7 +186,7 @@ def ensure_staff_resource_binding(user, tenant=None):
                 reusable.external_id = ext
                 update_fields.append("external_id")
         reusable.save(update_fields=update_fields)
-        migrate_staff_schedule_data(tenant_obj, user, reusable, discord_keys=keys)
+        migrate_staff_schedule_data(tenant_obj, user, reusable, identity_keys=keys)
         return reusable
 
     base_name = (user.username or "").strip() or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
@@ -202,5 +205,5 @@ def ensure_staff_resource_binding(user, tenant=None):
         email=(user.email or "").strip() or None,
         is_active=user.is_active,
     )
-    migrate_staff_schedule_data(tenant_obj, user, created, discord_keys=keys)
+    migrate_staff_schedule_data(tenant_obj, user, created, identity_keys=keys)
     return created

@@ -241,6 +241,8 @@
 - 新增 A->B `course(30/60/120)` 与 B 侧 `ServicePreset` 自动映射，回填 `service_preset_ids`。
 - 新增 System A 个人资料保存后的强制同步（`on_commit` 触发），确保 course 变更实时同步到 System B。
 - 新增订单服务名自动补齐：当未传 `service_id/service_name` 时按时长自动匹配服务预设。
+- 历史订单短服务名（`30分/60分/120分`）展示时自动补全为完整课程名（`XX分VRASMR施術コース (PCVR)`）。
+- 管理员 `Shifts & Orders` 筛选粒度下调到“按天”，订单排序改为按预约时间。
 - 账号口径收口：`CONSUMER` 强制 `tenant=null`；public SSO 增加 STAFF 识别兜底，减少误判为 CONSUMER。
 - 回填命令 `backfill_a_sso_users` 增强：`CONSUMER` 自动清空 tenant，fallback 模式可基于资源证据识别 STAFF。
 

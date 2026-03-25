@@ -370,6 +370,7 @@
   - 订单会落库 `selected_service_name`，邮件优先显示用户所选服务名
   - `course_duration_minutes` 为可选透传字段（System A 可用 `end-start` 动态计算）
   - 当未传 `service_id/service_name` 时，System B 会基于 `course_duration_minutes`（或 `end-start`）自动匹配同租户服务预设并补齐服务名
+  - 若历史订单服务名仅存为 `30分/60分/120分`，B 侧返回与管理端展示时会自动补全为 `XX分VRASMR施術コース (PCVR)`
   - 若未选择服务，System B 邮件回退为按数据库 `Booking.start_time/end_time` 计算时长并渲染
 
 #### `GET /api/v1/integration/services/`

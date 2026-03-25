@@ -206,6 +206,8 @@
 - 若是 System A 定制版场景，可继续沿用“由预约开始/结束时间相减推导时长”的方式，不强依赖 System A 自身服务表结构。
 - A->B Cast 同步时，若仅传 `allow_30/60/120_min`，B 侧会自动映射到同租户 `ServicePreset`（按时长匹配）并回填到 `profile.metadata.service_preset_ids`。
 - A->B 订单同步时，若未明确传 `service_id/service_name`，B 侧会按订单时长匹配 `ServicePreset` 自动补齐服务名。
+- 订单展示口径统一：
+  - 若历史数据仅有 `30分 / 60分 / 120分` 短名，展示时自动补全为 `XX分VRASMR施術コース (PCVR)`。
 
 ## 10. 邮件功能设计
 
@@ -263,6 +265,8 @@
   - A/B 账号映射口径统一为 `saas_user_id -> discord_uid -> discord_id`。
 - 已完成（2026-03-26）：
   - System A 个人资料页（cast 用户）保存后，强制触发 `sync_cast_profile_to_system_b`（`transaction.on_commit`），确保 `allow_30/60/120_min` 变更实时同步到 System B。
+  - 管理员 `Shifts & Orders` 支持按“天”筛选（不再要求分钟级）。
+  - 管理员订单列表排序改为按预约时间（`start_time`）倒序。
   - B 中 A 端用户与员工用户完成角色区分（`CONSUMER` vs `STAFF/ADMIN`）。
 - 已完成（2026-03-25）：
   - A 发起 SSO 时透传 `a_role=ADMIN|STAFF|CONSUMER`。

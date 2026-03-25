@@ -75,6 +75,11 @@
 - `System B` 新增 `CONSUMER` 角色用于标识“由 A 端登录、且无租户绑定”的用户。
 - `CONSUMER` 不属于员工体系，不应进入 B 员工后台能力。
 - `STAFF/ADMIN` 仍只用于店铺员工/管理员运营体系。
+- 当前角色映射（2026-03-25）：
+  - A 管理员（`is_superuser` 或 `is_staff 且非 cast`）→ B `ADMIN`
+  - A 员工（`is_cast=True`）→ B `STAFF`
+  - A 普通用户 → B `CONSUMER`
+- A 来源用户在 B 侧缺失租户时，默认绑定到 `Veludo` 公共租户（可配置）。
 
 ### 5.1 Staff（店员）
 
@@ -239,6 +244,10 @@
   - System A 改为 SSO 消费方（SP），完成 callback 映射与会话建立。
   - A/B 账号映射口径统一为 `saas_user_id -> discord_uid -> discord_id`。
   - B 中 A 端用户与员工用户完成角色区分（`CONSUMER` vs `STAFF/ADMIN`）。
+- 已完成（2026-03-25）：
+  - A 发起 SSO 时透传 `a_role=ADMIN|STAFF|CONSUMER`。
+  - B 在 public SSO 流程按 `a_role` 同步 `role/is_staff`。
+  - 增加 `backfill_a_sso_users` 一次性历史修正命令（支持 dry-run / apply / fallback 手工角色指定）。
 
 ## 13. System A 作为定制版的保留原则
 

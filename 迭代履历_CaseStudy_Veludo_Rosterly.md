@@ -2,7 +2,7 @@
 
 **项目**: Veludo / Rosterly（System A 定制前台 + System B SaaS 核心）  
 **作者**: Yukimikei（作者归并见第 2 节）  
-**统计区间**: 2026-01-15 ~ 2026-03-24  
+**统计区间**: 2026-01-15 ~ 2026-03-25  
 **数据来源**: `git log --all`（当前仓库全量历史）  
 
 ---
@@ -207,6 +207,19 @@
 
 阶段结论：
 - 身份域去耦完成，A/B 登录耦合从“共享登录入口”收敛为“统一身份源 + 分角色后台”。
+
+---
+
+## 4.10 Phase 9：角色映射闭环与历史修正（2026-03-25）
+
+关键内容：
+- A 发起 SSO 增加 `a_role` 透传，形成三态映射：`ADMIN / STAFF / CONSUMER`。
+- B 侧 public SSO 角色同步完善：已绑定 `Veludo` tenant 的 A 来源账号仍会按 `a_role` 更新角色。
+- 新增历史数据修正命令 `backfill_a_sso_users`，支持 dry-run / apply。
+- 生产实操补充：当 B 侧不可见 A `core_user` 时进入 fallback，只批量修 tenant，角色需手动 `--admin-ids/--staff-ids`。
+
+阶段结论：
+- 角色语义从“仅区分消费者/员工”升级为“与 A 组织角色一致映射”，并形成可回放的历史数据修正路径。
 
 ---
 

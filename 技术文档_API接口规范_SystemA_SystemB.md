@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-03-24  
+**最后更新**: 2026-03-25  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -436,9 +436,11 @@
   - `redirect_uri`（必填，必须命中白名单）
   - `state`（必填）
   - `nonce`（必填）
+  - `a_role`（可选，System A 透传角色提示，`ADMIN|STAFF|CONSUMER`，默认 `CONSUMER`）
 - 行为：
   - 未登录：跳转到 B 的 Discord 登录。
   - 已登录：签发一次性 `code` 并 302 到 `redirect_uri?code=...&state=...`。
+  - 角色同步：若为 A 发起的 public SSO，B 会按 `a_role` 同步当前用户 `role/is_staff`（并在缺失时绑定 public tenant）。
 
 ### 4.2 `POST /api/v1/auth/sso/exchange`
 
@@ -474,6 +476,14 @@
   - `discord_uid`：Discord 不可变 UID（强烈建议作为跨系统回填键）。
   - `discord_id`：显示名/兼容字段，可能随用户改名变化。
   - `role`：可能为 `ADMIN` / `STAFF` / `CONSUMER`，其中 `CONSUMER` 表示 A 端用户（无租户后台权限）。
+
+### 4.4 A/B 角色映射（当前生产口径）
+
+- A 发起 SSO 时角色提示：
+  - A 管理员（`is_superuser` 或 `is_staff 且非 cast`）→ `a_role=ADMIN`
+  - A 员工（`is_cast=True`）→ `a_role=STAFF`
+  - 其余用户 → `a_role=CONSUMER`
+- B 在 authorize/social login 流程中按该提示同步 `SaaSUser.role` 与 `SaaSUser.is_staff`。
 
 ### 4.3 System A 映射优先级（落地口径）
 

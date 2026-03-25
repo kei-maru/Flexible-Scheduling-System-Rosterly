@@ -15,6 +15,7 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 from bookings.models import Booking
 from resources.models import Resource, ResourceProfile, ServicePreset
+from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services import schedule_service
 from tenants.models import Tenant
 
@@ -31,6 +32,11 @@ class SharedBaseMixin(LoginRequiredMixin):
         return getattr(self.request.user, "tenant", None)
 
     def _staff_default_resource(self, tenant):
+        if getattr(self.request.user, "role", "") == "STAFF":
+            auto_bound = ensure_staff_resource_binding(self.request.user, tenant=tenant)
+            if auto_bound:
+                return auto_bound
+
         linked = getattr(self.request.user, "resource_profile", None)
         if linked and linked.tenant_id == tenant.id:
             return linked
@@ -113,7 +119,7 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
         context.update(
             {
                 "profile_resource": resource,
-                "profile_intro": profile.intro if profile else "",
+                "profile_intro": normalize_profile_text(profile.intro) if profile else "",
                 "profile_tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
                 "profile_avatar_url": profile.avatar_url if profile else "",
                 "profile_youtube_url": profile.youtube_url if profile else "",
@@ -148,7 +154,7 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
             metadata = profile.metadata if isinstance(profile.metadata, dict) else {}
             metadata["service_preset_ids"] = selected_service_ids
 
-            profile.intro = (request.POST.get("profile_intro") or "").strip()
+            profile.intro = normalize_profile_text(request.POST.get("profile_intro"))
             profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
             profile.tags = parsed_tags
             profile.metadata = metadata
@@ -239,6 +245,10 @@ class _ScheduleApiBase(LoginRequiredMixin, View):
         return getattr(request.user, "tenant", None)
 
     def _staff_default_resource(self, request, tenant):
+        if getattr(request.user, "role", "") == "STAFF":
+            auto_bound = ensure_staff_resource_binding(request.user, tenant=tenant)
+            if auto_bound:
+                return auto_bound
         linked = getattr(request.user, "resource_profile", None)
         if linked and linked.tenant_id == tenant.id:
             return linked

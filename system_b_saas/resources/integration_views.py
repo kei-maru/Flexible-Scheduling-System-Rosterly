@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from django.db import transaction
 
 from resources.models import Resource, ResourceProfile, ResourceMedia
+from resources.services.binding_service import normalize_profile_text
 from resources.services import schedule_service
 from tenants.permissions import IsTenantAuthorized
 
@@ -62,7 +63,7 @@ def _serialize_resource(resource):
         "email": resource.email,
         "is_active": resource.is_active,
         "profile": {
-            "intro": profile.intro if profile else "",
+            "intro": normalize_profile_text(profile.intro) if profile else "",
             "tags": profile.tags if profile else [],
             "avatar_url": profile.avatar_url if profile else None,
             "youtube_url": profile.youtube_url if profile else None,
@@ -238,6 +239,8 @@ class IntegrationResourceView(APIView):
                     parsed = _coerce_bool(profile_payload[field])
                     if parsed is not None:
                         setattr(profile, field, parsed)
+                elif field == "intro":
+                    setattr(profile, field, normalize_profile_text(profile_payload[field]))
                 else:
                     setattr(profile, field, profile_payload[field])
         profile.save()

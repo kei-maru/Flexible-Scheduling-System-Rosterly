@@ -21,6 +21,7 @@ from django.views.generic import TemplateView
 
 from bookings.models import Booking
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
+from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from tenants.models import SaaSUser, Tenant
 
 
@@ -154,69 +155,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         return default_storage.url(stored_path)
 
     def _ensure_staff_resource_binding(self, user, tenant):
-        if user.role != "STAFF":
-            return None
-
-        linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
-        if linked:
-            update_fields = []
-            desired_name = (user.username or "").strip()
-            if desired_name and linked.name != desired_name:
-                linked.name = desired_name
-                update_fields.append("name")
-            if user.email and linked.email != user.email:
-                linked.email = user.email
-                update_fields.append("email")
-            if linked.is_active != user.is_active:
-                linked.is_active = user.is_active
-                update_fields.append("is_active")
-            if update_fields:
-                linked.save(update_fields=update_fields)
-            return linked
-
-        reusable = None
-        if user.email:
-            reusable = Resource.objects.filter(
-                tenant=tenant,
-                linked_user__isnull=True,
-                email=user.email,
-            ).first()
-        if reusable is None and user.username:
-            reusable = Resource.objects.filter(
-                tenant=tenant,
-                linked_user__isnull=True,
-                name=user.username,
-            ).first()
-
-        if reusable:
-            reusable.linked_user = user
-            update_fields = ["linked_user"]
-            if user.username and reusable.name != user.username:
-                reusable.name = user.username
-                update_fields.append("name")
-            if user.email and reusable.email != user.email:
-                reusable.email = user.email
-                update_fields.append("email")
-            if reusable.is_active != user.is_active:
-                reusable.is_active = user.is_active
-                update_fields.append("is_active")
-            reusable.save(update_fields=update_fields)
-            return reusable
-
-        base_name = (user.username or "").strip() or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
-        candidate = base_name[:90]
-        suffix = 2
-        while Resource.objects.filter(tenant=tenant, name=candidate).exclude(linked_user=user).exists():
-            candidate = f"{base_name[:80]}-{suffix}"
-            suffix += 1
-
-        return Resource.objects.create(
-            tenant=tenant,
-            linked_user=user,
-            name=candidate,
-            email=(user.email or "").strip() or None,
-            is_active=user.is_active,
-        )
+        return ensure_staff_resource_binding(user, tenant=tenant)
 
     def _save_cast_profile(self, request, tenant):
         resource_id = (request.POST.get("resource_id") or "").strip()
@@ -242,7 +181,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         metadata = profile.metadata if isinstance(profile.metadata, dict) else {}
         metadata["service_preset_ids"] = selected_service_ids
 
-        profile.intro = (request.POST.get("profile_intro") or "").strip()
+        profile.intro = normalize_profile_text(request.POST.get("profile_intro"))
         profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
         profile.tags = parsed_tags
         profile.metadata = metadata
@@ -446,7 +385,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                         "resource_name": resource.name,
                         "resource_email": resource.email or "",
                         "linked_username": resource.linked_user.username if resource.linked_user else "",
-                        "intro": profile.intro if profile else "",
+                        "intro": normalize_profile_text(profile.intro) if profile else "",
                         "avatar_url": profile.avatar_url if profile else "",
                         "youtube_url": profile.youtube_url if profile else "",
                         "tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),

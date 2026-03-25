@@ -75,7 +75,9 @@ def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=Non
     if user.username and not user.email and not keys:
         match_q |= Q(linked_user__isnull=True, name=user.username)
     if keys:
-        match_q |= Q(linked_user__isnull=True, external_id__in=keys)
+        # external_id is the strongest identity key (saas_user_id / discord uid / discord id fallback).
+        # Migrate schedule data even if this source resource was historically linked to a wrong user.
+        match_q |= Q(external_id__in=keys)
 
     sources = (
         Resource.objects.filter(tenant=tenant)

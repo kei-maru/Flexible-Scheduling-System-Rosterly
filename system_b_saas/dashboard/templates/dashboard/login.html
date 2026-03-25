@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rosterly Login</title>
+  <title>Rosterly ログイン</title>
   <style>
     :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--discord:#5865F2;--discord-h:#4752C4;--dark:#111827;--err-bg:#fff1f2;--err:#be123c;--ok-bg:#ecfeff;--ok:#155e75}
     *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 20% 15%,rgba(17,24,39,.06),transparent 38%),radial-gradient(circle at 80% 80%,rgba(30,64,175,.08),transparent 30%),var(--bg);color:var(--text)}
@@ -38,8 +38,8 @@
   <div class="wrap">
     <section class="card">
       <span class="tag">VELUDO SYSTEM B</span>
-      <h1>Rosterly 登录入口</h1>
-      <p>统一使用 Discord OAuth。员工账号由店铺管理员邀请链接开通，不支持自由注册。</p>
+      <h1>Rosterly ログイン入口</h1>
+      <p>ログインは Discord OAuth を使用します。スタッフアカウントは店舗管理者の招待リンク経由でのみ作成可能です。</p>
 
       {% if discord_oauth_ready %}
       <label class="consent">
@@ -50,26 +50,26 @@
       <div class="actions">
         <form class="inline" action="{% provider_login_url 'discord' process='login' next=next_url %}" method="post">
           {% csrf_token %}
-          <button class="btn btn-discord" id="discord-btn-login" type="submit" disabled>Discord 授权登录</button>
+          <button class="btn btn-discord" id="discord-btn-login" type="submit" disabled>Discord でログイン</button>
         </form>
         <a
           class="btn btn-secondary is-disabled"
           id="register-shop-btn"
           href="{% url 'dashboard_register_shop' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}"
           aria-disabled="true"
-        >注册店铺</a>
+        >店舗を登録</a>
       </div>
 
       <div class="auth-box">
-        <h3>第三方 Auth（预留）</h3>
-        <p>后续可在此扩展 Google / Apple / GitHub 等登录方式。</p>
+        <h3>外部認証（予約枠）</h3>
+        <p>将来的に Google / Apple / GitHub などの認証を追加予定です。</p>
       </div>
 
-      <div class="info">本地账号登录仅用于开发/测试，不作为正式生产登录流程。</div>
-      <p style="margin-top:10px;font-size:12px;color:#64748b">Local test login: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
+      <div class="info">ローカルアカウントログインは開発・検証専用です。本番運用の正式導線ではありません。</div>
+      <p style="margin-top:10px;font-size:12px;color:#64748b">ローカル検証ログイン: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
       {% else %}
-      <div class="warn">Discord OAuth 未配置。请先设置 `SYSTEM_B_DISCORD_CLIENT_ID` / `SYSTEM_B_DISCORD_SECRET`。</div>
-      <p style="margin-top:10px;font-size:12px;color:#64748b">可先使用本地账号登录：<a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
+      <div class="warn">Discord OAuth が未設定です。`SYSTEM_B_DISCORD_CLIENT_ID` / `SYSTEM_B_DISCORD_SECRET` を先に設定してください。</div>
+      <p style="margin-top:10px;font-size:12px;color:#64748b">一時的にローカルアカウントでログインできます: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
       {% endif %}
 
       {% if messages %}

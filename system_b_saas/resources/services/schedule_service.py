@@ -57,7 +57,7 @@ def _parse_date_or_datetime(value: str) -> datetime:
     if d is not None:
         return _ensure_aware(datetime.combine(d, datetime.min.time()))
 
-    raise ScheduleValidationError(f"Invalid date format: {value}")
+    raise ScheduleValidationError(f"日付形式が不正です: {value}")
 
 
 def _normalize_week_config(week_config: dict | None) -> dict[str, list[dict[str, str]]]:
@@ -86,7 +86,7 @@ def _normalize_week_config(week_config: dict | None) -> dict[str, list[dict[str,
 
 def resolve_resource(tenant, resource_id_raw: str | None) -> Resource:
     if not resource_id_raw:
-        raise ScheduleValidationError("resource_id required")
+        raise ScheduleValidationError("resource_id は必須です")
 
     try:
         uuid_obj = UUID(resource_id_raw)
@@ -98,7 +98,7 @@ def resolve_resource(tenant, resource_id_raw: str | None) -> Resource:
 
     resource = Resource.objects.filter(tenant=tenant, external_id=resource_id_raw).first()
     if not resource:
-        raise ScheduleNotFoundError("Resource not found")
+        raise ScheduleNotFoundError("リソースが見つかりません")
     return resource
 
 
@@ -129,7 +129,7 @@ def list_events(tenant, resource_id_raw: str | None, start_str: str | None, end_
 
     if mode == "search":
         if not start_dt or not end_dt:
-            raise ScheduleValidationError("Time range required")
+            raise ScheduleValidationError("時間範囲の指定が必要です")
 
         if start_dt < booking_deadline:
             return []
@@ -237,7 +237,7 @@ def list_events(tenant, resource_id_raw: str | None, start_str: str | None, end_
                     "is_booked": False,
                     "is_recurring": availability.is_recurring,
                     "type": "availability",
-                    "title": "Available",
+                    "title": "空き",
                 }
             )
 
@@ -248,21 +248,21 @@ def create_single_availability(tenant, resource_id_raw: str, start_str: str, end
     resource = resolve_resource(tenant, resource_id_raw)
 
     if not all([start_str, end_str]):
-        raise ScheduleValidationError("Missing fields")
+        raise ScheduleValidationError("必須項目が不足しています")
 
     start_dt = _parse_datetime(start_str)
     end_dt = _parse_datetime(end_str)
     if not start_dt or not end_dt:
-        raise ScheduleValidationError("Invalid time range")
+        raise ScheduleValidationError("時間範囲が不正です")
 
     if start_dt >= end_dt:
-        raise ScheduleValidationError("Invalid time range")
+        raise ScheduleValidationError("時間範囲が不正です")
 
     if start_dt < timezone.now() + timedelta(hours=24):
         raise ScheduleValidationError("新規シフトは24時間後から設定可能です。")
 
     if _check_conflict(resource, start_dt, end_dt):
-        raise ScheduleValidationError("Time slot conflict")
+        raise ScheduleValidationError("時間帯が重複しています")
 
     availability = Availability.objects.create(
         resource=resource,
@@ -284,7 +284,7 @@ def create_recurring_availability(
     resource = resolve_resource(tenant, resource_id_raw)
 
     if not all([range_start, range_end, week_config]):
-        raise ScheduleValidationError("Missing fields")
+        raise ScheduleValidationError("必須項目が不足しています")
 
     normalized_week = _normalize_week_config(week_config)
 
@@ -294,7 +294,7 @@ def create_recurring_availability(
     end_date = end_dt.date()
 
     if curr_date > end_date:
-        raise ScheduleValidationError("Invalid range")
+        raise ScheduleValidationError("日付範囲が不正です")
 
     generation_min_time = timezone.now() + timedelta(hours=24)
     stats = {"created": 0, "skipped_conflict": 0, "skipped_24h": 0, "deleted": 0}
@@ -363,10 +363,10 @@ def delete_availability(tenant, availability_id: str):
     try:
         availability = Availability.objects.get(id=availability_id, resource__tenant=tenant)
     except Availability.DoesNotExist as exc:
-        raise ScheduleNotFoundError("Not found") from exc
+        raise ScheduleNotFoundError("対象が見つかりません") from exc
 
     if availability.is_booked:
-        raise ScheduleValidationError("Cannot delete booked slot")
+        raise ScheduleValidationError("予約済み枠は削除できません")
 
     availability.delete()
 
@@ -416,7 +416,7 @@ def list_templates(tenant, resource_id_raw: str):
 
 def save_template(tenant, resource_id_raw: str, name: str, week_config: dict):
     if not all([resource_id_raw, name, week_config]):
-        raise ScheduleValidationError("Missing fields")
+        raise ScheduleValidationError("必須項目が不足しています")
 
     resource = resolve_resource(tenant, resource_id_raw)
     template, _ = ScheduleTemplate.objects.update_or_create(
@@ -430,6 +430,6 @@ def save_template(tenant, resource_id_raw: str, name: str, week_config: dict):
 
 def delete_template(tenant, template_id: str):
     if not template_id:
-        raise ScheduleValidationError("id required")
+        raise ScheduleValidationError("id は必須です")
 
     ScheduleTemplate.objects.filter(id=template_id, resource__tenant=tenant).delete()

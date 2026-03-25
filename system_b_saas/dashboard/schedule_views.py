@@ -21,7 +21,7 @@ class SharedBaseMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not getattr(request.user, "tenant_id", None):
             logout(request)
-            messages.warning(request, "该账号未开通员工系统权限，请使用业务端入口登录。")
+            messages.warning(request, "このアカウントにはスタッフシステム権限がありません。業務側の入口からログインしてください。")
             return redirect("dashboard_login")
         return super().dispatch(request, *args, **kwargs)
 
@@ -53,10 +53,12 @@ class SharedBaseMixin(LoginRequiredMixin):
         return ""
 
     def _base_nav_context(self):
+        tenant = self._tenant()
         return {
             "is_admin": self._is_admin(),
             "user_avatar_url": self._avatar_url(),
             "user_initial": (self.request.user.username[:1] or "U").upper(),
+            "tenant_name": tenant.name if tenant else "未設定店舗",
         }
 
 
@@ -163,22 +165,22 @@ class _ScheduleApiBase(LoginRequiredMixin, View):
     def _resolve_dashboard_resource(self, request, resource_id_raw):
         tenant = self._tenant(request)
         if not tenant:
-            raise schedule_service.ScheduleValidationError("Tenant not found")
+            raise schedule_service.ScheduleValidationError("店舗情報が見つかりません")
 
         role = getattr(request.user, "role", "STAFF")
 
         if role == "STAFF":
             resource = self._staff_default_resource(request, tenant)
             if not resource:
-                raise schedule_service.SchedulePermissionError("No resource linked to current staff account")
+                raise schedule_service.SchedulePermissionError("現在のスタッフアカウントに担当リソースが紐付いていません")
             if resource_id_raw and str(resource.id) != str(resource_id_raw):
-                raise schedule_service.SchedulePermissionError("You can only manage your own schedule")
+                raise schedule_service.SchedulePermissionError("自分のスケジュールのみ操作できます")
             return tenant, resource
 
         if not resource_id_raw:
             resource = Resource.objects.filter(tenant=tenant, is_active=True).order_by("name").first()
             if not resource:
-                raise schedule_service.ScheduleValidationError("No active resources")
+                raise schedule_service.ScheduleValidationError("有効なリソースがありません")
             return tenant, resource
 
         resource = schedule_service.resolve_resource(tenant, resource_id_raw)
@@ -242,7 +244,7 @@ class DashboardScheduleAvailabilityApi(_ScheduleApiBase):
         except schedule_service.SchedulePermissionError as exc:
             return self._json_error(str(exc), status=403)
         except schedule_service.ScheduleValidationError as exc:
-            status_code = 409 if str(exc) == "Time slot conflict" else 400
+            status_code = 409 if str(exc) in {"Time slot conflict", "時間帯が重複しています"} else 400
             return self._json_error(str(exc), status=status_code)
         except schedule_service.ScheduleNotFoundError as exc:
             return self._json_error(str(exc), status=404)
@@ -321,7 +323,7 @@ class DashboardBookingActionApi(_ScheduleApiBase):
         payload = self._payload(request)
         new_status = payload.get("status")
         if new_status not in ["CANCELLED", "COMPLETED"]:
-            return self._json_error("Invalid status", status=400)
+            return self._json_error("不正なステータスです", status=400)
 
         tenant = self._tenant(request)
         role = getattr(request.user, "role", "STAFF")
@@ -330,29 +332,29 @@ class DashboardBookingActionApi(_ScheduleApiBase):
         try:
             booking = Booking.objects.select_related("resource").get(id=booking_id, tenant=tenant)
         except Booking.DoesNotExist:
-            return self._json_error("Booking not found", status=404)
+            return self._json_error("予約が見つかりません", status=404)
 
         if new_status == "CANCELLED":
             if not is_admin:
-                return self._json_error("Only admin can cancel from this panel", status=403)
+                return self._json_error("この画面からのキャンセルは管理者のみ可能です", status=403)
             if (booking.start_time - timezone.now()).total_seconds() < 2 * 3600:
-                return self._json_error("Cancellation requires at least 2 hours lead time", status=400)
+                return self._json_error("キャンセルは開始2時間前まで可能です", status=400)
             booking.status = "CANCELLED"
             booking.save(update_fields=["status"])
             return JsonResponse({"status": "CANCELLED"})
 
         if new_status == "COMPLETED":
             if booking.status != "CONFIRMED":
-                return self._json_error("Only CONFIRMED bookings can be completed", status=400)
+                return self._json_error("確定済み予約のみ完了にできます", status=400)
             if not is_admin:
                 try:
                     _tenant, staff_resource = self._resolve_dashboard_resource(request, None)
                 except schedule_service.ScheduleServiceError as exc:
                     return self._json_error(str(exc), status=403)
                 if booking.resource_id != staff_resource.id:
-                    return self._json_error("You can only complete bookings of your own resource", status=403)
+                    return self._json_error("自分の担当予約のみ完了にできます", status=403)
             booking.status = "COMPLETED"
             booking.save(update_fields=["status"])
             return JsonResponse({"status": "COMPLETED"})
 
-        return self._json_error("Unsupported action", status=400)
+        return self._json_error("未対応の操作です", status=400)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Local Login | System B</title>
+  <title>ローカルログイン | System B</title>
   <style>
     :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--dark:#0f172a;--dark2:#1e293b;--error:#be123c;--errorbg:#fff1f2}
     *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 15% 10%,rgba(2,6,23,.06),transparent 36%),var(--bg);color:var(--text)}
@@ -22,31 +22,31 @@
 <body>
   <div class="wrap">
     <section class="card">
-      <h1>Local Account Login</h1>
-      <p>用于本地账号密码测试。Discord 登录请使用 <code>/dashboard/login/</code>。</p>
+      <h1>ローカルアカウントログイン</h1>
+      <p>開発用のローカルID/PWログインです。Discord ログインは <code>/dashboard/login/</code> を利用してください。</p>
 
       <form method="post" action="">
         {% csrf_token %}
-        <label for="id_username">Username</label>
+        <label for="id_username">ユーザー名</label>
         <input id="id_username" type="text" name="username" autocomplete="username" required>
 
-        <label for="id_password">Password</label>
+        <label for="id_password">パスワード</label>
         <input id="id_password" type="password" name="password" autocomplete="current-password" required>
 
         <label class="remember" for="id_remember">
           <input id="id_remember" type="checkbox" name="remember_me">
-          <span>Remember me</span>
+          <span>ログイン状態を保持</span>
         </label>
 
         {% if next %}
         <input type="hidden" name="next" value="{{ next }}">
         {% endif %}
 
-        <button type="submit">Sign In</button>
+        <button type="submit">ログイン</button>
       </form>
 
       {% if form.errors %}
-      <div class="error">Invalid username or password.</div>
+      <div class="error">ユーザー名またはパスワードが正しくありません。</div>
       {% endif %}
     </section>
   </div>

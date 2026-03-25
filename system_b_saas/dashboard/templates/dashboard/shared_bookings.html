@@ -7,62 +7,51 @@
     <title>予約一覧 | System B</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { 'veludo-gold': '#d4af37', 'veludo-bg': '#1a1a1a' },
-                    fontFamily: { serif: ['"Noto Serif JP"', 'serif'], english: ['"Cormorant Garamond"', 'serif'] }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="min-h-screen bg-black text-white font-serif bg-fixed bg-cover" 
-      style="background-image: url('{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}');">
-    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-0"></div>
-
-    <div class="relative z-10 max-w-5xl mx-auto px-4 py-8 md:px-6 md:py-12">
-        <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div class="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
             <div class="flex flex-wrap items-center gap-2">
-                <a href="{% url 'shared_home' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-gold hover:border-veludo-gold transition-colors">主页</a>
-                <a href="{% url 'shared_schedule' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-gold hover:border-veludo-gold transition-colors">排班管理</a>
-                <a href="{% url 'shared_profile' %}" class="text-xs border border-white/20 px-3 py-2 text-white/70 hover:text-veludo-gold hover:border-veludo-gold transition-colors">个人信息管理</a>
-                <a href="{% url 'shared_bookings' %}" class="text-xs border border-veludo-gold px-3 py-2 text-veludo-gold">预约一览</a>
+                <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
+                <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">ホーム</a>
+                <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">プロフィール管理</a>
+                <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">シフト管理</a>
+                <a href="{% url 'shared_bookings' %}" class="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-xs text-white">予約一覧</a>
                 {% if is_admin %}
-                <a href="{% url 'tenant_dashboard' %}" class="text-xs border border-indigo-200/40 px-3 py-2 text-indigo-200 hover:text-white hover:border-indigo-200 transition-colors">管理员面板</a>
+                <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 hover:bg-indigo-100">管理者ダッシュボード</a>
                 {% endif %}
             </div>
             <div class="flex items-center gap-2 self-end md:self-auto">
-                <a href="{% url 'logout' %}" class="text-xs border border-rose-300/40 px-3 py-2 text-rose-200 hover:text-white hover:border-rose-200 transition-colors">Logout</a>
+                <a href="{% url 'logout' %}" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 hover:bg-rose-100">ログアウト</a>
                 <div class="relative group">
-                <button class="flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-2 py-1 hover:border-veludo-gold transition-colors">
-                    {% if user_avatar_url %}
-                    <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
-                    {% else %}
-                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ user_initial }}</span>
-                    {% endif %}
-                    <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
-                </button>
-                <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-white/20 bg-black/90 p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
-                    <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20">Logout</a>
-                </div>
+                    <button class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50">
+                        {% if user_avatar_url %}
+                        <img src="{{ user_avatar_url }}" alt="avatar" class="h-8 w-8 rounded-full object-cover">
+                        {% else %}
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ user_initial }}</span>
+                        {% endif %}
+                        <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
+                    </button>
+                    <div class="invisible absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+                        <a href="{% url 'logout' %}" class="block rounded px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">ログアウト</a>
+                    </div>
                 </div>
             </div>
         </div>
+    </header>
 
-        <div class="flex flex-col md:flex-row justify-between md:items-end mb-8 md:mb-12 border-b border-white/10 pb-6 gap-4 md:gap-0">
+    <main class="mx-auto max-w-6xl px-4 py-8 md:py-10">
+        <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-                <h1 class="text-3xl md:text-4xl font-english text-veludo-gold italic">予約一覧</h1>
-                <p class="text-xs text-gray-400 mt-2 tracking-widest uppercase">Booking History</p>
+                <h1 class="text-3xl font-bold text-slate-900">予約一覧</h1>
+                <p class="mt-2 text-sm text-slate-500">予約の確認と、権限に応じたステータス更新を行えます。</p>
             </div>
-            <div class="text-left md:text-right text-xs text-gray-400">
-                {% if is_admin %}ADMIN VIEW{% else %}STAFF VIEW{% endif %}
+            <div class="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                {% if is_admin %}管理者ビュー{% else %}スタッフビュー{% endif %}
             </div>
         </div>
 
-        <div class="space-y-4 md:space-y-6">
+        <div class="space-y-4">
             {% if bookings %}
                 {% for booking in bookings %}
                 <div onclick="showDetail(this)"
@@ -74,112 +63,97 @@
                      data-start-date="{{ booking.start_time|date:'Y/m/d (D)' }}"
                      data-time-range="{{ booking.start_time|date:'H:i' }} - {{ booking.end_time|date:'H:i' }}"
                      data-status="{{ booking.status }}"
+                     data-status-label="{% if booking.status == 'COMPLETED' %}完了{% elif booking.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}"
                      data-start-iso="{{ booking.start_time|date:'c' }}"
-                     class="bg-white/5 border border-white/10 p-4 md:p-6 rounded-sm hover:border-veludo-gold/50 hover:bg-white/10 transition-all cursor-pointer group relative overflow-hidden">
+                     class="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
 
-                    <div class="absolute top-0 left-0 w-1 h-full bg-veludo-gold opacity-50 group-hover:opacity-100 transition-opacity"></div>
-
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
-                        <div class="flex items-center gap-4 md:gap-6 w-full md:w-auto">
-                            <div class="text-center bg-white/5 p-2 rounded-sm min-w-[70px] border border-white/10 group-hover:border-veludo-gold/30 transition-colors shrink-0">
-                                <div class="text-[9px] text-gray-200 uppercase tracking-[0.2em] mb-1">DATE</div>
-                                <div class="text-xl font-serif text-white lining-nums tracking-widest leading-none">
-                                    {{ booking.start_time|date:"m/d" }}
-                                </div>
+                    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="min-w-[76px] rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                                <div class="text-[10px] tracking-widest text-slate-500">DATE</div>
+                                <div class="text-lg font-semibold text-slate-800">{{ booking.start_time|date:"m/d" }}</div>
                             </div>
 
-                            <div class="flex-1 min-w-0">
-                                <div class="text-xl font-english text-veludo-gold leading-none flex items-center gap-2">
-                                    <span>{{ booking.start_time|date:"H:i" }}</span>
-                                    <span class="text-gray-300">~</span>
-                                    <span class="text-gray-300">{{ booking.end_time|date:"H:i" }}</span>
+                            <div>
+                                <div class="text-base font-semibold text-slate-900">
+                                    {{ booking.start_time|date:"H:i" }} - {{ booking.end_time|date:"H:i" }}
                                 </div>
-                                <div class="flex items-center gap-2 mt-2">
-                                    <span class="bg-white/5 px-1.5 py-0.5 rounded-sm text-[8px] text-gray-200 border border-white/10 tracking-[0.15em] uppercase shrink-0">RESOURCE</span>
-                                    <span class="text-xs font-normal tracking-widest text-gray-200 font-serif truncate">{{ booking.resource.name }}</span>
-                                </div>
-                                <div class="flex items-center gap-2 mt-1">
-                                    <span class="bg-white/5 px-1.5 py-0.5 rounded-sm text-[8px] text-gray-200 border border-white/10 tracking-[0.15em] uppercase shrink-0">SERVICE</span>
-                                    <span class="text-xs font-normal tracking-widest text-gray-300 font-serif truncate">{{ booking.selected_service_name|default:"-" }}</span>
-                                </div>
+                                <div class="mt-1 text-xs text-slate-500">担当: {{ booking.resource.name }}</div>
+                                <div class="mt-1 text-xs text-slate-500">サービス: {{ booking.selected_service_name|default:"-" }}</div>
                             </div>
                         </div>
 
-                        <div class="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-2 border-t border-white/5 pt-3 md:pt-0 md:border-none">
-                            <span class="px-3 py-1 text-[10px] tracking-widest rounded border
-                                {% if booking.status == 'COMPLETED' %}border-veludo-gold/30 text-veludo-gold bg-veludo-gold/10
-                                {% elif booking.status == 'CANCELLED' %}border-red-500/30 text-red-400 bg-red-500/10
-                                {% else %}border-green-500/30 text-green-400 bg-green-500/10{% endif %}">
-                                {{ booking.status }}
+                        <div class="flex items-center gap-3">
+                            <span class="rounded border px-3 py-1 text-[10px] tracking-widest
+                                {% if booking.status == 'COMPLETED' %}border-emerald-200 bg-emerald-50 text-emerald-700
+                                {% elif booking.status == 'CANCELLED' %}border-rose-200 bg-rose-50 text-rose-700
+                                {% else %}border-amber-200 bg-amber-50 text-amber-700{% endif %}">
+                                {% if booking.status == 'COMPLETED' %}完了{% elif booking.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}
                             </span>
-                            <div class="text-[10px] text-gray-600 font-mono">ID: {{ booking.id|slice:":8" }}...</div>
+                            <div class="text-[11px] text-slate-400">ID: {{ booking.id|slice:":8" }}...</div>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             {% else %}
-                <div class="text-center py-20 bg-white/5 rounded border border-white/10 border-dashed">
-                    <i class="fa-regular fa-calendar-xmark text-4xl text-gray-600 mb-4"></i>
-                    <p class="text-gray-400">予約履歴がありません</p>
+                <div class="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
+                    <i class="fa-regular fa-calendar-xmark text-4xl text-slate-400"></i>
+                    <p class="mt-3 text-slate-500">予約履歴がありません</p>
                 </div>
             {% endif %}
         </div>
-    </div>
+    </main>
 
-    <div id="detail-modal" class="fixed inset-0 bg-black/90 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
-        <div class="bg-[#151515] w-full max-w-md border border-veludo-gold/30 shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
-            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white z-10">
-                <i class="fa-solid fa-xmark text-xl"></i>
-            </button>
-
-            <div class="bg-white/5 p-6 border-b border-white/10 text-center shrink-0">
-                <h3 class="text-xl font-english text-veludo-gold italic">Reservation Details</h3>
+    <div id="detail-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div class="mx-auto mt-8 w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <h3 class="text-lg font-semibold text-slate-900">予約詳細</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-xl"></i></button>
             </div>
 
-            <div class="p-6 md:p-8 space-y-6 flex-1">
-                <div class="text-center mb-6">
-                    <span class="px-3 py-1 text-[10px] tracking-widest border rounded" id="modal-status">CONFIRMED</span>
-                    <p class="text-[10px] text-gray-600 mt-2 font-mono" id="modal-id">ID: --</p>
+            <div class="space-y-4 p-5">
+                <div class="text-center">
+                    <span class="rounded border px-3 py-1 text-[10px] tracking-widest" id="modal-status">確定</span>
+                    <p class="mt-2 text-[11px] text-slate-400" id="modal-id">ID: --</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-black/40 p-3 rounded border border-white/5">
-                        <div class="text-[13px] text-gray-500 uppercase">CUSTOMER</div>
-                        <div class="text-lg font-bold text-white mt-1 leading-tight break-words" id="modal-customer">--</div>
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <div class="text-xs text-slate-500">顧客名</div>
+                        <div class="mt-1 text-sm font-semibold text-slate-900" id="modal-customer">--</div>
                     </div>
-
-                    <div class="bg-black/40 p-3 rounded border border-white/5">
-                        <div class="text-[13px] text-gray-500 uppercase">RESOURCE</div>
-                        <div class="text-lg font-bold text-white mt-1 leading-tight break-words" id="modal-resource">--</div>
+                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <div class="text-xs text-slate-500">担当</div>
+                        <div class="mt-1 text-sm font-semibold text-slate-900" id="modal-resource">--</div>
                     </div>
                 </div>
 
-                <div class="bg-black/40 p-3 rounded border border-white/5">
-                    <div class="text-[13px] text-gray-500 uppercase">EMAIL</div>
-                    <div class="text-sm text-white mt-1 break-all" id="modal-email">--</div>
+                <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs text-slate-500">メール</div>
+                    <div class="mt-1 break-all text-sm text-slate-800" id="modal-email">--</div>
                 </div>
 
-                <div class="bg-black/40 p-3 rounded border border-white/5">
-                    <div class="text-[13px] text-gray-500 uppercase">SERVICE</div>
-                    <div class="text-sm text-white mt-1 break-all" id="modal-service">--</div>
+                <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs text-slate-500">サービス</div>
+                    <div class="mt-1 text-sm text-slate-800" id="modal-service">--</div>
                 </div>
 
-                <div class="bg-black/40 p-4 rounded border border-white/5 flex items-center justify-between">
-                    <div class="text-[13px] font-english text-gray-200 uppercase">TIME</div>
-                    <div class="text-2xl font-bold text-veludo-gold" id="modal-time">-- : --</div>
+                <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs text-slate-500">時間</div>
+                    <div class="mt-1 text-lg font-semibold text-slate-900" id="modal-time">-- : --</div>
                 </div>
 
-                <div class="text-[10px] text-gray-500 text-center" id="modal-note">
+                <div class="text-center text-xs text-slate-500" id="modal-note">
                     操作権限はロールにより制限されます。
                 </div>
             </div>
 
-            <div class="p-4 border-t border-white/10 bg-white/5 flex flex-col md:flex-row gap-3 md:gap-4 shrink-0">
+            <div class="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 p-4 md:flex-row">
                 {% if is_admin %}
-                <button id="btn-cancel" onclick="updateBookingStatus('CANCELLED')" class="flex-1 py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/30 text-xs tracking-widest transition-colors">CANCEL</button>
+                <button id="btn-cancel" onclick="updateBookingStatus('CANCELLED')" class="flex-1 rounded-md border border-rose-200 bg-rose-50 py-2 text-xs font-semibold tracking-widest text-rose-700 hover:bg-rose-100">キャンセル</button>
                 {% endif %}
-                <button id="btn-complete" onclick="updateBookingStatus('COMPLETED')" class="flex-1 py-3 bg-veludo-gold/20 hover:bg-veludo-gold/40 text-veludo-gold border border-veludo-gold/30 text-xs tracking-widest transition-colors">COMPLETE</button>
-                <button onclick="closeModal()" class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs tracking-widest transition-colors">CLOSE</button>
+                <button id="btn-complete" onclick="updateBookingStatus('COMPLETED')" class="flex-1 rounded-md border border-emerald-200 bg-emerald-50 py-2 text-xs font-semibold tracking-widest text-emerald-700 hover:bg-emerald-100">完了</button>
+                <button onclick="closeModal()" class="flex-1 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold tracking-widest text-slate-700 hover:bg-slate-100">閉じる</button>
             </div>
         </div>
     </div>
@@ -205,17 +179,17 @@ function showDetail(el) {
     document.getElementById('modal-time').innerText = ds.timeRange;
 
     const statusEl = document.getElementById('modal-status');
-    statusEl.innerText = ds.status;
-    statusEl.className = 'px-3 py-1 text-[10px] tracking-widest border rounded';
-    if (ds.status === 'COMPLETED') statusEl.classList.add('border-veludo-gold/30','text-veludo-gold','bg-veludo-gold/10');
-    else if (ds.status === 'CANCELLED') statusEl.classList.add('border-red-500/30','text-red-400','bg-red-500/10');
-    else statusEl.classList.add('border-green-500/30','text-green-400','bg-green-500/10');
+    statusEl.innerText = ds.statusLabel || ds.status;
+    statusEl.className = 'rounded border px-3 py-1 text-[10px] tracking-widest';
+    if (ds.status === 'COMPLETED') statusEl.classList.add('border-emerald-200','text-emerald-700','bg-emerald-50');
+    else if (ds.status === 'CANCELLED') statusEl.classList.add('border-rose-200','text-rose-700','bg-rose-50');
+    else statusEl.classList.add('border-amber-200','text-amber-700','bg-amber-50');
 
     const noteEl = document.getElementById('modal-note');
     const startTime = new Date(ds.startIso);
     const now = new Date(NOW_ISO);
     if ((startTime - now) < 2 * 60 * 60 * 1000) {
-        noteEl.innerText = '2時間以内の予約はキャンセルできません。';
+        noteEl.innerText = '開始2時間以内の予約はキャンセルできません。';
     } else {
         noteEl.innerText = '操作権限はロールにより制限されます。';
     }
@@ -240,10 +214,11 @@ async function updateBookingStatus(status) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-        alert(data.error || 'Action failed');
+        alert(data.error || '操作に失敗しました');
         return;
     }
-    alert(`Updated: ${status}`);
+    const statusLabel = status === 'COMPLETED' ? '完了' : (status === 'CANCELLED' ? 'キャンセル' : status);
+    alert(`更新しました: ${statusLabel}`);
     location.reload();
 }
 </script>

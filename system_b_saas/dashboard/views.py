@@ -29,7 +29,7 @@ class DashboardLoginView(TemplateView):
             if not getattr(request.user, "tenant_id", None):
                 list(get_messages(request))
                 logout(request)
-                messages.warning(request, "该账号未开通员工系统权限，请联系管理员。")
+                messages.warning(request, "このアカウントにはスタッフシステム権限がありません。管理者にお問い合わせください。")
                 return redirect("dashboard_login")
 
             role = getattr(request.user, "role", "STAFF")
@@ -68,7 +68,7 @@ class DashboardRegisterShopRedirectView(View):
         if not (settings.SYSTEM_B_DISCORD_CLIENT_ID and settings.SYSTEM_B_DISCORD_SECRET):
             messages.warning(
                 request,
-                "Discord OAuth 未配置，暂时无法进行店铺注册。请先配置 SYSTEM_B_DISCORD_CLIENT_ID / SYSTEM_B_DISCORD_SECRET。",
+                "Discord OAuth が未設定のため、店舗登録を開始できません。SYSTEM_B_DISCORD_CLIENT_ID / SYSTEM_B_DISCORD_SECRET を設定してください。",
             )
             return redirect("dashboard_login")
 
@@ -99,7 +99,7 @@ class AdminDashboardRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
 
     def handle_no_permission(self):
         if self.request.user.is_authenticated:
-            messages.warning(self.request, "Dashboard is admin-only. Redirected to shared schedule.")
+            messages.warning(self.request, "管理者専用ページです。共有スケジュールへ移動しました。")
             return redirect("shared_schedule")
         return super().handle_no_permission()
 
@@ -203,24 +203,24 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         try:
             if request.POST.get("save_template") == "true":
                 self._save_template(request, tenant)
-                messages.success(request, "Email template saved.")
+                messages.success(request, "メールテンプレートを保存しました。")
             elif request.POST.get("save_staff") == "true":
                 self._save_staff_profile(request, tenant)
-                messages.success(request, "Staff profile updated.")
+                messages.success(request, "スタッフ情報を更新しました。")
             elif request.POST.get("save_service") == "true":
                 self._save_service_preset(request, tenant)
-                messages.success(request, "Service preset saved.")
+                messages.success(request, "サービスプリセットを保存しました。")
             elif request.POST.get("delete_service") == "true":
                 self._delete_service_preset(request, tenant)
-                messages.success(request, "Service preset deleted.")
+                messages.success(request, "サービスプリセットを削除しました。")
             else:
-                messages.error(request, "Unsupported dashboard action.")
+                messages.error(request, "未対応のダッシュボード操作です。")
         except SaaSUser.DoesNotExist:
-            messages.error(request, "Staff user not found.")
+            messages.error(request, "スタッフユーザーが見つかりません。")
         except ServicePreset.DoesNotExist:
-            messages.error(request, "Service preset not found.")
+            messages.error(request, "サービスプリセットが見つかりません。")
         except Exception as exc:
-            messages.error(request, f"Error: {exc}")
+            messages.error(request, f"エラー: {exc}")
 
         return redirect("tenant_dashboard")
 
@@ -299,6 +299,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "service_presets": service_presets,
                 "next_24h_count": next_24h_count,
                 "templates_json": json.dumps(templates_data),
+                "tenant_name": tenant.name if tenant else "未設定店舗",
             }
         )
         return context

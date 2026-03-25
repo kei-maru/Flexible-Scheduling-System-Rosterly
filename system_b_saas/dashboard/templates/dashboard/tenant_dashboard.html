@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Tenant Dashboard | System B</title>
+    <title>管理者ダッシュボード | System B</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -61,22 +61,22 @@
 
         <nav class="flex-1 py-6 space-y-1">
             <a href="{% url 'shared_schedule' %}" class="w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-regular fa-calendar-check w-6"></i> Shared Schedule
+                <i class="fa-regular fa-calendar-check w-6"></i> シフト管理
             </a>
             <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-chart-simple w-6"></i> Overview
+                <i class="fa-solid fa-chart-simple w-6"></i> 概要
             </button>
             <button onclick="switchTab('orders')" id="nav-orders" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-receipt w-6"></i> Bookings
+                <i class="fa-solid fa-receipt w-6"></i> 予約
             </button>
             <button onclick="switchTab('staff')" id="nav-staff" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-users-gear w-6"></i> Staff
+                <i class="fa-solid fa-users-gear w-6"></i> スタッフ
             </button>
             <button onclick="switchTab('services')" id="nav-services" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-list-check w-6"></i> Service Presets
+                <i class="fa-solid fa-list-check w-6"></i> サービスプリセット
             </button>
             <button onclick="switchTab('email')" id="nav-email" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-envelope-open-text w-6"></i> Email Templates
+                <i class="fa-solid fa-envelope-open-text w-6"></i> メールテンプレート
             </button>
         </nav>
 
@@ -87,11 +87,11 @@
                 </div>
                 <div>
                     <div class="text-sm font-medium text-gray-900">{{ request.user.username }}</div>
-                    <div class="text-xs text-gray-500">Tenant Admin</div>
+                    <div class="text-xs text-gray-500">店舗管理者</div>
                 </div>
             </div>
             <a href="{% url 'logout' %}" class="mt-3 inline-flex items-center gap-2 text-xs text-rose-600 hover:text-rose-700">
-                <i class="fa-solid fa-right-from-bracket"></i> Logout
+                <i class="fa-solid fa-right-from-bracket"></i> ログアウト
             </a>
         </div>
     </aside>
@@ -100,12 +100,12 @@
         
         <header class="flex justify-between items-center mb-8">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900" id="page-title">Dashboard</h1>
-                <p class="text-sm text-gray-500 mt-1">Manage your bookings and configurations.</p>
+                <h1 class="text-2xl font-bold text-gray-900" id="page-title">管理者ダッシュボード</h1>
+                <p class="text-sm text-gray-500 mt-1">店舗名: {{ tenant_name }} / 予約・スタッフ・設定を管理します。</p>
             </div>
             <div>
                 <button onclick="location.reload()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 shadow-sm">
-                    <i class="fa-solid fa-sync mr-2 text-gray-400"></i> Refresh
+                    <i class="fa-solid fa-sync mr-2 text-gray-400"></i> 更新
                 </button>
             </div>
         </header>
@@ -123,22 +123,22 @@
         <div id="section-overview" class="space-y-6 animate-fade-in">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Total Bookings</div>
+                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">予約総数</div>
                     <div class="text-3xl font-bold text-gray-900">{{ orders|length }}</div>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Active Resources</div>
+                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">稼働リソース</div>
                     <div class="text-3xl font-bold text-gray-900">{{ resources|length }}</div>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Next 24h</div>
+                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">24時間以内</div>
                     <div class="text-3xl font-bold text-primary">{{ next_24h_count }}</div>
                 </div>
             </div>
 
             <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-medium text-gray-900">Resource Status</h3>
+                    <h3 class="text-lg font-medium text-gray-900">リソース状況</h3>
                 </div>
                 <div class="p-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -154,7 +154,7 @@
                                 </div>
                             </div>
                             <div class="text-xs text-gray-500 bg-gray-50 p-2 rounded text-center">
-                                <a href="#" class="text-primary hover:underline">View Calendar</a>
+                                <a href="#" class="text-primary hover:underline">カレンダーを見る</a>
                             </div>
                         </div>
                         {% endfor %}
@@ -164,16 +164,16 @@
 
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">Upcoming Shifts</h3>
+                    <h3 class="text-lg font-medium text-gray-900">今後のシフト</h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full saas-table">
                         <thead>
                             <tr>
-                                <th>Resource</th>
-                                <th>Start</th>
-                                <th>End</th>
-                                <th>Type</th>
+                                <th>担当</th>
+                                <th>開始</th>
+                                <th>終了</th>
+                                <th>種別</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -184,14 +184,14 @@
                                 <td>{{ shift.end_time|date:"Y/m/d H:i" }}</td>
                                 <td>
                                     {% if shift.is_recurring %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Recurring</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">周期</span>
                                     {% else %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Single</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">単発</span>
                                     {% endif %}
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="4" class="text-center py-8 text-gray-500 italic">No upcoming shifts.</td></tr>
+                            <tr><td colspan="4" class="text-center py-8 text-gray-500 italic">今後のシフトはありません。</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -202,18 +202,18 @@
         <div id="section-orders" class="hidden-section">
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">Booking History</h3>
+                    <h3 class="text-lg font-medium text-gray-900">予約履歴</h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full saas-table">
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Customer</th>
-                                <th>Resource</th>
-                                <th>Service</th>
-                                <th>Date & Time</th>
-                                <th>Status</th>
+                                <th>顧客</th>
+                                <th>担当</th>
+                                <th>サービス</th>
+                                <th>日時</th>
+                                <th>状態</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -235,13 +235,13 @@
                                         {% if order.status == 'CONFIRMED' %}bg-green-100 text-green-800
                                         {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800
                                         {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                        {{ order.status }}
+                                        {% if order.status == 'CONFIRMED' %}確定{% elif order.status == 'CANCELLED' %}キャンセル{% elif order.status == 'COMPLETED' %}完了{% else %}{{ order.status }}{% endif %}
                                     </span>
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="6" class="text-center py-8 text-gray-500 italic">No bookings found.</td>
+                                <td colspan="6" class="text-center py-8 text-gray-500 italic">予約データがありません。</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -253,20 +253,20 @@
         <div id="section-staff" class="hidden-section">
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">Staff Profiles</h3>
-                    <div class="text-xs text-gray-500">Edit role, contact and linked resource</div>
+                    <h3 class="text-lg font-medium text-gray-900">スタッフ管理</h3>
+                    <div class="text-xs text-gray-500">権限・連絡先・連携リソースを編集します</div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full saas-table">
                         <thead>
                             <tr>
-                                <th>Username</th>
-                                <th>Email</th>
+                                <th>ユーザー名</th>
+                                <th>メール</th>
                                 <th>Discord</th>
-                                <th>Role</th>
-                                <th>Resource</th>
-                                <th>Active</th>
-                                <th>Action</th>
+                                <th>権限</th>
+                                <th>リソース</th>
+                                <th>有効</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -288,7 +288,7 @@
                                         </select>
 
                                         <select name="linked_resource_id" class="border border-gray-300 rounded px-2 py-2 text-sm">
-                                            <option value="">-- No Link --</option>
+                                            <option value="">-- 未連携 --</option>
                                             {% for r in resources %}
                                             <option value="{{ r.id }}" {% if row.linked_resource_id == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>
                                             {% endfor %}
@@ -296,15 +296,15 @@
 
                                         <label class="flex items-center gap-2 text-sm text-gray-700 px-2">
                                             <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="accent-indigo-600">
-                                            Active
+                                            有効
                                         </label>
 
-                                        <button type="submit" class="bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700">Save</button>
+                                        <button type="submit" class="bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700">保存</button>
                                     </form>
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="7" class="text-center py-8 text-gray-500 italic">No staff users.</td></tr>
+                            <tr><td colspan="7" class="text-center py-8 text-gray-500 italic">スタッフが存在しません。</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -316,8 +316,8 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                        <h3 class="text-lg font-medium text-gray-900">Create Service Preset</h3>
-                        <p class="text-xs text-gray-500 mt-1">Used by System B booking flow and email service name.</p>
+                        <h3 class="text-lg font-medium text-gray-900">サービスプリセット作成</h3>
+                        <p class="text-xs text-gray-500 mt-1">予約フローとメール表示で使用されます。</p>
                     </div>
                     <div class="p-6">
                         <form method="post" class="space-y-4">
@@ -326,19 +326,19 @@
                             <input type="hidden" name="service_id" value="">
 
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Service Name</label>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">サービス名</label>
                                 <input type="text" name="service_name" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. 90分 ASMR コース">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Duration (minutes)</label>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">所要時間（分）</label>
                                 <input type="number" name="duration_minutes" min="1" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" value="60">
                             </div>
                             <label class="flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" name="is_active" checked class="accent-indigo-600">
-                                Active
+                                有効
                             </label>
                             <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded font-bold shadow hover:bg-indigo-700 transition-colors">
-                                Save Service
+                                保存
                             </button>
                         </form>
                     </div>
@@ -346,16 +346,16 @@
 
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                        <h3 class="text-lg font-medium text-gray-900">Preset List</h3>
+                        <h3 class="text-lg font-medium text-gray-900">プリセット一覧</h3>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full saas-table">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Duration</th>
-                                    <th>Active</th>
-                                    <th>Action</th>
+                                    <th>名称</th>
+                                    <th>時間</th>
+                                    <th>有効</th>
+                                    <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -364,26 +364,26 @@
                                     <td>
                                         <div class="font-medium text-gray-900">{{ svc.name }}</div>
                                     </td>
-                                    <td class="text-gray-700">{{ svc.duration_minutes }} min</td>
+                                    <td class="text-gray-700">{{ svc.duration_minutes }} 分</td>
                                     <td>
                                         {% if svc.is_active %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">有効</span>
                                         {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Inactive</span>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">無効</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <form method="post" onsubmit="return confirm('Delete this service preset?');">
+                                        <form method="post" onsubmit="return confirm('このサービスプリセットを削除しますか？');">
                                             {% csrf_token %}
                                             <input type="hidden" name="delete_service" value="true">
                                             <input type="hidden" name="service_id" value="{{ svc.id }}">
-                                            <button type="submit" class="text-xs text-red-600 hover:text-red-700 font-semibold">Delete</button>
+                                            <button type="submit" class="text-xs text-red-600 hover:text-red-700 font-semibold">削除</button>
                                         </form>
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center py-8 text-gray-500 italic">No service presets.</td>
+                                    <td colspan="4" class="text-center py-8 text-gray-500 italic">サービスプリセットがありません。</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -399,11 +399,11 @@
                 
                 <div class="lg:col-span-5 flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-sm">
                     <div class="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <h3 class="font-bold text-gray-800"><i class="fa-solid fa-pen-nib mr-2"></i>Email Editor</h3>
+                        <h3 class="font-bold text-gray-800"><i class="fa-solid fa-pen-nib mr-2"></i>メール編集</h3>
                         
                         <div class="flex bg-gray-200 rounded p-1">
-                            <button onclick="switchTemplateType('BOOKING_CONFIRMED')" id="btn-confirmed" class="text-xs px-3 py-1 rounded font-medium transition-colors bg-white shadow-sm text-indigo-600">Confirmation</button>
-                            <button onclick="switchTemplateType('BOOKING_CANCELLED')" id="btn-cancelled" class="text-xs px-3 py-1 rounded font-medium transition-colors text-gray-500 hover:bg-gray-100">Cancellation</button>
+                            <button onclick="switchTemplateType('BOOKING_CONFIRMED')" id="btn-confirmed" class="text-xs px-3 py-1 rounded font-medium transition-colors bg-white shadow-sm text-indigo-600">予約確定</button>
+                            <button onclick="switchTemplateType('BOOKING_CANCELLED')" id="btn-cancelled" class="text-xs px-3 py-1 rounded font-medium transition-colors text-gray-500 hover:bg-gray-100">予約キャンセル</button>
                         </div>
                     </div>
                     
@@ -413,7 +413,7 @@
                         <input type="hidden" id="in-event-type" name="event_type" value="BOOKING_CONFIRMED">
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Brand Logo</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">ブランドロゴ</label>
                             <div class="flex items-center gap-4">
                                 <div class="w-12 h-12 border border-gray-200 rounded-full overflow-hidden flex items-center justify-center bg-gray-50">
                                     <img id="logo-preview-icon" src="" class="w-full h-full object-cover hidden">
@@ -426,15 +426,15 @@
                         <hr class="border-gray-100">
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Recipients</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">送信先</label>
                             <div class="flex gap-4">
                                 <label class="flex items-center gap-2 cursor-pointer border border-gray-200 rounded px-3 py-2 bg-gray-50 hover:bg-white transition-colors">
                                     <input type="checkbox" id="in-send-customer" name="send_to_customer" class="accent-indigo-600">
-                                    <span class="text-sm text-gray-700">Send to Customer</span>
+                                    <span class="text-sm text-gray-700">顧客へ送信</span>
                                 </label>
                                 <label class="flex items-center gap-2 cursor-pointer border border-gray-200 rounded px-3 py-2 bg-gray-50 hover:bg-white transition-colors">
                                     <input type="checkbox" id="in-send-cast" name="send_to_cast" class="accent-indigo-600">
-                                    <span class="text-sm text-gray-700">Send to Cast</span>
+                                    <span class="text-sm text-gray-700">スタッフへ送信</span>
                                 </label>
                             </div>
                         </div>
@@ -442,34 +442,34 @@
                         <hr class="border-gray-100">
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Subject Line</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">件名</label>
                             <input type="text" id="in-subject" name="subject" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Main Title</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">タイトル</label>
                             <input type="text" id="in-title" name="email_title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Greeting Message</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">挨拶文</label>
                             <textarea id="in-greeting" name="email_greeting" class="w-full h-20 border border-gray-300 rounded px-3 py-2 text-sm outline-none resize-none"></textarea>
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                Service Name (supports {% templatetag openvariable %} duration_minutes {% templatetag closevariable %})
+                                サービス名（{% templatetag openvariable %} duration_minutes {% templatetag closevariable %} 利用可）
                             </label>
                             <input type="text" id="in-service-name" name="service_name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. {% templatetag openvariable %} duration_minutes {% templatetag closevariable %}分VRASMR施術コース (PCVR)">
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Button Text</label>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">ボタン文言</label>
                                 <input type="text" id="in-btn-text" name="button_text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Button Link</label>
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">ボタンリンク</label>
                                 <input type="text" id="in-btn-link" name="button_link" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none text-gray-400">
                             </div>
                         </div>
@@ -477,23 +477,23 @@
                         <hr class="border-gray-100">
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Footer Policy Title</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">フッター見出し</label>
                             <input type="text" id="in-footer-title" name="footer_title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Footer Policy Text</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">フッター本文</label>
                             <textarea id="in-footer-text" name="footer_text" class="w-full h-20 border border-gray-300 rounded px-3 py-2 text-sm outline-none resize-none"></textarea>
                         </div>
 
                         <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded font-bold shadow hover:bg-indigo-700 transition-colors mt-4">
-                            SAVE SETTINGS
+                            保存する
                         </button>
                     </form>
                 </div>
 
                 <div class="lg:col-span-7 flex flex-col h-full bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
                     <div class="p-3 bg-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-300">
-                        Live Preview (Mock Data)
+                        プレビュー（モックデータ）
                     </div>
                     
                     <div class="flex-1 overflow-y-auto p-8 flex justify-center bg-white">
@@ -563,11 +563,11 @@
             
             // Update Title
             const titles = {
-                'overview': 'Dashboard',
-                'orders': 'Bookings',
-                'staff': 'Staff Management',
-                'services': 'Service Presets',
-                'email': 'Email Configuration'
+                'overview': '管理者ダッシュボード',
+                'orders': '予約',
+                'staff': 'スタッフ管理',
+                'services': 'サービスプリセット',
+                'email': 'メール設定'
             };
             document.getElementById('page-title').innerText = titles[tabName];
         }
@@ -609,7 +609,7 @@
             // Fill Form Data
             const data = allTemplates[type] || {};
             document.getElementById('in-event-type').value = type;
-            document.getElementById('in-send-customer').checked = (data.send_to_customer !== false); // 默认 true
+            document.getElementById('in-send-customer').checked = (data.send_to_customer !== false); // デフォルトは true
             document.getElementById('in-send-cast').checked = (data.send_to_cast !== false);
             document.getElementById('in-subject').value = data.subject || '';
             document.getElementById('in-title').value = data.email_title || '';

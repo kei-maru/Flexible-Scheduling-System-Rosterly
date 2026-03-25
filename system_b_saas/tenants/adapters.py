@@ -132,7 +132,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
 
         if user.tenant_id and not is_public_consumer:
             if request is not None:
-                messages.info(request, "当前账号已绑定店铺，无需重复注册店铺。")
+                messages.info(request, "このアカウントは既に店舗に紐付いています。再登録は不要です。")
             return
 
         tenant = self._create_tenant_for_shop_signup(user)
@@ -153,7 +153,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if update_fields:
             user.save(update_fields=update_fields)
         if request is not None:
-            messages.success(request, "店铺注册成功，已自动授予 ADMIN 权限。")
+            messages.success(request, "店舗登録が完了しました。ADMIN 権限を付与しました。")
 
     def _build_unique_username(self, base_username: str, discord_numeric_id: str) -> str:
         User = get_user_model()
@@ -256,7 +256,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return
 
         logger.warning("pre_social_login: denied, no authorized account candidates=%s", candidates)
-        messages.error(request, "仅已授权员工/店长可登录，请联系店铺管理员开通账号。")
+        messages.error(request, "認可済みのスタッフまたは管理者のみログインできます。店舗管理者へお問い合わせください。")
         raise ImmediateHttpResponse(redirect("dashboard_login"))
 
     def is_open_for_signup(self, request, sociallogin):
@@ -309,7 +309,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             if update_fields:
                 user.save(update_fields=update_fields)
                 logger.info("save_user: bootstrap user updated id=%s fields=%s", user.id, update_fields)
-            messages.success(request, "首位管理员账号创建成功，已自动开通店铺。")
+            messages.success(request, "初回管理者アカウントの作成が完了し、店舗を自動開設しました。")
 
         if request is not None and request.session.get("allow_public_sso_login"):
             request.session.pop("allow_public_sso_login", None)

@@ -345,7 +345,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             orders_qs = (
                 Booking.objects.filter(tenant=tenant)
                 .select_related("resource", "resource__profile", "selected_service")
-                .order_by("-created_at")[:100]
+                .order_by("-start_time")[:100]
             )
             orders = list(orders_qs)
             for order in orders:

@@ -323,12 +323,12 @@
                         <div class="border-b border-slate-200 bg-slate-50 px-5 py-3">
                             <div class="flex flex-col gap-2 md:flex-row md:items-end">
                                 <div>
-                                    <label for="range-start" class="mb-1 block text-[11px] text-slate-500">開始日時</label>
-                                    <input id="range-start" type="datetime-local" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
+                                    <label for="range-start" class="mb-1 block text-[11px] text-slate-500">開始日</label>
+                                    <input id="range-start" type="date" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
                                 </div>
                                 <div>
-                                    <label for="range-end" class="mb-1 block text-[11px] text-slate-500">終了日時</label>
-                                    <input id="range-end" type="datetime-local" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
+                                    <label for="range-end" class="mb-1 block text-[11px] text-slate-500">終了日</label>
+                                    <input id="range-end" type="date" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
                                 </div>
                                 <div class="flex gap-2">
                                     <button type="button" onclick="applyScheduleFilters()" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">検索</button>
@@ -846,10 +846,17 @@
 
         let currentScheduleCastId = "all";
 
-        function parseRangeValue(inputId) {
+        function parseRangeStartValue(inputId) {
             const input = document.getElementById(inputId);
             if (!input || !input.value) return null;
-            const ms = new Date(input.value).getTime();
+            const ms = new Date(`${input.value}T00:00:00`).getTime();
+            return Number.isFinite(ms) ? ms : null;
+        }
+
+        function parseRangeEndValue(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input || !input.value) return null;
+            const ms = new Date(`${input.value}T23:59:59`).getTime();
             return Number.isFinite(ms) ? ms : null;
         }
 
@@ -863,8 +870,8 @@
 
         function applyScheduleFilters() {
             const castId = currentScheduleCastId;
-            const startMs = parseRangeValue("range-start");
-            const endMs = parseRangeValue("range-end");
+            const startMs = parseRangeStartValue("range-start");
+            const endMs = parseRangeEndValue("range-end");
 
             let shiftCount = 0;
             document.querySelectorAll(".shift-card").forEach((card) => {

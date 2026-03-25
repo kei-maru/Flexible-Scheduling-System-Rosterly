@@ -29,13 +29,32 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return "CONSUMER"
         return role_hint
 
+    def _public_sso_tenant_slug(self) -> str:
+        return str(getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_SLUG", "Veludo") or "Veludo").strip()
+
+    def _resolve_public_sso_tenant(self):
+        slug = self._public_sso_tenant_slug()
+        tenant = Tenant.objects.filter(slug=slug).first()
+        if tenant:
+            return tenant
+        return Tenant.objects.filter(slug__iexact=slug).first()
+
     def _sync_public_sso_role(self, user, role_hint: str):
-        if user is None or user.tenant_id or user.is_superuser:
+        if user is None or user.is_superuser:
+            return
+
+        public_tenant = self._resolve_public_sso_tenant()
+        if user.tenant_id and (not public_tenant or user.tenant_id != public_tenant.id):
+            logger.info("public sso role sync skipped user id=%s tenant_id=%s", user.id, user.tenant_id)
             return
 
         desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
         desired_is_staff = desired_role in {"ADMIN", "STAFF"}
         update_fields = []
+
+        if not user.tenant_id and public_tenant:
+            user.tenant = public_tenant
+            update_fields.append("tenant")
 
         if user.role != desired_role:
             user.role = desired_role

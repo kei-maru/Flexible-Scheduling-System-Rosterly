@@ -21,6 +21,33 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return False
         return bool(request.session.get("allow_public_sso_login"))
 
+    def _sso_role_hint(self, request) -> str:
+        if request is None:
+            return "CONSUMER"
+        role_hint = str(request.session.get("sso_role_hint") or "").strip().upper()
+        if role_hint not in {"ADMIN", "STAFF", "CONSUMER"}:
+            return "CONSUMER"
+        return role_hint
+
+    def _sync_public_sso_role(self, user, role_hint: str):
+        if user is None or user.tenant_id or user.is_superuser:
+            return
+
+        desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
+        desired_is_staff = desired_role in {"ADMIN", "STAFF"}
+        update_fields = []
+
+        if user.role != desired_role:
+            user.role = desired_role
+            update_fields.append("role")
+        if user.is_staff != desired_is_staff:
+            user.is_staff = desired_is_staff
+            update_fields.append("is_staff")
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+            logger.info("public sso role sync user id=%s fields=%s", user.id, update_fields)
+
     def _is_first_owner_bootstrap(self) -> bool:
         User = get_user_model()
         bootstrap = not User.objects.filter(role="ADMIN", tenant__isnull=False).exists()
@@ -98,9 +125,12 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
 
     def pre_social_login(self, request, sociallogin):
         public_sso_flow = self._is_public_sso_flow(request)
+        role_hint = self._sso_role_hint(request)
         logger.info("pre_social_login: existing=%s", sociallogin.is_existing)
         # Existing social account: standard allauth flow.
         if sociallogin.is_existing:
+            if public_sso_flow:
+                self._sync_public_sso_role(sociallogin.user, role_hint)
             return
 
         extra_data = sociallogin.account.extra_data or {}
@@ -127,6 +157,8 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             authorized_user = User.objects.filter(discord_id__in=candidates).first()
         if authorized_user:
             logger.info("pre_social_login: matched authorized user id=%s", authorized_user.id)
+            if public_sso_flow:
+                self._sync_public_sso_role(authorized_user, role_hint)
             sociallogin.connect(request, authorized_user)
             return
 
@@ -152,21 +184,13 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
 
     def save_user(self, request, sociallogin, form=None):
         public_sso_flow = self._is_public_sso_flow(request)
+        role_hint = self._sso_role_hint(request)
         is_first_bootstrap = self._is_first_owner_bootstrap()
         logger.info("save_user: first_bootstrap=%s public_sso_flow=%s", is_first_bootstrap, public_sso_flow)
         user = super().save_user(request, sociallogin, form=form)
 
-        if public_sso_flow and not user.tenant_id and not user.is_superuser:
-            update_fields = []
-            if user.role != "CONSUMER":
-                user.role = "CONSUMER"
-                update_fields.append("role")
-            if user.is_staff:
-                user.is_staff = False
-                update_fields.append("is_staff")
-            if update_fields:
-                user.save(update_fields=update_fields)
-                logger.info("save_user: public sso user updated id=%s fields=%s", user.id, update_fields)
+        if public_sso_flow:
+            self._sync_public_sso_role(user, role_hint)
 
         if is_first_bootstrap and not public_sso_flow:
             tenant = self._ensure_bootstrap_tenant()

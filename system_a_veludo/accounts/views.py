@@ -161,6 +161,13 @@ def sso_login(request):
         messages.error(request, 'SSO is not configured. Please contact administrator.')
         return redirect('login')
 
+    role_hint = 'CONSUMER'
+    if request.user.is_authenticated:
+        if request.user.is_superuser or (request.user.is_staff and not getattr(request.user, 'is_cast', False)):
+            role_hint = 'ADMIN'
+        elif getattr(request.user, 'is_cast', False):
+            role_hint = 'STAFF'
+
     if request.user.is_authenticated:
         logout(request)
 
@@ -176,6 +183,7 @@ def sso_login(request):
         'state': state,
         'nonce': nonce,
         'force_login': '1',
+        'a_role': role_hint,
     }
     return redirect(f"{SYSTEM_B_SSO_AUTHORIZE_URL}?{requests.compat.urlencode(query_params)}")
 

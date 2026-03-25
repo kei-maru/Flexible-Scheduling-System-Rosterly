@@ -58,6 +58,9 @@ def sso_authorize(request):
     state = (request.GET.get('state') or '').strip()
     nonce = (request.GET.get('nonce') or '').strip()
     force_login = (request.GET.get('force_login') or '').strip() == '1'
+    role_hint = (request.GET.get('a_role') or '').strip().upper()
+    if role_hint not in {'ADMIN', 'STAFF', 'CONSUMER'}:
+        role_hint = 'CONSUMER'
 
     if not client_id or not redirect_uri or not state or not nonce:
         return JsonResponse({'error': 'invalid_request'}, status=400)
@@ -74,21 +77,29 @@ def sso_authorize(request):
     if force_login and request.user.is_authenticated:
         logout(request)
         request.session['allow_public_sso_login'] = True
+        request.session['sso_role_hint'] = role_hint
         next_path = _drop_query_params(request.get_full_path(), {'force_login'})
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
     if not request.user.is_authenticated:
         request.session['allow_public_sso_login'] = True
+        request.session['sso_role_hint'] = role_hint
         next_path = _drop_query_params(request.get_full_path(), {'force_login'})
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
-    if not getattr(request.user, 'tenant_id', None) and getattr(request.user, 'role', None) == 'STAFF' and not request.user.is_superuser:
+    if (
+        not getattr(request.user, 'tenant_id', None)
+        and getattr(request.user, 'role', None) in {'ADMIN', 'STAFF'}
+        and not request.user.is_superuser
+        and role_hint == 'CONSUMER'
+    ):
         request.user.role = 'CONSUMER'
         request.user.is_staff = False
         request.user.save(update_fields=['role', 'is_staff'])
 
     public_sso_flow = bool(request.session.get('allow_public_sso_login'))
     request.session.pop('allow_public_sso_login', None)
+    request.session.pop('sso_role_hint', None)
 
     raw_code = secrets.token_urlsafe(32)
     SSOAuthCode.objects.create(

@@ -1,9 +1,11 @@
 import json
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -74,6 +76,14 @@ class SharedHomeView(SharedBaseMixin, TemplateView):
 class SharedProfileView(SharedBaseMixin, TemplateView):
     template_name = "dashboard/shared_profile.html"
 
+    def _store_profile_avatar(self, tenant, resource, avatar_file):
+        ext = ""
+        if "." in (avatar_file.name or ""):
+            ext = "." + avatar_file.name.rsplit(".", 1)[-1].lower()
+        rel_path = f"resource_avatars/tenant_{tenant.id}/resource_{resource.id}/{uuid4().hex}{ext}"
+        stored_path = default_storage.save(rel_path, avatar_file)
+        return default_storage.url(stored_path)
+
     def _profile_resource(self):
         tenant = self._tenant()
         if not tenant:
@@ -132,13 +142,18 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
             metadata["service_preset_ids"] = selected_service_ids
 
             profile.intro = (request.POST.get("profile_intro") or "").strip()
-            profile.avatar_url = (request.POST.get("profile_avatar_url") or "").strip() or None
             profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
             profile.tags = parsed_tags
             profile.metadata = metadata
             profile.allow_30_min = 30 in selected_durations
             profile.allow_60_min = 60 in selected_durations
             profile.allow_120_min = 120 in selected_durations
+
+            if request.POST.get("profile_avatar_clear") == "on":
+                profile.avatar_url = None
+            elif request.FILES.get("profile_avatar_file"):
+                profile.avatar_url = self._store_profile_avatar(tenant, resource, request.FILES["profile_avatar_file"])
+
             profile.save()
             messages.success(request, "プロフィール情報を保存しました。")
         else:

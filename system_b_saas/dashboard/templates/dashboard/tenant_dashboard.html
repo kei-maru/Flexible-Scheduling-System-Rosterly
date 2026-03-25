@@ -51,52 +51,47 @@
         }
     </style>
 </head>
-<body class="h-screen overflow-hidden">
-    <div class="flex h-full">
-        <aside class="w-72 border-r border-slate-200 bg-white px-5 py-4">
-            <div class="mb-6 border-b border-slate-200 pb-4">
-                <div class="text-2xl font-bold tracking-tight text-indigo-700">Rosterly</div>
-                <div class="mt-1 text-xs text-slate-500">Admin Control Panel</div>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div class="mx-auto max-w-7xl px-5 py-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl font-bold tracking-tight text-indigo-700">Rosterly</div>
+                    <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
+                </div>
+                <div class="flex items-center gap-3 text-sm text-slate-600">
+                    <span class="rounded-md border border-slate-200 bg-white px-3 py-1.5">ログイン中: {{ request.user.username }}</span>
+                    <a href="{% url 'logout' %}" class="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                        <i class="fa-solid fa-right-from-bracket"></i> ログアウト
+                    </a>
+                </div>
             </div>
 
-            <nav class="space-y-2">
-                <button id="tab-users" onclick="switchTab('users')" class="tab-btn active flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+            <nav class="mt-4 flex flex-wrap gap-2">
+                <button id="tab-users" onclick="switchTab('users')" class="tab-btn active inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-users text-slate-500"></i> Users & Roles
                 </button>
-                <button id="tab-content" onclick="switchTab('content')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                <button id="tab-content" onclick="switchTab('content')" class="tab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-wand-magic-sparkles text-slate-500"></i> Cast CMS
                 </button>
-                <button id="tab-shifts" onclick="switchTab('shifts')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                <button id="tab-shifts" onclick="switchTab('shifts')" class="tab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-regular fa-calendar-check text-slate-500"></i> Shifts & Orders
                 </button>
-                <button id="tab-services" onclick="switchTab('services')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                <button id="tab-services" onclick="switchTab('services')" class="tab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-list-check text-slate-500"></i> Service Presets
                 </button>
-                <button id="tab-email" onclick="switchTab('email')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                <button id="tab-email" onclick="switchTab('email')" class="tab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-envelope-open-text text-slate-500"></i> Email Templates
                 </button>
             </nav>
+        </div>
+    </header>
 
-            <div class="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div class="text-xs text-slate-500">Tenant</div>
-                <div class="mt-1 text-sm font-semibold text-slate-800">{{ tenant_name }}</div>
-            </div>
-
-            <div class="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                <div class="text-xs text-slate-500">Signed in</div>
-                <div class="mt-1 text-sm font-semibold text-slate-800">{{ request.user.username }}</div>
-            </div>
-
-            <a href="{% url 'logout' %}" class="mt-4 inline-flex items-center gap-2 text-xs text-rose-600 hover:text-rose-700">
-                <i class="fa-solid fa-right-from-bracket"></i> ログアウト
-            </a>
-        </aside>
-
-        <main class="flex-1 overflow-y-auto p-6 md:p-8">
+    <main class="mx-auto max-w-7xl p-6 md:p-8">
             <header class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
                     <h1 id="page-title" class="text-2xl font-bold text-slate-900">Users & Roles</h1>
-                    <p class="mt-1 text-sm text-slate-500">System A の管理導線に合わせた運用パネルです。</p>
+                    <p class="mt-1 text-sm text-slate-500">店舗運営に必要なユーザー・公開情報・予約運用を管理するパネルです。</p>
                 </div>
                 <div class="flex gap-2">
                     <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
@@ -127,13 +122,14 @@
                     <h2 class="text-lg font-semibold text-slate-900">ユーザー管理</h2>
                     <div class="flex gap-2">
                         <select id="roleFilter" onchange="filterUsers()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700">
-                            <option value="all">All Roles</option>
+                            <option value="all">すべての権限</option>
                             <option value="staff">STAFF</option>
                             <option value="admin">ADMIN</option>
                         </select>
-                        <input id="userSearch" onkeyup="filterUsers()" type="text" placeholder="Search user..." class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700">
+                        <input id="userSearch" onkeyup="filterUsers()" type="text" placeholder="ユーザーを検索..." class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700">
                     </div>
                 </div>
+                <p class="mb-3 text-xs text-slate-500">Discord ID と予約リソースは登録時に確定されるため、この画面では変更できません。</p>
 
                 <div class="overflow-x-auto rounded-lg border border-slate-200">
                     <table class="admin-table w-full">
@@ -141,10 +137,10 @@
                             <tr>
                                 <th>ユーザー名</th>
                                 <th>メール</th>
-                                <th>Discord</th>
-                                <th>Role</th>
-                                <th>Resource</th>
-                                <th>有効</th>
+                                <th>Discord ID（固定）</th>
+                                <th>権限</th>
+                                <th>予約リソース（固定）</th>
+                                <th>有効（予約対象）</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -159,26 +155,27 @@
 
                                         <input type="text" name="username" value="{{ row.user.username }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
                                         <input type="email" name="email" value="{{ row.user.email|default:'' }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
-                                        <input type="text" name="discord_id" value="{{ row.user.discord_id|default:'' }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                        <input type="text" value="{{ row.user.discord_id|default:'' }}" readonly class="rounded-md border border-slate-200 bg-slate-100 px-2 py-2 text-sm text-slate-500">
 
                                         <select name="role" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
                                             <option value="STAFF" {% if row.user.role == 'STAFF' %}selected{% endif %}>STAFF</option>
                                             <option value="ADMIN" {% if row.user.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
                                         </select>
 
-                                        <select name="linked_resource_id" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
-                                            <option value="">-- 自動連携 --</option>
-                                            {% for r in resources %}
-                                            <option value="{{ r.id }}" {% if row.linked_resource_id == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>
-                                            {% endfor %}
-                                        </select>
+                                        <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-sm text-slate-700">
+                                            <div class="font-medium">{{ row.linked_resource_name|default:'自動割当済み' }}</div>
+                                            <div class="mt-1 text-[11px] text-slate-500">登録時に自動連携</div>
+                                        </div>
 
-                                        <div class="flex items-center justify-between gap-2">
-                                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                                <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="accent-indigo-600">
-                                                有効
+                                        <div class="flex items-center justify-center">
+                                            <label class="inline-flex items-center gap-2 whitespace-nowrap text-xs text-slate-700">
+                                                <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="h-4 w-4 accent-indigo-600">
+                                                予約対象として有効
                                             </label>
-                                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">保存</button>
+                                        </div>
+
+                                        <div class="flex items-center justify-center">
+                                            <button type="submit" class="inline-flex h-9 items-center rounded-md bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700">保存</button>
                                         </div>
                                     </form>
                                 </td>
@@ -189,7 +186,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="mt-3 text-xs text-slate-500">`STAFF` は保存時に自動で予約可能 Resource と連携されます。</p>
+                <p class="mt-3 text-xs text-slate-500">有効をオンにすると、該当スタッフは予約対象として公開されます。`STAFF` の予約リソース連携は自動で維持されます。</p>
             </section>
 
             <section id="section-content" class="hidden-section">
@@ -233,15 +230,25 @@
                             <span id="cast-editor-target" class="text-xs text-slate-500">対象: 未選択</span>
                         </div>
 
-                        <form method="post" id="cast-cms-form" class="space-y-4">
+                        <form method="post" enctype="multipart/form-data" id="cast-cms-form" class="space-y-4">
                             {% csrf_token %}
                             <input type="hidden" name="save_cast_profile" value="true">
                             <input type="hidden" name="resource_id" id="cms-resource-id" value="">
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
-                                    <label class="mb-1 block text-xs text-slate-500">プロフィール画像 URL</label>
-                                    <input id="cms-avatar-url" type="url" name="profile_avatar_url" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <label class="mb-1 block text-xs text-slate-500">プロフィール画像</label>
+                                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                                        <div class="mb-3 flex items-center gap-3">
+                                            <img id="cms-avatar-preview" src="" alt="avatar preview" class="hidden h-14 w-14 rounded-full border border-slate-200 object-cover">
+                                            <span id="cms-avatar-empty" class="text-xs text-slate-500">未設定</span>
+                                        </div>
+                                        <input id="cms-avatar-file" type="file" name="profile_avatar_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-full file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
+                                        <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-600">
+                                            <input type="checkbox" name="profile_avatar_clear" class="accent-indigo-600">
+                                            画像を削除
+                                        </label>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs text-slate-500">YouTube URL</label>
@@ -482,18 +489,10 @@
                             </div>
 
                             <div>
-                                <label class="mb-1 block text-xs text-slate-500">サービス名（{% templatetag openvariable %} selected_service_name {% templatetag closevariable %} / {% templatetag openvariable %} duration_minutes {% templatetag closevariable %}）</label>
-                                <input type="text" id="in-service-name" name="service_name" list="service-name-suggestions" placeholder="{{ default_service_name_prefill }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                <datalist id="service-name-suggestions">
-                                    {% for svc in service_presets %}
-                                    <option value="{{ svc.name }}"></option>
-                                    {% endfor %}
-                                    {% for order in orders %}
-                                    {% if order.selected_service_name %}
-                                    <option value="{{ order.selected_service_name }}"></option>
-                                    {% endif %}
-                                    {% endfor %}
-                                </datalist>
+                                <label class="mb-1 block text-xs text-slate-500">サービス名（自動生成）</label>
+                                <input type="hidden" name="service_name" value="{% templatetag openvariable %} selected_service_name {% templatetag closevariable %}">
+                                <input type="text" id="in-service-name" value="ユーザー予約サービス（自動生成）" readonly class="w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">
+                                <p class="mt-1 text-xs text-slate-500">ユーザーが予約時に選択したサービス名をもとに自動生成されます。</p>
                             </div>
 
                             <div class="grid grid-cols-2 gap-3">
@@ -551,8 +550,7 @@
                     </div>
                 </div>
             </section>
-        </main>
-    </div>
+    </main>
 
     <script>
         const PAGE_TITLES = {
@@ -600,6 +598,22 @@
             });
         }
 
+        function renderCmsAvatarPreview(url) {
+            const img = document.getElementById("cms-avatar-preview");
+            const empty = document.getElementById("cms-avatar-empty");
+            if (!img || !empty) return;
+
+            if (url) {
+                img.src = url;
+                img.classList.remove("hidden");
+                empty.classList.add("hidden");
+            } else {
+                img.src = "";
+                img.classList.add("hidden");
+                empty.classList.remove("hidden");
+            }
+        }
+
         function selectCast(button) {
             document.querySelectorAll(".cast-item").forEach((el) => el.classList.remove("active"));
             button.classList.add("active");
@@ -615,16 +629,19 @@
             const target = document.getElementById("cast-editor-target");
             const rid = document.getElementById("cms-resource-id");
             const introEl = document.getElementById("cms-intro");
-            const avatarEl = document.getElementById("cms-avatar-url");
             const youtubeEl = document.getElementById("cms-youtube-url");
             const tagsEl = document.getElementById("cms-tags");
+            const avatarClearEl = document.querySelector('input[name="profile_avatar_clear"]');
+            const avatarFileEl = document.getElementById("cms-avatar-file");
 
             if (target) target.innerText = "対象: " + resourceName;
             if (rid) rid.value = resourceId;
             if (introEl) introEl.value = intro;
-            if (avatarEl) avatarEl.value = avatarUrl;
             if (youtubeEl) youtubeEl.value = youtubeUrl;
             if (tagsEl) tagsEl.value = tags;
+            if (avatarClearEl) avatarClearEl.checked = false;
+            if (avatarFileEl) avatarFileEl.value = "";
+            renderCmsAvatarPreview(avatarUrl);
             setCmsServiceSelections(selectedServices);
         }
 
@@ -663,15 +680,6 @@
             if (noOrderEl) noOrderEl.classList.toggle("hidden", orderCount > 0);
         }
 
-        const SERVICE_NAME_SUGGESTIONS = (() => {
-            try {
-                return JSON.parse('{{ service_name_suggestions_json|escapejs }}');
-            } catch (_) {
-                return [];
-            }
-        })();
-        const DEFAULT_SERVICE_NAME_PREFILL = '{{ default_service_name_prefill|escapejs }}';
-
         let allTemplates = {};
         try {
             allTemplates = JSON.parse('{{ templates_json|escapejs }}');
@@ -697,7 +705,7 @@
             }
 
             const data = allTemplates[type] || {};
-            const fallbackServiceName = SERVICE_NAME_SUGGESTIONS[0] || DEFAULT_SERVICE_NAME_PREFILL || "{{ selected_service_name }}";
+            const autoServiceName = "ユーザー予約サービス（自動生成）";
 
             document.getElementById("in-event-type").value = type;
             document.getElementById("in-send-customer").checked = data.send_to_customer !== false;
@@ -705,7 +713,7 @@
             document.getElementById("in-subject").value = data.subject || "";
             document.getElementById("in-title").value = data.email_title || "";
             document.getElementById("in-greeting").value = data.email_greeting || "";
-            document.getElementById("in-service-name").value = data.service_name || fallbackServiceName;
+            document.getElementById("in-service-name").value = autoServiceName;
             document.getElementById("in-btn-text").value = data.button_text || "";
             document.getElementById("in-btn-link").value = data.button_link || "";
             document.getElementById("in-footer-title").value = data.footer_title || "";
@@ -727,6 +735,19 @@
             if (firstCast) selectCast(firstCast);
 
             filterSchedule("all", document.querySelector(".schedule-cast-item"));
+
+            const avatarFileInput = document.getElementById("cms-avatar-file");
+            if (avatarFileInput) {
+                avatarFileInput.addEventListener("change", function (event) {
+                    const file = event.target.files && event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = function (ev) {
+                        renderCmsAvatarPreview(ev.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
 
             const bindPreview = (inputId, previewId) => {
                 const input = document.getElementById(inputId);

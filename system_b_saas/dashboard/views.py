@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 from urllib.parse import quote
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib import messages
@@ -9,6 +10,7 @@ from django.contrib.messages import get_messages
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
+from django.core.files.storage import default_storage
 from django.db.models import Max
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -117,7 +119,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         event_type = request.POST.get("event_type")
         send_to_customer = request.POST.get("send_to_customer") == "on"
         send_to_cast = request.POST.get("send_to_cast") == "on"
-        service_name = (request.POST.get("service_name") or "").strip() or "{{ selected_service_name }}"
+        service_name = "{{ selected_service_name }}"
 
         defaults_data = {
             "subject_template": request.POST.get("subject"),
@@ -142,6 +144,14 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             defaults=defaults_data,
         )
 
+    def _store_profile_avatar(self, tenant, resource, avatar_file):
+        ext = ""
+        if "." in (avatar_file.name or ""):
+            ext = "." + avatar_file.name.rsplit(".", 1)[-1].lower()
+        rel_path = f"resource_avatars/tenant_{tenant.id}/resource_{resource.id}/{uuid4().hex}{ext}"
+        stored_path = default_storage.save(rel_path, avatar_file)
+        return default_storage.url(stored_path)
+
     def _ensure_staff_resource_binding(self, user, tenant):
         if user.role != "STAFF":
             return None
@@ -156,6 +166,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if user.email and linked.email != user.email:
                 linked.email = user.email
                 update_fields.append("email")
+            if linked.is_active != user.is_active:
+                linked.is_active = user.is_active
+                update_fields.append("is_active")
             if update_fields:
                 linked.save(update_fields=update_fields)
             return linked
@@ -183,6 +196,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if user.email and reusable.email != user.email:
                 reusable.email = user.email
                 update_fields.append("email")
+            if reusable.is_active != user.is_active:
+                reusable.is_active = user.is_active
+                update_fields.append("is_active")
             reusable.save(update_fields=update_fields)
             return reusable
 
@@ -198,7 +214,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             linked_user=user,
             name=candidate,
             email=(user.email or "").strip() or None,
-            is_active=True,
+            is_active=user.is_active,
         )
 
     def _save_cast_profile(self, request, tenant):
@@ -226,13 +242,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         metadata["service_preset_ids"] = selected_service_ids
 
         profile.intro = (request.POST.get("profile_intro") or "").strip()
-        profile.avatar_url = (request.POST.get("profile_avatar_url") or "").strip() or None
         profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
         profile.tags = parsed_tags
         profile.metadata = metadata
         profile.allow_30_min = 30 in selected_durations
         profile.allow_60_min = 60 in selected_durations
         profile.allow_120_min = 120 in selected_durations
+
+        if request.POST.get("profile_avatar_clear") == "on":
+            profile.avatar_url = None
+        elif request.FILES.get("profile_avatar_file"):
+            profile.avatar_url = self._store_profile_avatar(tenant, resource, request.FILES["profile_avatar_file"])
+
         profile.save()
 
     def _save_staff_profile(self, request, tenant):
@@ -243,31 +264,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         user = SaaSUser.objects.get(id=user_id, tenant=tenant)
         user.username = (request.POST.get("username") or user.username).strip()
         user.email = (request.POST.get("email") or "").strip()
-        user.discord_id = (request.POST.get("discord_id") or "").strip() or None
         user.role = request.POST.get("role") if request.POST.get("role") in ["ADMIN", "STAFF"] else user.role
         user.is_active = request.POST.get("is_active") == "on"
-        user.save()
+        user.save(update_fields=["username", "email", "role", "is_active"])
 
-        linked_resource_id = (request.POST.get("linked_resource_id") or "").strip()
-        if linked_resource_id:
-            resource = Resource.objects.filter(id=linked_resource_id, tenant=tenant).first()
-            if resource:
-                Resource.objects.filter(tenant=tenant, linked_user=user).exclude(id=resource.id).update(linked_user=None)
-                resource.linked_user = user
-                update_fields = ["linked_user"]
-                if user.username and resource.name != user.username:
-                    resource.name = user.username
-                    update_fields.append("name")
-                if user.email and resource.email != user.email:
-                    resource.email = user.email
-                    update_fields.append("email")
-                resource.save(update_fields=update_fields)
-            elif user.role == "STAFF":
-                self._ensure_staff_resource_binding(user, tenant)
-        elif user.role == "STAFF":
-            self._ensure_staff_resource_binding(user, tenant)
+        if user.role == "STAFF":
+            linked = self._ensure_staff_resource_binding(user, tenant)
         else:
-            Resource.objects.filter(tenant=tenant, linked_user=user).update(linked_user=None)
+            linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
+
+        if linked and linked.is_active != user.is_active:
+            linked.is_active = user.is_active
+            linked.save(update_fields=["is_active"])
 
     def _save_service_preset(self, request, tenant):
         service_id = (request.POST.get("service_id") or "").strip()
@@ -357,6 +365,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     {
                         "user": u,
                         "linked_resource_id": str(linked_resource.id) if linked_resource else "",
+                        "linked_resource_name": linked_resource.name if linked_resource else "未割当",
                     }
                 )
             upcoming_shifts = Availability.objects.filter(

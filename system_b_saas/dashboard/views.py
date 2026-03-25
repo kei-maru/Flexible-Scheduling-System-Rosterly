@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib import messages
@@ -12,6 +13,7 @@ from django.db.models import Max
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
+from django.views import View
 from django.views.generic import TemplateView
 
 from bookings.models import Booking
@@ -51,6 +53,28 @@ class DashboardLoginView(TemplateView):
         )
         context["next_url"] = next_url
         return context
+
+
+class DashboardRegisterShopRedirectView(View):
+    def get(self, request, *args, **kwargs):
+        next_url = request.GET.get("next", "")
+        if next_url and not url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            next_url = ""
+
+        if not (settings.SYSTEM_B_DISCORD_CLIENT_ID and settings.SYSTEM_B_DISCORD_SECRET):
+            messages.warning(
+                request,
+                "Discord OAuth 未配置，暂时无法进行店铺注册。请先配置 SYSTEM_B_DISCORD_CLIENT_ID / SYSTEM_B_DISCORD_SECRET。",
+            )
+            return redirect("dashboard_login")
+
+        request.session["allow_shop_signup"] = True
+        target_next = next_url or "/dashboard/login/"
+        return redirect(f"/accounts/discord/login/?process=login&next={quote(target_next, safe='')}")
 
 
 class DashboardTermsView(TemplateView):

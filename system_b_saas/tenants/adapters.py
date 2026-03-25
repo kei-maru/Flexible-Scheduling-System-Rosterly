@@ -29,6 +29,11 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return "CONSUMER"
         return role_hint
 
+    def _is_shop_signup_flow(self, request) -> bool:
+        if request is None:
+            return False
+        return bool(request.session.get("allow_shop_signup"))
+
     def _public_sso_tenant_slug(self) -> str:
         return str(getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_SLUG", "Veludo") or "Veludo").strip()
 
@@ -100,6 +105,56 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             enable_saas_dashboard=True,
         )
 
+    def _create_tenant_for_shop_signup(self, user):
+        base_name = (getattr(user, "username", "") or "").strip()
+        if not base_name:
+            base_name = (getattr(user, "discord_id", "") or "").strip() or "Rosterly"
+        tenant_name = f"{base_name[:50]} Shop"
+        tenant_slug = self._build_unique_tenant_slug(tenant_name)
+        return Tenant.objects.create(
+            name=tenant_name,
+            slug=tenant_slug,
+            api_key=secrets.token_urlsafe(24)[:32],
+            api_secret=secrets.token_urlsafe(32),
+            enable_saas_dashboard=True,
+        )
+
+    def _promote_user_to_shop_owner(self, request, user):
+        if user is None:
+            return
+
+        public_tenant = self._resolve_public_sso_tenant()
+        is_public_consumer = (
+            public_tenant is not None
+            and user.tenant_id == public_tenant.id
+            and getattr(user, "role", "CONSUMER") == "CONSUMER"
+        )
+
+        if user.tenant_id and not is_public_consumer:
+            if request is not None:
+                messages.info(request, "当前账号已绑定店铺，无需重复注册店铺。")
+            return
+
+        tenant = self._create_tenant_for_shop_signup(user)
+        update_fields = []
+        if user.tenant_id != tenant.id:
+            user.tenant = tenant
+            update_fields.append("tenant")
+        if user.role != "ADMIN":
+            user.role = "ADMIN"
+            update_fields.append("role")
+        if not user.is_staff:
+            user.is_staff = True
+            update_fields.append("is_staff")
+        if user.is_superuser:
+            user.is_superuser = False
+            update_fields.append("is_superuser")
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+        if request is not None:
+            messages.success(request, "店铺注册成功，已自动授予 ADMIN 权限。")
+
     def _build_unique_username(self, base_username: str, discord_numeric_id: str) -> str:
         User = get_user_model()
         candidate = (base_username or "discord_user").strip().lower().replace(" ", "_")
@@ -145,11 +200,15 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         public_sso_flow = self._is_public_sso_flow(request)
         role_hint = self._sso_role_hint(request)
+        shop_signup_flow = self._is_shop_signup_flow(request)
         logger.info("pre_social_login: existing=%s", sociallogin.is_existing)
         # Existing social account: standard allauth flow.
         if sociallogin.is_existing:
             if public_sso_flow:
                 self._sync_public_sso_role(sociallogin.user, role_hint)
+            if shop_signup_flow:
+                self._promote_user_to_shop_owner(request, sociallogin.user)
+                request.session.pop("allow_shop_signup", None)
             return
 
         extra_data = sociallogin.account.extra_data or {}
@@ -178,11 +237,18 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             logger.info("pre_social_login: matched authorized user id=%s", authorized_user.id)
             if public_sso_flow:
                 self._sync_public_sso_role(authorized_user, role_hint)
+            if shop_signup_flow:
+                self._promote_user_to_shop_owner(request, authorized_user)
+                request.session.pop("allow_shop_signup", None)
             sociallogin.connect(request, authorized_user)
             return
 
         if public_sso_flow:
             logger.info("pre_social_login: allowing public SSO user provisioning")
+            return
+
+        if shop_signup_flow:
+            logger.info("pre_social_login: allowing shop signup provisioning")
             return
 
         if self._is_first_owner_bootstrap():
@@ -196,22 +262,35 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
     def is_open_for_signup(self, request, sociallogin):
         # Allow signup in two cases:
         # 1) Public OAuth flow triggered by /sso/authorize (for System A end-users)
-        # 2) First owner bootstrap for dashboard admin initialization
-        allowed = self._is_public_sso_flow(request) or self._is_first_owner_bootstrap()
+        # 2) Explicit shop-signup flow from dashboard register entry
+        # 3) First owner bootstrap for dashboard admin initialization
+        allowed = (
+            self._is_public_sso_flow(request)
+            or self._is_shop_signup_flow(request)
+            or self._is_first_owner_bootstrap()
+        )
         logger.info("is_open_for_signup: allowed=%s", allowed)
         return allowed
 
     def save_user(self, request, sociallogin, form=None):
         public_sso_flow = self._is_public_sso_flow(request)
+        shop_signup_flow = self._is_shop_signup_flow(request)
         role_hint = self._sso_role_hint(request)
         is_first_bootstrap = self._is_first_owner_bootstrap()
-        logger.info("save_user: first_bootstrap=%s public_sso_flow=%s", is_first_bootstrap, public_sso_flow)
+        logger.info(
+            "save_user: first_bootstrap=%s public_sso_flow=%s shop_signup_flow=%s",
+            is_first_bootstrap,
+            public_sso_flow,
+            shop_signup_flow,
+        )
         user = super().save_user(request, sociallogin, form=form)
 
         if public_sso_flow:
             self._sync_public_sso_role(user, role_hint)
 
-        if is_first_bootstrap and not public_sso_flow:
+        if shop_signup_flow and not public_sso_flow:
+            self._promote_user_to_shop_owner(request, user)
+        elif is_first_bootstrap and not public_sso_flow:
             tenant = self._ensure_bootstrap_tenant()
             update_fields = []
             if user.tenant_id != tenant.id:
@@ -234,5 +313,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
 
         if request is not None and request.session.get("allow_public_sso_login"):
             request.session.pop("allow_public_sso_login", None)
+        if request is not None and request.session.get("allow_shop_signup"):
+            request.session.pop("allow_shop_signup", None)
 
         return user

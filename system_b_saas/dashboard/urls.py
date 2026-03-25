@@ -1,5 +1,11 @@
 from django.urls import path
-from .views import TenantDashboardView, DashboardLoginView, DashboardTermsView, dashboard_logout
+from .views import (
+    TenantDashboardView,
+    DashboardLoginView,
+    DashboardRegisterShopRedirectView,
+    DashboardTermsView,
+    dashboard_logout,
+)
 from .schedule_views import (
     DashboardScheduleAvailabilityApi,
     DashboardBookingActionApi,
@@ -10,6 +16,7 @@ from .schedule_views import (
 
 urlpatterns = [
     path('login/', DashboardLoginView.as_view(), name='dashboard_login'),
+    path('register-shop/', DashboardRegisterShopRedirectView.as_view(), name='dashboard_register_shop'),
     path('terms/', DashboardTermsView.as_view(), name='dashboard_terms'),
 
     # 2. 登出

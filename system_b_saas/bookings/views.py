@@ -16,7 +16,11 @@ from django.db.models import Q
 from bookings.tasks import process_new_booking, send_cancellation_email_task
 from tenants.permissions import IsTenantAuthorized
 from resources.models import Resource, ServicePreset
-from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
+from resources.services.service_mapping import (
+    default_service_name_for_duration,
+    resolve_booking_service_name,
+    resolve_service_by_duration,
+)
 from bookings.models import Booking
 
 
@@ -103,7 +107,7 @@ class IntegrationBookingView(APIView):
             selected_service_name = selected_service.name
 
         if not selected_service_name and duration_minutes > 0:
-            selected_service_name = f"{duration_minutes}分"
+            selected_service_name = default_service_name_for_duration(duration_minutes)
 
         try:
             with transaction.atomic():

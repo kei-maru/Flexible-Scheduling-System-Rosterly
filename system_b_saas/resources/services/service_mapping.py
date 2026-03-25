@@ -1,3 +1,5 @@
+import re
+
 from resources.models import ServicePreset
 
 
@@ -18,6 +20,26 @@ def _duration_from_booking(booking):
     delta = booking.end_time - booking.start_time
     minutes = int(delta.total_seconds() // 60)
     return minutes if minutes > 0 else 0
+
+
+def default_service_name_for_duration(duration_minutes):
+    try:
+        duration = int(duration_minutes)
+    except (TypeError, ValueError):
+        return ""
+    if duration <= 0:
+        return ""
+    return f"{duration}分VRASMR施術コース (PCVR)"
+
+
+def _expand_short_duration_label(label):
+    text = (label or "").strip()
+    if not text:
+        return ""
+    matched = re.fullmatch(r"(30|60|120)分", text)
+    if not matched:
+        return text
+    return default_service_name_for_duration(int(matched.group(1)))
 
 
 def course_flags_to_service_preset_ids(tenant, allow_30=False, allow_60=True, allow_120=False):
@@ -87,7 +109,7 @@ def resolve_booking_service_name(booking, tenant):
 
     service_name = (getattr(booking, "selected_service_name", "") or "").strip()
     if service_name:
-        return service_name
+        return _expand_short_duration_label(service_name)
 
     selected_service = getattr(booking, "selected_service", None)
     if selected_service and selected_service.name:
@@ -105,6 +127,6 @@ def resolve_booking_service_name(booking, tenant):
         return preset.name
 
     if duration_minutes > 0:
-        return f"{duration_minutes}分"
+        return default_service_name_for_duration(duration_minutes)
 
     return ""

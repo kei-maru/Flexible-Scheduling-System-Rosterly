@@ -3,687 +3,762 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>管理者ダッシュボード | System B</title>
+    <title>管理者ダッシュボード | Rosterly</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'primary': '#4F46E5', // Indigo 600
-                        'primary-hover': '#4338ca',
-                        'bg-main': '#F9FAFB', // Gray 50
-                        'surface': '#FFFFFF',
-                    },
-                    fontFamily: {
-                        sans: ['"Inter"', '"Noto Sans JP"', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
     <style>
-        body { font-family: "Noto Sans JP", sans-serif; background-color: #F9FAFB; color: #1F2937; }
-        .nav-item.active { 
-            background-color: #EEF2FF; 
-            color: #4F46E5; 
-            border-right: 3px solid #4F46E5;
+        body {
+            font-family: "Noto Sans JP", sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        .panel {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            box-shadow: 0 12px 32px -26px rgba(15, 23, 42, 0.45);
+        }
+        .tab-btn.active {
+            background: #eef2ff;
+            color: #3730a3;
+            border-color: #c7d2fe;
         }
         .hidden-section { display: none; }
-        
-        /* Minimalist Table Styles */
-        .saas-table th { 
-            background-color: #F3F4F6; 
-            color: #6B7280; 
-            font-size: 0.75rem; 
-            text-transform: uppercase; 
-            letter-spacing: 0.05em; 
-            padding: 0.75rem 1.5rem;
+        .admin-table th {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: #64748b;
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
             text-align: left;
         }
-        .saas-table td { 
-            border-bottom: 1px solid #E5E7EB; 
-            padding: 1rem 1.5rem; 
-            font-size: 0.875rem;
+        .admin-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.88rem;
         }
-        .saas-table tr:last-child td { border-bottom: none; }
+        .admin-table tr:last-child td { border-bottom: none; }
+        .cast-item.active {
+            border-color: #a5b4fc;
+            background: #eef2ff;
+        }
+        .schedule-cast-item.active {
+            border-color: #c7d2fe;
+            background: #eef2ff;
+        }
     </style>
 </head>
-<body class="h-screen flex overflow-hidden">
-
-    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20">
-        <div class="h-16 flex items-center px-8 border-b border-gray-200">
-            <div class="font-bold text-xl text-primary tracking-tight">System B <span class="text-gray-400 font-light">SaaS</span></div>
-        </div>
-
-        <nav class="flex-1 py-6 space-y-1">
-            <a href="{% url 'shared_schedule' %}" class="w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-regular fa-calendar-check w-6"></i> シフト管理
-            </a>
-            <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-chart-simple w-6"></i> 概要
-            </button>
-            <button onclick="switchTab('orders')" id="nav-orders" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-receipt w-6"></i> 予約
-            </button>
-            <button onclick="switchTab('staff')" id="nav-staff" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-users-gear w-6"></i> スタッフ
-            </button>
-            <button onclick="switchTab('services')" id="nav-services" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-list-check w-6"></i> サービスプリセット
-            </button>
-            <button onclick="switchTab('email')" id="nav-email" class="nav-item w-full flex items-center px-8 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                <i class="fa-solid fa-envelope-open-text w-6"></i> メールテンプレート
-            </button>
-        </nav>
-
-        <div class="p-4 border-t border-gray-200">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-primary font-bold text-xs">
-                    {{ request.user.username|slice:":1"|upper }}
-                </div>
-                <div>
-                    <div class="text-sm font-medium text-gray-900">{{ request.user.username }}</div>
-                    <div class="text-xs text-gray-500">店舗管理者</div>
-                </div>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <aside class="w-72 border-r border-slate-200 bg-white px-5 py-4">
+            <div class="mb-6 border-b border-slate-200 pb-4">
+                <div class="text-2xl font-bold tracking-tight text-indigo-700">Rosterly</div>
+                <div class="mt-1 text-xs text-slate-500">Admin Control Panel</div>
             </div>
-            <a href="{% url 'logout' %}" class="mt-3 inline-flex items-center gap-2 text-xs text-rose-600 hover:text-rose-700">
+
+            <nav class="space-y-2">
+                <button id="tab-users" onclick="switchTab('users')" class="tab-btn active flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <i class="fa-solid fa-users text-slate-500"></i> Users & Roles
+                </button>
+                <button id="tab-content" onclick="switchTab('content')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <i class="fa-solid fa-wand-magic-sparkles text-slate-500"></i> Cast CMS
+                </button>
+                <button id="tab-shifts" onclick="switchTab('shifts')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <i class="fa-regular fa-calendar-check text-slate-500"></i> Shifts & Orders
+                </button>
+                <button id="tab-services" onclick="switchTab('services')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <i class="fa-solid fa-list-check text-slate-500"></i> Service Presets
+                </button>
+                <button id="tab-email" onclick="switchTab('email')" class="tab-btn flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                    <i class="fa-solid fa-envelope-open-text text-slate-500"></i> Email Templates
+                </button>
+            </nav>
+
+            <div class="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div class="text-xs text-slate-500">Tenant</div>
+                <div class="mt-1 text-sm font-semibold text-slate-800">{{ tenant_name }}</div>
+            </div>
+
+            <div class="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                <div class="text-xs text-slate-500">Signed in</div>
+                <div class="mt-1 text-sm font-semibold text-slate-800">{{ request.user.username }}</div>
+            </div>
+
+            <a href="{% url 'logout' %}" class="mt-4 inline-flex items-center gap-2 text-xs text-rose-600 hover:text-rose-700">
                 <i class="fa-solid fa-right-from-bracket"></i> ログアウト
             </a>
-        </div>
-    </aside>
+        </aside>
 
-    <main class="flex-1 overflow-y-auto bg-bg-main p-8">
-        
-        <header class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900" id="page-title">管理者ダッシュボード</h1>
-                <p class="text-sm text-gray-500 mt-1">店舗名: {{ tenant_name }} / 予約・スタッフ・設定を管理します。</p>
-            </div>
-            <div>
-                <button onclick="location.reload()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 shadow-sm">
-                    <i class="fa-solid fa-sync mr-2 text-gray-400"></i> 更新
-                </button>
-            </div>
-        </header>
-        
-        {% if messages %}
-        <div class="mb-6 space-y-2">
-            {% for message in messages %}
-            <div class="p-4 rounded-md text-sm font-medium {% if message.tags == 'success' %}bg-green-50 text-green-700 border border-green-200{% else %}bg-red-50 text-red-700 border border-red-200{% endif %}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
+        <main class="flex-1 overflow-y-auto p-6 md:p-8">
+            <header class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <h1 id="page-title" class="text-2xl font-bold text-slate-900">Users & Roles</h1>
+                    <p class="mt-1 text-sm text-slate-500">System A の管理導線に合わせた運用パネルです。</p>
+                </div>
+                <div class="flex gap-2">
+                    <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
+                        スタッフ画面へ
+                    </a>
+                    <button onclick="location.reload()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
+                        <i class="fa-solid fa-rotate-right mr-1"></i> 更新
+                    </button>
+                </div>
+            </header>
 
-        <div id="section-overview" class="space-y-6 animate-fade-in">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">予約総数</div>
-                    <div class="text-3xl font-bold text-gray-900">{{ orders|length }}</div>
+            {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for message in messages %}
+                <div class="rounded-md border px-3 py-2 text-sm
+                    {% if 'success' in message.tags %}border-emerald-200 bg-emerald-50 text-emerald-700
+                    {% elif 'warning' in message.tags %}border-amber-200 bg-amber-50 text-amber-700
+                    {% elif 'error' in message.tags %}border-rose-200 bg-rose-50 text-rose-700
+                    {% else %}border-slate-200 bg-slate-100 text-slate-700{% endif %}">
+                    {{ message }}
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">稼働リソース</div>
-                    <div class="text-3xl font-bold text-gray-900">{{ resources|length }}</div>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">24時間以内</div>
-                    <div class="text-3xl font-bold text-primary">{{ next_24h_count }}</div>
-                </div>
+                {% endfor %}
             </div>
+            {% endif %}
 
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-medium text-gray-900">リソース状況</h3>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {% for res in resources %}
-                        <div class="border rounded-md p-4 hover:shadow-md transition-shadow">
-                            <div class="flex items-center gap-3 mb-3">
-                                <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
-                                    <i class="fa-solid fa-user"></i>
-                                </div>
-                                <div>
-                                    <div class="font-bold text-gray-900">{{ res.name }}</div>
-                                    <div class="text-xs text-gray-500">{{ res.email }}</div>
-                                </div>
-                            </div>
-                            <div class="text-xs text-gray-500 bg-gray-50 p-2 rounded text-center">
-                                <a href="#" class="text-primary hover:underline">カレンダーを見る</a>
-                            </div>
-                        </div>
-                        {% endfor %}
+            <section id="section-users" class="panel p-5">
+                <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <h2 class="text-lg font-semibold text-slate-900">ユーザー管理</h2>
+                    <div class="flex gap-2">
+                        <select id="roleFilter" onchange="filterUsers()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700">
+                            <option value="all">All Roles</option>
+                            <option value="staff">STAFF</option>
+                            <option value="admin">ADMIN</option>
+                        </select>
+                        <input id="userSearch" onkeyup="filterUsers()" type="text" placeholder="Search user..." class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700">
                     </div>
                 </div>
-            </div>
 
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">今後のシフト</h3>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full saas-table">
-                        <thead>
-                            <tr>
-                                <th>担当</th>
-                                <th>開始</th>
-                                <th>終了</th>
-                                <th>種別</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for shift in upcoming_shifts %}
-                            <tr class="hover:bg-gray-50">
-                                <td>{{ shift.resource.name }}</td>
-                                <td>{{ shift.start_time|date:"Y/m/d H:i" }}</td>
-                                <td>{{ shift.end_time|date:"Y/m/d H:i" }}</td>
-                                <td>
-                                    {% if shift.is_recurring %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">周期</span>
-                                    {% else %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">単発</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="4" class="text-center py-8 text-gray-500 italic">今後のシフトはありません。</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div id="section-orders" class="hidden-section">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">予約履歴</h3>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full saas-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>顧客</th>
-                                <th>担当</th>
-                                <th>サービス</th>
-                                <th>日時</th>
-                                <th>状態</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for order in orders %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="font-mono text-xs text-gray-500">#{{ order.id|slice:":8" }}</td>
-                                <td>
-                                    <div class="font-medium text-gray-900">{{ order.customer_name }}</div>
-                                    <div class="text-xs text-gray-500">{{ order.customer_email }}</div>
-                                </td>
-                                <td class="text-gray-700">{{ order.resource.name }}</td>
-                                <td class="text-gray-700">{{ order.selected_service_name|default:"-" }}</td>
-                                <td>
-                                    <div class="text-gray-900">{{ order.start_time|date:"Y/m/d" }}</div>
-                                    <div class="text-xs text-gray-500">{{ order.start_time|time:"H:i" }} - {{ order.end_time|time:"H:i" }}</div>
-                                </td>
-                                <td>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                        {% if order.status == 'CONFIRMED' %}bg-green-100 text-green-800
-                                        {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800
-                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                        {% if order.status == 'CONFIRMED' %}確定{% elif order.status == 'CANCELLED' %}キャンセル{% elif order.status == 'COMPLETED' %}完了{% else %}{{ order.status }}{% endif %}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="6" class="text-center py-8 text-gray-500 italic">予約データがありません。</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div id="section-staff" class="hidden-section">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">スタッフ管理</h3>
-                    <div class="text-xs text-gray-500">権限・連絡先・連携リソースを編集します</div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full saas-table">
+                <div class="overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="admin-table w-full">
                         <thead>
                             <tr>
                                 <th>ユーザー名</th>
                                 <th>メール</th>
                                 <th>Discord</th>
-                                <th>権限</th>
-                                <th>リソース</th>
+                                <th>Role</th>
+                                <th>Resource</th>
                                 <th>有効</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in staff_rows %}
-                            <tr>
-                                <td colspan="7" class="p-0 border-b border-gray-100">
-                                    <form method="post" class="grid grid-cols-1 md:grid-cols-7 gap-2 p-3 items-center">
+                            <tr class="user-row" data-role="{{ row.user.role|lower }}" data-name="{{ row.user.username|lower }} {{ row.user.email|default:''|lower }}">
+                                <td colspan="7">
+                                    <form method="post" class="grid grid-cols-1 gap-2 md:grid-cols-7 md:items-center">
                                         {% csrf_token %}
                                         <input type="hidden" name="save_staff" value="true">
                                         <input type="hidden" name="user_id" value="{{ row.user.id }}">
 
-                                        <input type="text" name="username" value="{{ row.user.username }}" class="border border-gray-300 rounded px-2 py-2 text-sm">
-                                        <input type="email" name="email" value="{{ row.user.email }}" class="border border-gray-300 rounded px-2 py-2 text-sm">
-                                        <input type="text" name="discord_id" value="{{ row.user.discord_id|default:'' }}" class="border border-gray-300 rounded px-2 py-2 text-sm">
+                                        <input type="text" name="username" value="{{ row.user.username }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                        <input type="email" name="email" value="{{ row.user.email|default:'' }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                        <input type="text" name="discord_id" value="{{ row.user.discord_id|default:'' }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
 
-                                        <select name="role" class="border border-gray-300 rounded px-2 py-2 text-sm">
+                                        <select name="role" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
                                             <option value="STAFF" {% if row.user.role == 'STAFF' %}selected{% endif %}>STAFF</option>
                                             <option value="ADMIN" {% if row.user.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
                                         </select>
 
-                                        <select name="linked_resource_id" class="border border-gray-300 rounded px-2 py-2 text-sm">
-                                            <option value="">-- 未連携 --</option>
+                                        <select name="linked_resource_id" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                            <option value="">-- 自動連携 --</option>
                                             {% for r in resources %}
                                             <option value="{{ r.id }}" {% if row.linked_resource_id == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>
                                             {% endfor %}
                                         </select>
 
-                                        <label class="flex items-center gap-2 text-sm text-gray-700 px-2">
-                                            <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="accent-indigo-600">
-                                            有効
-                                        </label>
-
-                                        <button type="submit" class="bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700">保存</button>
+                                        <div class="flex items-center justify-between gap-2">
+                                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                                                <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="accent-indigo-600">
+                                                有効
+                                            </label>
+                                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">保存</button>
+                                        </div>
                                     </form>
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="7" class="text-center py-8 text-gray-500 italic">スタッフが存在しません。</td></tr>
+                            <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">ユーザーが存在しません。</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
+                <p class="mt-3 text-xs text-slate-500">`STAFF` は保存時に自動で予約可能 Resource と連携されます。</p>
+            </section>
 
-        <div id="section-services" class="hidden-section">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                        <h3 class="text-lg font-medium text-gray-900">サービスプリセット作成</h3>
-                        <p class="text-xs text-gray-500 mt-1">予約フローとメール表示で使用されます。</p>
+            <section id="section-content" class="hidden-section">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div class="panel p-4">
+                        <div class="mb-3 flex items-center justify-between">
+                            <h2 class="text-lg font-semibold text-slate-900">Cast List</h2>
+                            <span class="text-[10px] uppercase tracking-widest text-slate-500">Select</span>
+                        </div>
+                        <div class="space-y-2">
+                            {% for cast in cast_rows %}
+                            <button
+                                type="button"
+                                class="cast-item w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300"
+                                data-resource-id="{{ cast.resource_id }}"
+                                data-name="{{ cast.resource_name|escapejs }}"
+                                data-email="{{ cast.resource_email|escapejs }}"
+                                data-intro="{{ cast.intro|escapejs }}"
+                                data-avatar-url="{{ cast.avatar_url|default:''|escapejs }}"
+                                data-youtube-url="{{ cast.youtube_url|default:''|escapejs }}"
+                                data-tags="{{ cast.tags_text|escapejs }}"
+                                data-selected-services="{{ cast.selected_service_ids|join:',' }}"
+                                onclick="selectCast(this)">
+                                <div class="text-sm font-semibold text-slate-800">{{ cast.resource_name }}</div>
+                                <div class="mt-1 text-xs text-slate-500">{{ cast.resource_email|default:'メール未設定' }}</div>
+                                {% if cast.linked_username %}
+                                <div class="mt-1 text-[11px] text-indigo-600">linked: {{ cast.linked_username }}</div>
+                                {% endif %}
+                            </button>
+                            {% empty %}
+                            <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-xs text-slate-500">
+                                Resource がありません。
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
-                    <div class="p-6">
+
+                    <div class="panel p-5 lg:col-span-2">
+                        <div class="mb-4 flex items-center justify-between">
+                            <h2 class="text-lg font-semibold text-slate-900">Cast CMS Editor</h2>
+                            <span id="cast-editor-target" class="text-xs text-slate-500">対象: 未選択</span>
+                        </div>
+
+                        <form method="post" id="cast-cms-form" class="space-y-4">
+                            {% csrf_token %}
+                            <input type="hidden" name="save_cast_profile" value="true">
+                            <input type="hidden" name="resource_id" id="cms-resource-id" value="">
+
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">プロフィール画像 URL</label>
+                                    <input id="cms-avatar-url" type="url" name="profile_avatar_url" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">YouTube URL</label>
+                                    <input id="cms-youtube-url" type="url" name="profile_youtube_url" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">タグ（カンマ区切り）</label>
+                                <input id="cms-tags" type="text" name="profile_tags" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: 深夜対応, 英語OK">
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">自己紹介</label>
+                                <textarea id="cms-intro" name="profile_intro" rows="6" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="mb-2 block text-xs text-slate-500">対応サービス</label>
+                                {% if service_presets %}
+                                <div class="flex flex-wrap gap-2">
+                                    {% for preset in service_presets %}
+                                    <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                                        <input type="checkbox" name="service_preset_ids" value="{{ preset.id }}" class="cms-service-checkbox">
+                                        {{ preset.name }}（{{ preset.duration_minutes }}分）
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-sm text-amber-700">先に Service Presets を作成してください。</p>
+                                {% endif %}
+                            </div>
+
+                            <div class="pt-2">
+                                <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Cast CMS を保存</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="section-shifts" class="hidden-section">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div class="panel p-4">
+                        <div class="mb-3 flex items-center justify-between">
+                            <h2 class="text-lg font-semibold text-slate-900">Select Cast</h2>
+                            <span class="text-[10px] uppercase tracking-widest text-slate-500">Filter</span>
+                        </div>
+                        <div class="space-y-2">
+                            <button type="button" class="schedule-cast-item active w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300" onclick="filterSchedule('all', this)">
+                                <div class="text-sm font-semibold text-slate-800">All Casts</div>
+                                <div class="mt-1 text-xs text-slate-500">全体表示</div>
+                            </button>
+                            {% for r in resources %}
+                            <button type="button" class="schedule-cast-item w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300" onclick="filterSchedule('{{ r.id }}', this)">
+                                <div class="text-sm font-semibold text-slate-800">{{ r.name }}</div>
+                                <div class="mt-1 text-xs text-slate-500">{{ r.email|default:'メール未設定' }}</div>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="panel lg:col-span-2">
+                        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h2 id="schedule-view-title" class="text-lg font-semibold text-slate-900">Shifts & Orders</h2>
+                                <p class="text-xs text-slate-500">Showing: <span id="schedule-view-target" class="font-semibold text-indigo-700">All Casts</span></p>
+                            </div>
+                            <div class="flex gap-4 text-xs text-slate-500">
+                                <div>Shifts: <span id="count-shifts" class="font-semibold text-slate-800">{{ upcoming_shifts|length }}</span></div>
+                                <div>Orders: <span id="count-orders" class="font-semibold text-slate-800">{{ orders|length }}</span></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                            <div>
+                                <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-regular fa-calendar mr-1 text-indigo-600"></i> Upcoming Shifts</h3>
+                                <div class="space-y-2">
+                                    {% for shift in upcoming_shifts %}
+                                    <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}">
+                                        <div class="text-xs font-semibold text-indigo-700">{{ shift.resource.name }}</div>
+                                        <div class="mt-1 text-sm text-slate-800">{{ shift.start_time|date:"m/d H:i" }} - {{ shift.end_time|date:"H:i" }}</div>
+                                        <div class="mt-1 text-[11px] text-slate-500">{% if shift.is_recurring %}RECURRING{% else %}SINGLE{% endif %}</div>
+                                    </div>
+                                    {% empty %}
+                                    <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">シフトがありません。</div>
+                                    {% endfor %}
+                                    <div id="no-shifts-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">No shifts for this cast.</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-solid fa-receipt mr-1 text-indigo-600"></i> Order History</h3>
+                                <div class="space-y-2">
+                                    {% for order in orders %}
+                                    <div class="order-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ order.resource.id }}">
+                                        <div class="flex items-center justify-between">
+                                            <div class="text-xs font-semibold text-indigo-700">{{ order.resource.name }}</div>
+                                            <span class="rounded px-2 py-0.5 text-[10px]
+                                                {% if order.status == 'CONFIRMED' %}bg-emerald-100 text-emerald-700
+                                                {% elif order.status == 'CANCELLED' %}bg-rose-100 text-rose-700
+                                                {% elif order.status == 'COMPLETED' %}bg-sky-100 text-sky-700
+                                                {% else %}bg-slate-100 text-slate-700{% endif %}">
+                                                {{ order.status }}
+                                            </span>
+                                        </div>
+                                        <div class="mt-1 text-sm text-slate-800">{{ order.customer_name }} / {{ order.start_time|date:"m/d H:i" }}</div>
+                                        <div class="mt-1 text-[11px] text-slate-500">サービス: {{ order.selected_service_name|default:'-' }}</div>
+                                    </div>
+                                    {% empty %}
+                                    <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">予約がありません。</div>
+                                    {% endfor %}
+                                    <div id="no-orders-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">No orders for this cast.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="section-services" class="hidden-section">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <div class="panel p-5">
+                        <h2 class="mb-1 text-lg font-semibold text-slate-900">サービスプリセット作成</h2>
+                        <p class="mb-4 text-xs text-slate-500">スタッフのプロフィール対応サービスと予約選択肢に反映されます。</p>
                         <form method="post" class="space-y-4">
                             {% csrf_token %}
                             <input type="hidden" name="save_service" value="true">
                             <input type="hidden" name="service_id" value="">
 
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">サービス名</label>
-                                <input type="text" name="service_name" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. 90分 ASMR コース">
+                                <label class="mb-1 block text-xs text-slate-500">サービス名</label>
+                                <input type="text" name="service_name" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. 90分 ASMR コース">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">所要時間（分）</label>
-                                <input type="number" name="duration_minutes" min="1" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" value="60">
+                                <label class="mb-1 block text-xs text-slate-500">所要時間（分）</label>
+                                <input type="number" name="duration_minutes" min="1" required value="60" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             </div>
-                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
                                 <input type="checkbox" name="is_active" checked class="accent-indigo-600">
                                 有効
                             </label>
-                            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded font-bold shadow hover:bg-indigo-700 transition-colors">
-                                保存
-                            </button>
+                            <div>
+                                <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">保存</button>
+                            </div>
                         </form>
                     </div>
-                </div>
 
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                        <h3 class="text-lg font-medium text-gray-900">プリセット一覧</h3>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full saas-table">
-                            <thead>
-                                <tr>
-                                    <th>名称</th>
-                                    <th>時間</th>
-                                    <th>有効</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for svc in service_presets %}
-                                <tr class="hover:bg-gray-50">
-                                    <td>
-                                        <div class="font-medium text-gray-900">{{ svc.name }}</div>
-                                    </td>
-                                    <td class="text-gray-700">{{ svc.duration_minutes }} 分</td>
-                                    <td>
-                                        {% if svc.is_active %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">有効</span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">無効</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <form method="post" onsubmit="return confirm('このサービスプリセットを削除しますか？');">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="delete_service" value="true">
-                                            <input type="hidden" name="service_id" value="{{ svc.id }}">
-                                            <button type="submit" class="text-xs text-red-600 hover:text-red-700 font-semibold">削除</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="4" class="text-center py-8 text-gray-500 italic">サービスプリセットがありません。</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="section-email" class="hidden-section">
-            
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[800px]">
-                
-                <div class="lg:col-span-5 flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-sm">
-                    <div class="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <h3 class="font-bold text-gray-800"><i class="fa-solid fa-pen-nib mr-2"></i>メール編集</h3>
-                        
-                        <div class="flex bg-gray-200 rounded p-1">
-                            <button onclick="switchTemplateType('BOOKING_CONFIRMED')" id="btn-confirmed" class="text-xs px-3 py-1 rounded font-medium transition-colors bg-white shadow-sm text-indigo-600">予約確定</button>
-                            <button onclick="switchTemplateType('BOOKING_CANCELLED')" id="btn-cancelled" class="text-xs px-3 py-1 rounded font-medium transition-colors text-gray-500 hover:bg-gray-100">予約キャンセル</button>
+                    <div class="panel overflow-hidden">
+                        <div class="border-b border-slate-200 px-5 py-4">
+                            <h2 class="text-lg font-semibold text-slate-900">プリセット一覧</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="admin-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th>名称</th>
+                                        <th>時間</th>
+                                        <th>有効</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for svc in service_presets %}
+                                    <tr>
+                                        <td class="font-medium text-slate-900">{{ svc.name }}</td>
+                                        <td class="text-slate-700">{{ svc.duration_minutes }} 分</td>
+                                        <td>
+                                            {% if svc.is_active %}
+                                            <span class="rounded bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-700">有効</span>
+                                            {% else %}
+                                            <span class="rounded bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700">無効</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <form method="post" onsubmit="return confirm('このサービスプリセットを削除しますか？');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="delete_service" value="true">
+                                                <input type="hidden" name="service_id" value="{{ svc.id }}">
+                                                <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">削除</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500">サービスプリセットがありません。</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    
-                    <form method="post" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-5" id="email-form">
-                        {% csrf_token %}
-                        <input type="hidden" name="save_template" value="true">
-                        <input type="hidden" id="in-event-type" name="event_type" value="BOOKING_CONFIRMED">
+                </div>
+            </section>
 
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">ブランドロゴ</label>
-                            <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 border border-gray-200 rounded-full overflow-hidden flex items-center justify-center bg-gray-50">
-                                    <img id="logo-preview-icon" src="" class="w-full h-full object-cover hidden">
-                                    <i id="logo-placeholder" class="fa-regular fa-image text-gray-400"></i>
-                                </div>
-                                <input type="file" name="logo" id="in-logo" accept="image/*" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <section id="section-email" class="hidden-section">
+                <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
+                    <div class="panel xl:col-span-5">
+                        <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+                            <h2 class="text-lg font-semibold text-slate-900">メール編集</h2>
+                            <div class="rounded bg-slate-200 p-1">
+                                <button type="button" onclick="switchTemplateType('BOOKING_CONFIRMED')" id="btn-confirmed" class="rounded bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">予約確定</button>
+                                <button type="button" onclick="switchTemplateType('BOOKING_CANCELLED')" id="btn-cancelled" class="rounded px-3 py-1 text-xs font-semibold text-slate-500">予約キャンセル</button>
                             </div>
                         </div>
 
-                        <hr class="border-gray-100">
+                        <form method="post" enctype="multipart/form-data" class="space-y-4 p-5" id="email-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="save_template" value="true">
+                            <input type="hidden" id="in-event-type" name="event_type" value="BOOKING_CONFIRMED">
 
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">送信先</label>
-                            <div class="flex gap-4">
-                                <label class="flex items-center gap-2 cursor-pointer border border-gray-200 rounded px-3 py-2 bg-gray-50 hover:bg-white transition-colors">
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">ブランドロゴ</label>
+                                <input type="file" name="logo" id="in-logo" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-full file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
                                     <input type="checkbox" id="in-send-customer" name="send_to_customer" class="accent-indigo-600">
-                                    <span class="text-sm text-gray-700">顧客へ送信</span>
+                                    顧客へ送信
                                 </label>
-                                <label class="flex items-center gap-2 cursor-pointer border border-gray-200 rounded px-3 py-2 bg-gray-50 hover:bg-white transition-colors">
+                                <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
                                     <input type="checkbox" id="in-send-cast" name="send_to_cast" class="accent-indigo-600">
-                                    <span class="text-sm text-gray-700">スタッフへ送信</span>
+                                    スタッフへ送信
                                 </label>
                             </div>
-                        </div>
 
-                        <hr class="border-gray-100">
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">件名</label>
-                            <input type="text" id="in-subject" name="subject" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">タイトル</label>
-                            <input type="text" id="in-title" name="email_title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">挨拶文</label>
-                            <textarea id="in-greeting" name="email_greeting" class="w-full h-20 border border-gray-300 rounded px-3 py-2 text-sm outline-none resize-none"></textarea>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                サービス名（{% templatetag openvariable %} duration_minutes {% templatetag closevariable %} 利用可）
-                            </label>
-                            <input type="text" id="in-service-name" name="service_name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none" placeholder="e.g. {% templatetag openvariable %} duration_minutes {% templatetag closevariable %}分VRASMR施術コース (PCVR)">
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">ボタン文言</label>
-                                <input type="text" id="in-btn-text" name="button_text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
+                                <label class="mb-1 block text-xs text-slate-500">件名</label>
+                                <input type="text" id="in-subject" name="subject" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">タイトル</label>
+                                <input type="text" id="in-title" name="email_title" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">挨拶文</label>
+                                <textarea id="in-greeting" name="email_greeting" rows="3" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">サービス名（{% templatetag openvariable %} selected_service_name {% templatetag closevariable %} / {% templatetag openvariable %} duration_minutes {% templatetag closevariable %}）</label>
+                                <input type="text" id="in-service-name" name="service_name" list="service-name-suggestions" placeholder="{{ default_service_name_prefill }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <datalist id="service-name-suggestions">
+                                    {% for svc in service_presets %}
+                                    <option value="{{ svc.name }}"></option>
+                                    {% endfor %}
+                                    {% for order in orders %}
+                                    {% if order.selected_service_name %}
+                                    <option value="{{ order.selected_service_name }}"></option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">ボタン文言</label>
+                                    <input type="text" id="in-btn-text" name="button_text" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">ボタンリンク</label>
+                                    <input type="text" id="in-btn-link" name="button_link" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">フッター見出し</label>
+                                <input type="text" id="in-footer-title" name="footer_title" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">ボタンリンク</label>
-                                <input type="text" id="in-btn-link" name="button_link" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none text-gray-400">
+                                <label class="mb-1 block text-xs text-slate-500">フッター本文</label>
+                                <textarea id="in-footer-text" name="footer_text" rows="3" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
                             </div>
-                        </div>
 
-                        <hr class="border-gray-100">
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">フッター見出し</label>
-                            <input type="text" id="in-footer-title" name="footer_title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">フッター本文</label>
-                            <textarea id="in-footer-text" name="footer_text" class="w-full h-20 border border-gray-300 rounded px-3 py-2 text-sm outline-none resize-none"></textarea>
-                        </div>
-
-                        <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded font-bold shadow hover:bg-indigo-700 transition-colors mt-4">
-                            保存する
-                        </button>
-                    </form>
-                </div>
-
-                <div class="lg:col-span-7 flex flex-col h-full bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-                    <div class="p-3 bg-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-300">
-                        プレビュー（モックデータ）
+                            <button type="submit" class="w-full rounded-md bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700">保存する</button>
+                        </form>
                     </div>
-                    
-                    <div class="flex-1 overflow-y-auto p-8 flex justify-center bg-white">
-                        <div class="w-full max-w-[500px] border border-gray-100 shadow-xl rounded-lg overflow-hidden bg-white h-fit">
-                            
-                            <div class="p-8 text-center bg-white">
-                                <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                                    <img id="prev-logo" src="https://via.placeholder.com/80x80/d4af37/ffffff?text=Logo" class="w-full h-full object-contain rounded-full">
-                                </div>
 
-                                <h2 id="prev-title" class="text-2xl font-bold text-gray-800 mb-6 tracking-tight">
-                                    --
-                                </h2>
-                                
-                                <div class="text-left text-sm text-gray-600 mb-6 leading-relaxed">
-                                    <span class="font-bold">お客様（自動生成）</span> 様<br>
-                                    <span id="prev-greeting" class="whitespace-pre-wrap">--</span>
+                    <div class="panel xl:col-span-7">
+                        <div class="border-b border-slate-200 bg-slate-50 px-5 py-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Preview</div>
+                        <div class="p-6">
+                            <div class="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+                                <div class="mb-4 flex justify-center">
+                                    <img id="prev-logo" src="https://via.placeholder.com/80x80/d4af37/ffffff?text=Logo" class="h-20 w-20 rounded-full object-cover">
                                 </div>
-
-                                <div class="border border-gray-200 rounded-lg p-8 bg-white mb-6">
-                                    <div class="font-bold text-lg text-gray-800 mb-4 leading-snug">
-                                        日付（自動生成）<br>
-                                        時間（自動生成）
-                                    </div>
-                                    
-                                    <div class="text-sm text-gray-500 mb-6 space-y-1">
+                                <h3 id="prev-title" class="mb-5 text-center text-2xl font-bold text-slate-900">--</h3>
+                                <p class="mb-5 text-sm text-slate-700">
+                                    お客様（自動生成） 様<br>
+                                    <span id="prev-greeting">--</span>
+                                </p>
+                                <div class="mb-6 rounded-md border border-slate-200 bg-slate-50 p-5 text-center">
+                                    <div class="text-lg font-bold text-slate-900">日付（自動生成）</div>
+                                    <div class="text-base font-semibold text-slate-700">時間（自動生成）</div>
+                                    <div class="mt-4 text-sm text-slate-600">
                                         <p id="prev-service-name">--</p>
-                                        <p>担当：（自動生成）</p>
+                                        <p>担当: （自動生成）</p>
                                         <p>店舗名（自動生成）</p>
                                     </div>
-
-                                    <a href="#" class="inline-block bg-[#f0e6cc] text-[#5d5340] px-10 py-3 rounded font-bold text-sm hover:opacity-80 transition-opacity" id="prev-btn">
-                                        --
-                                    </a>
-                                    
+                                    <a href="#" id="prev-btn" class="mt-4 inline-block rounded bg-amber-100 px-8 py-2 text-sm font-semibold text-amber-900">--</a>
                                 </div>
-
-                                <div class="border border-gray-200 rounded-lg p-4 text-center bg-white">
-                                    <div id="prev-footer-title" class="font-bold text-xs text-gray-800 mb-1">--</div>
-                                    <p id="prev-footer-text" class="text-xs text-gray-500 m-0">--</p>
+                                <div class="rounded-md border border-slate-200 bg-white p-4 text-center">
+                                    <div id="prev-footer-title" class="text-xs font-semibold text-slate-800">--</div>
+                                    <p id="prev-footer-text" class="mt-1 text-xs text-slate-500">--</p>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-    </main>
+            </section>
+        </main>
+    </div>
 
     <script>
-        // --- 1. Navigation Logic (Missing Function) ---
+        const PAGE_TITLES = {
+            users: "Users & Roles",
+            content: "Cast CMS",
+            shifts: "Shifts & Orders",
+            services: "Service Presets",
+            email: "Email Templates",
+        };
+
         function switchTab(tabName) {
-            // Hide all sections
-            ['overview', 'orders', 'staff', 'services', 'email'].forEach(t => {
-                document.getElementById('section-' + t).classList.add('hidden-section');
-                document.getElementById('nav-' + t).classList.remove('active', 'bg-indigo-50', 'text-primary');
-                document.getElementById('nav-' + t).classList.add('text-gray-600');
+            ["users", "content", "shifts", "services", "email"].forEach((key) => {
+                const section = document.getElementById("section-" + key);
+                const tab = document.getElementById("tab-" + key);
+                if (section) section.classList.add("hidden-section");
+                if (tab) tab.classList.remove("active");
             });
-            
-            // Show active section
-            document.getElementById('section-' + tabName).classList.remove('hidden-section');
-            const activeNav = document.getElementById('nav-' + tabName);
-            activeNav.classList.add('active');
-            activeNav.classList.remove('text-gray-600');
-            
-            // Update Title
-            const titles = {
-                'overview': '管理者ダッシュボード',
-                'orders': '予約',
-                'staff': 'スタッフ管理',
-                'services': 'サービスプリセット',
-                'email': 'メール設定'
-            };
-            document.getElementById('page-title').innerText = titles[tabName];
+
+            const activeSection = document.getElementById("section-" + tabName);
+            const activeTab = document.getElementById("tab-" + tabName);
+            if (activeSection) activeSection.classList.remove("hidden-section");
+            if (activeTab) activeTab.classList.add("active");
+
+            const titleEl = document.getElementById("page-title");
+            if (titleEl) titleEl.innerText = PAGE_TITLES[tabName] || "管理者ダッシュボード";
         }
 
-        // --- 2. Email Editor Logic ---
-        
-        // Safely parse JSON from backend
-        // Note: Using a try-catch block for safety if templates_json is empty
+        function filterUsers() {
+            const roleFilter = (document.getElementById("roleFilter") || {}).value || "all";
+            const searchWord = ((document.getElementById("userSearch") || {}).value || "").toLowerCase().trim();
+            const rows = document.querySelectorAll(".user-row");
+            rows.forEach((row) => {
+                const role = (row.dataset.role || "").toLowerCase();
+                const name = (row.dataset.name || "").toLowerCase();
+                const roleOk = roleFilter === "all" || role === roleFilter;
+                const searchOk = !searchWord || name.includes(searchWord);
+                row.style.display = roleOk && searchOk ? "" : "none";
+            });
+        }
+
+        function setCmsServiceSelections(csvValue) {
+            const selected = new Set((csvValue || "").split(",").map(v => v.trim()).filter(Boolean));
+            document.querySelectorAll(".cms-service-checkbox").forEach((cb) => {
+                cb.checked = selected.has(cb.value);
+            });
+        }
+
+        function selectCast(button) {
+            document.querySelectorAll(".cast-item").forEach((el) => el.classList.remove("active"));
+            button.classList.add("active");
+
+            const resourceId = button.dataset.resourceId || "";
+            const resourceName = button.dataset.name || "--";
+            const intro = button.dataset.intro || "";
+            const avatarUrl = button.dataset.avatarUrl || "";
+            const youtubeUrl = button.dataset.youtubeUrl || "";
+            const tags = button.dataset.tags || "";
+            const selectedServices = button.dataset.selectedServices || "";
+
+            const target = document.getElementById("cast-editor-target");
+            const rid = document.getElementById("cms-resource-id");
+            const introEl = document.getElementById("cms-intro");
+            const avatarEl = document.getElementById("cms-avatar-url");
+            const youtubeEl = document.getElementById("cms-youtube-url");
+            const tagsEl = document.getElementById("cms-tags");
+
+            if (target) target.innerText = "対象: " + resourceName;
+            if (rid) rid.value = resourceId;
+            if (introEl) introEl.value = intro;
+            if (avatarEl) avatarEl.value = avatarUrl;
+            if (youtubeEl) youtubeEl.value = youtubeUrl;
+            if (tagsEl) tagsEl.value = tags;
+            setCmsServiceSelections(selectedServices);
+        }
+
+        function filterSchedule(castId, element) {
+            document.querySelectorAll(".schedule-cast-item").forEach((el) => el.classList.remove("active"));
+            if (element) element.classList.add("active");
+
+            const titleTarget = document.getElementById("schedule-view-target");
+            if (titleTarget) {
+                const title = castId === "all"
+                    ? "All Casts"
+                    : (element.querySelector(".text-sm") ? element.querySelector(".text-sm").innerText : "Selected");
+                titleTarget.innerText = title;
+            }
+
+            let shiftCount = 0;
+            document.querySelectorAll(".shift-card").forEach((card) => {
+                const visible = castId === "all" || card.dataset.castId === castId;
+                card.classList.toggle("hidden", !visible);
+                if (visible) shiftCount += 1;
+            });
+            const countShiftEl = document.getElementById("count-shifts");
+            if (countShiftEl) countShiftEl.innerText = String(shiftCount);
+            const noShiftEl = document.getElementById("no-shifts-msg");
+            if (noShiftEl) noShiftEl.classList.toggle("hidden", shiftCount > 0);
+
+            let orderCount = 0;
+            document.querySelectorAll(".order-card").forEach((card) => {
+                const visible = castId === "all" || card.dataset.castId === castId;
+                card.classList.toggle("hidden", !visible);
+                if (visible) orderCount += 1;
+            });
+            const countOrderEl = document.getElementById("count-orders");
+            if (countOrderEl) countOrderEl.innerText = String(orderCount);
+            const noOrderEl = document.getElementById("no-orders-msg");
+            if (noOrderEl) noOrderEl.classList.toggle("hidden", orderCount > 0);
+        }
+
+        const SERVICE_NAME_SUGGESTIONS = (() => {
+            try {
+                return JSON.parse('{{ service_name_suggestions_json|escapejs }}');
+            } catch (_) {
+                return [];
+            }
+        })();
+        const DEFAULT_SERVICE_NAME_PREFILL = '{{ default_service_name_prefill|escapejs }}';
+
         let allTemplates = {};
         try {
             allTemplates = JSON.parse('{{ templates_json|escapejs }}');
-        } catch (e) {
-            console.error("Error parsing templates JSON:", e);
-            // Default fallback if parsing fails
+        } catch (_) {
             allTemplates = {
-                'BOOKING_CONFIRMED': {},
-                'BOOKING_CANCELLED': {}
+                BOOKING_CONFIRMED: {},
+                BOOKING_CANCELLED: {},
             };
         }
 
         function switchTemplateType(type) {
-            // Update UI Button Styles
-            const btnConf = document.getElementById('btn-confirmed');
-            const btnCanc = document.getElementById('btn-cancelled');
-            
-            
-            if (type === 'BOOKING_CONFIRMED') {
-                btnConf.classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
-                btnConf.classList.remove('text-gray-500', 'hover:bg-gray-100');
-                btnCanc.classList.remove('bg-white', 'shadow-sm', 'text-indigo-600');
-                btnCanc.classList.add('text-gray-500', 'hover:bg-gray-100');
+            const btnConfirmed = document.getElementById("btn-confirmed");
+            const btnCancelled = document.getElementById("btn-cancelled");
+
+            if (type === "BOOKING_CONFIRMED") {
+                btnConfirmed.classList.add("bg-white", "text-indigo-700", "shadow-sm");
+                btnCancelled.classList.remove("bg-white", "text-indigo-700", "shadow-sm");
+                btnCancelled.classList.add("text-slate-500");
             } else {
-                btnCanc.classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
-                btnCanc.classList.remove('text-gray-500', 'hover:bg-gray-100');
-                btnConf.classList.remove('bg-white', 'shadow-sm', 'text-indigo-600');
-                btnConf.classList.add('text-gray-500', 'hover:bg-gray-100');
+                btnCancelled.classList.add("bg-white", "text-indigo-700", "shadow-sm");
+                btnConfirmed.classList.remove("bg-white", "text-indigo-700", "shadow-sm");
+                btnConfirmed.classList.add("text-slate-500");
             }
 
-            // Fill Form Data
             const data = allTemplates[type] || {};
-            document.getElementById('in-event-type').value = type;
-            document.getElementById('in-send-customer').checked = (data.send_to_customer !== false); // デフォルトは true
-            document.getElementById('in-send-cast').checked = (data.send_to_cast !== false);
-            document.getElementById('in-subject').value = data.subject || '';
-            document.getElementById('in-title').value = data.email_title || '';
-            document.getElementById('in-greeting').value = data.email_greeting || '';
-            document.getElementById('in-service-name').value = data.service_name || '';
-            document.getElementById('in-btn-text').value = data.button_text || '';
-            document.getElementById('in-btn-link').value = data.button_link || '';
-            document.getElementById('in-footer-title').value = data.footer_title || '';
-            document.getElementById('in-footer-text').value = data.footer_text || '';
-            
+            const fallbackServiceName = SERVICE_NAME_SUGGESTIONS[0] || DEFAULT_SERVICE_NAME_PREFILL || "{{ selected_service_name }}";
 
-            // Handle Logo Preview
-            const logoPreview = document.getElementById('logo-preview-icon');
-            const logoPlace = document.getElementById('logo-placeholder');
-            const prevLogo = document.getElementById('prev-logo');
-            
-            if (data.logo_url) {
-                logoPreview.src = data.logo_url;
-                logoPreview.classList.remove('hidden');
-                logoPlace.classList.add('hidden');
-                // Update large preview
-                prevLogo.src = data.logo_url;
-            } else {
-                logoPreview.classList.add('hidden');
-                logoPlace.classList.remove('hidden');
-                prevLogo.src = "https://via.placeholder.com/80x80/d4af37/ffffff?text=Logo";
+            document.getElementById("in-event-type").value = type;
+            document.getElementById("in-send-customer").checked = data.send_to_customer !== false;
+            document.getElementById("in-send-cast").checked = data.send_to_cast !== false;
+            document.getElementById("in-subject").value = data.subject || "";
+            document.getElementById("in-title").value = data.email_title || "";
+            document.getElementById("in-greeting").value = data.email_greeting || "";
+            document.getElementById("in-service-name").value = data.service_name || fallbackServiceName;
+            document.getElementById("in-btn-text").value = data.button_text || "";
+            document.getElementById("in-btn-link").value = data.button_link || "";
+            document.getElementById("in-footer-title").value = data.footer_title || "";
+            document.getElementById("in-footer-text").value = data.footer_text || "";
+
+            const prevLogo = document.getElementById("prev-logo");
+            if (prevLogo) {
+                prevLogo.src = data.logo_url || "https://via.placeholder.com/80x80/d4af37/ffffff?text=Logo";
             }
 
-            // Trigger input events to update text preview
-            ['in-title', 'in-greeting', 'in-service-name', 'in-btn-text', 'in-footer-title', 'in-footer-text'].forEach(id => {
-                document.getElementById(id).dispatchEvent(new Event('input'));
+            ["in-title", "in-greeting", "in-service-name", "in-btn-text", "in-footer-title", "in-footer-text"].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.dispatchEvent(new Event("input"));
             });
         }
 
-        // 3. Live Preview Binding
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener("DOMContentLoaded", function () {
+            const firstCast = document.querySelector(".cast-item");
+            if (firstCast) selectCast(firstCast);
+
+            filterSchedule("all", document.querySelector(".schedule-cast-item"));
+
             const bindPreview = (inputId, previewId) => {
                 const input = document.getElementById(inputId);
                 const preview = document.getElementById(previewId);
-                if(input && preview) {
-                    input.addEventListener('input', () => { preview.innerText = input.value; });
-                }
+                if (!input || !preview) return;
+                input.addEventListener("input", function () {
+                    preview.innerText = input.value || "--";
+                });
             };
 
-            bindPreview('in-title', 'prev-title');
-            bindPreview('in-greeting', 'prev-greeting');
-            bindPreview('in-service-name', 'prev-service-name');
-            bindPreview('in-btn-text', 'prev-btn');
-            bindPreview('in-footer-title', 'prev-footer-title');
-            bindPreview('in-footer-text', 'prev-footer-text');
+            bindPreview("in-title", "prev-title");
+            bindPreview("in-greeting", "prev-greeting");
+            bindPreview("in-service-name", "prev-service-name");
+            bindPreview("in-btn-text", "prev-btn");
+            bindPreview("in-footer-title", "prev-footer-title");
+            bindPreview("in-footer-text", "prev-footer-text");
 
-            // Logo Local Upload Preview
-            const logoInput = document.getElementById('in-logo');
+            const logoInput = document.getElementById("in-logo");
             if (logoInput) {
-                logoInput.addEventListener('change', function(e) {
-                    const file = e.target.files[0];
-                    if (file) {
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            // Update small icon
-                            const logoPreview = document.getElementById('logo-preview-icon');
-                            logoPreview.src = e.target.result;
-                            logoPreview.classList.remove('hidden');
-                            document.getElementById('logo-placeholder').classList.add('hidden');
-                            // Update large preview
-                            document.getElementById('prev-logo').src = e.target.result;
-                        }
-                        reader.readAsDataURL(file);
-                    }
+                logoInput.addEventListener("change", function (event) {
+                    const file = event.target.files && event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const prevLogo = document.getElementById("prev-logo");
+                        if (prevLogo) prevLogo.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
                 });
             }
 
-            // Initialize Confirmation Template
-            switchTemplateType('BOOKING_CONFIRMED');
+            switchTemplateType("BOOKING_CONFIRMED");
         });
     </script>
 </body>

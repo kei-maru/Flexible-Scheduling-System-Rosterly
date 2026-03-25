@@ -220,10 +220,14 @@
 - 员工端前台统一改造：`/home|/profile|/schedule|/bookings` 对齐同一 Header 设计语言。
 - 员工资料页接入 `ResourceProfile` 扩展字段保存，`Discord ID` 改为只读并在后端禁改。
 - 修复头像菜单 hover 丢失导致的 logout 下拉消失问题，改为点击展开模式。
+- `STAFF` 账号注册/登录时自动绑定 `Resource`，确保员工可直接被预约与管理排班。
+- 管理员面板重构为白色主基调，并收敛为 `Users & Roles / Cast CMS / Shifts & Orders / Service Presets / Email Templates` 模块架构。
+- 店员资料与 Cast CMS 支持按 `ServicePreset` 复选并同步兼容时长字段（`allow_30/60/120_min`）。
+- 邮件模板服务名支持 `{{ selected_service_name }}` 变量，并基于历史预约服务名做预填建议。
 
 阶段结论：
 - 角色语义从“仅区分消费者/员工”升级为“与 A 组织角色一致映射”，并形成可回放的历史数据修正路径。
-- 员工端交互与资料维护闭环完成，身份账号与业务资源的绑定关系更清晰。
+- 员工端交互与资料维护闭环完成，管理员运营面板与服务配置链路同步收敛。
 
 ---
 

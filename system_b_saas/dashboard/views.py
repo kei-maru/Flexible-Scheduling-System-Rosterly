@@ -17,7 +17,7 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from bookings.models import Booking
-from resources.models import Availability, EmailTemplate, Resource, ServicePreset
+from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from tenants.models import SaaSUser, Tenant
 
 
@@ -117,12 +117,13 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         event_type = request.POST.get("event_type")
         send_to_customer = request.POST.get("send_to_customer") == "on"
         send_to_cast = request.POST.get("send_to_cast") == "on"
+        service_name = (request.POST.get("service_name") or "").strip() or "{{ selected_service_name }}"
 
         defaults_data = {
             "subject_template": request.POST.get("subject"),
             "email_title": request.POST.get("email_title"),
             "email_greeting": request.POST.get("email_greeting"),
-            "service_name": request.POST.get("service_name"),
+            "service_name": service_name,
             "button_text": request.POST.get("button_text"),
             "button_link": request.POST.get("button_link"),
             "footer_title": request.POST.get("footer_title"),
@@ -141,6 +142,99 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             defaults=defaults_data,
         )
 
+    def _ensure_staff_resource_binding(self, user, tenant):
+        if user.role != "STAFF":
+            return None
+
+        linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
+        if linked:
+            update_fields = []
+            desired_name = (user.username or "").strip()
+            if desired_name and linked.name != desired_name:
+                linked.name = desired_name
+                update_fields.append("name")
+            if user.email and linked.email != user.email:
+                linked.email = user.email
+                update_fields.append("email")
+            if update_fields:
+                linked.save(update_fields=update_fields)
+            return linked
+
+        reusable = None
+        if user.email:
+            reusable = Resource.objects.filter(
+                tenant=tenant,
+                linked_user__isnull=True,
+                email=user.email,
+            ).first()
+        if reusable is None and user.username:
+            reusable = Resource.objects.filter(
+                tenant=tenant,
+                linked_user__isnull=True,
+                name=user.username,
+            ).first()
+
+        if reusable:
+            reusable.linked_user = user
+            update_fields = ["linked_user"]
+            if user.username and reusable.name != user.username:
+                reusable.name = user.username
+                update_fields.append("name")
+            if user.email and reusable.email != user.email:
+                reusable.email = user.email
+                update_fields.append("email")
+            reusable.save(update_fields=update_fields)
+            return reusable
+
+        base_name = (user.username or "").strip() or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
+        candidate = base_name[:90]
+        suffix = 2
+        while Resource.objects.filter(tenant=tenant, name=candidate).exclude(linked_user=user).exists():
+            candidate = f"{base_name[:80]}-{suffix}"
+            suffix += 1
+
+        return Resource.objects.create(
+            tenant=tenant,
+            linked_user=user,
+            name=candidate,
+            email=(user.email or "").strip() or None,
+            is_active=True,
+        )
+
+    def _save_cast_profile(self, request, tenant):
+        resource_id = (request.POST.get("resource_id") or "").strip()
+        if not resource_id:
+            raise ValueError("Missing resource_id")
+
+        resource = Resource.objects.filter(id=resource_id, tenant=tenant).first()
+        if not resource:
+            raise ValueError("Resource not found")
+
+        profile, _ = ResourceProfile.objects.get_or_create(resource=resource)
+        raw_tags = (request.POST.get("profile_tags") or "").replace("，", ",")
+        parsed_tags = [tag.strip() for tag in raw_tags.split(",") if tag.strip()]
+
+        valid_service_ids = {
+            str(item)
+            for item in ServicePreset.objects.filter(tenant=tenant).values_list("id", flat=True)
+        }
+        selected_service_ids = [sid for sid in request.POST.getlist("service_preset_ids") if sid in valid_service_ids]
+        selected_presets = list(ServicePreset.objects.filter(id__in=selected_service_ids, tenant=tenant))
+        selected_durations = {preset.duration_minutes for preset in selected_presets}
+
+        metadata = profile.metadata if isinstance(profile.metadata, dict) else {}
+        metadata["service_preset_ids"] = selected_service_ids
+
+        profile.intro = (request.POST.get("profile_intro") or "").strip()
+        profile.avatar_url = (request.POST.get("profile_avatar_url") or "").strip() or None
+        profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
+        profile.tags = parsed_tags
+        profile.metadata = metadata
+        profile.allow_30_min = 30 in selected_durations
+        profile.allow_60_min = 60 in selected_durations
+        profile.allow_120_min = 120 in selected_durations
+        profile.save()
+
     def _save_staff_profile(self, request, tenant):
         user_id = request.POST.get("user_id")
         if not user_id:
@@ -152,15 +246,28 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         user.discord_id = (request.POST.get("discord_id") or "").strip() or None
         user.role = request.POST.get("role") if request.POST.get("role") in ["ADMIN", "STAFF"] else user.role
         user.is_active = request.POST.get("is_active") == "on"
+        user.save()
 
         linked_resource_id = (request.POST.get("linked_resource_id") or "").strip()
         if linked_resource_id:
             resource = Resource.objects.filter(id=linked_resource_id, tenant=tenant).first()
-            user.resource_profile = resource if resource else user.resource_profile
+            if resource:
+                Resource.objects.filter(tenant=tenant, linked_user=user).exclude(id=resource.id).update(linked_user=None)
+                resource.linked_user = user
+                update_fields = ["linked_user"]
+                if user.username and resource.name != user.username:
+                    resource.name = user.username
+                    update_fields.append("name")
+                if user.email and resource.email != user.email:
+                    resource.email = user.email
+                    update_fields.append("email")
+                resource.save(update_fields=update_fields)
+            elif user.role == "STAFF":
+                self._ensure_staff_resource_binding(user, tenant)
+        elif user.role == "STAFF":
+            self._ensure_staff_resource_binding(user, tenant)
         else:
-            user.resource_profile = None
-
-        user.save()
+            Resource.objects.filter(tenant=tenant, linked_user=user).update(linked_user=None)
 
     def _save_service_preset(self, request, tenant):
         service_id = (request.POST.get("service_id") or "").strip()
@@ -204,6 +311,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if request.POST.get("save_template") == "true":
                 self._save_template(request, tenant)
                 messages.success(request, "メールテンプレートを保存しました。")
+            elif request.POST.get("save_cast_profile") == "true":
+                self._save_cast_profile(request, tenant)
+                messages.success(request, "Cast CMS を更新しました。")
             elif request.POST.get("save_staff") == "true":
                 self._save_staff_profile(request, tenant)
                 messages.success(request, "スタッフ情報を更新しました。")
@@ -234,10 +344,12 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         staff_rows = []
         service_presets = ServicePreset.objects.none()
         upcoming_shifts = Availability.objects.none()
+        cast_rows = []
+        service_name_suggestions = []
 
         if tenant:
-            orders = Booking.objects.filter(tenant=tenant).order_by("-created_at")[:80]
-            resources = Resource.objects.filter(tenant=tenant).order_by("name")
+            orders = Booking.objects.filter(tenant=tenant).select_related("resource").order_by("-created_at")[:80]
+            resources = Resource.objects.filter(tenant=tenant).select_related("profile", "linked_user").order_by("name")
             staff_users = SaaSUser.objects.filter(tenant=tenant).order_by("role", "username")
             for u in staff_users:
                 linked_resource = Resource.objects.filter(tenant=tenant, linked_user=u).first()
@@ -252,6 +364,39 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 start_time__gte=timezone.now(),
             ).select_related("resource").order_by("start_time")[:60]
             service_presets = ServicePreset.objects.filter(tenant=tenant).order_by("sort_order", "id")
+
+            preset_names = list(service_presets.values_list("name", flat=True))
+            recent_booking_names = list(
+                Booking.objects.filter(tenant=tenant)
+                .exclude(selected_service_name__isnull=True)
+                .exclude(selected_service_name="")
+                .values_list("selected_service_name", flat=True)
+                .distinct()[:30]
+            )
+            for name in [*recent_booking_names, *preset_names]:
+                if name and name not in service_name_suggestions:
+                    service_name_suggestions.append(name)
+
+            for resource in resources:
+                profile = getattr(resource, "profile", None)
+                tags = profile.tags if profile and isinstance(profile.tags, list) else []
+                metadata = profile.metadata if profile and isinstance(profile.metadata, dict) else {}
+                selected_service_ids = metadata.get("service_preset_ids") or []
+                cast_rows.append(
+                    {
+                        "resource_id": str(resource.id),
+                        "resource_name": resource.name,
+                        "resource_email": resource.email or "",
+                        "linked_username": resource.linked_user.username if resource.linked_user else "",
+                        "intro": profile.intro if profile else "",
+                        "avatar_url": profile.avatar_url if profile else "",
+                        "youtube_url": profile.youtube_url if profile else "",
+                        "tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
+                        "selected_service_ids": [str(item) for item in selected_service_ids],
+                    }
+                )
+
+        default_service_name_prefill = service_name_suggestions[0] if service_name_suggestions else "{{ selected_service_name }}"
 
         templates_data = {}
         for event_type in ["BOOKING_CONFIRMED", "BOOKING_CANCELLED"]:
@@ -277,7 +422,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     "subject": "【予約キャンセル】" if is_cancel else "【予約確定】",
                     "email_title": "予約キャンセルのお知らせ" if is_cancel else "予約が確定しました。",
                     "email_greeting": "予約がキャンセルされました。" if is_cancel else "以下の内容で予約を承りました。",
-                    "service_name": "{{ duration_minutes }}分VRASMR施術コース (PCVR)",
+                    "service_name": "{{ selected_service_name }}",
                     "button_text": "トップページへ" if is_cancel else "詳細を見る",
                     "button_link": "#",
                     "footer_title": "当社のキャンセルポリシー",
@@ -297,8 +442,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "staff_rows": staff_rows,
                 "upcoming_shifts": upcoming_shifts,
                 "service_presets": service_presets,
+                "cast_rows": cast_rows,
                 "next_24h_count": next_24h_count,
                 "templates_json": json.dumps(templates_data),
+                "service_name_suggestions_json": json.dumps(service_name_suggestions, ensure_ascii=False),
+                "default_service_name_prefill": default_service_name_prefill,
                 "tenant_name": tenant.name if tenant else "未設定店舗",
             }
         )

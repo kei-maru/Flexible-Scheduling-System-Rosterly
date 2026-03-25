@@ -16,6 +16,71 @@ logger = logging.getLogger(__name__)
 
 
 class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
+    def _ensure_staff_resource_binding(self, user):
+        if user is None:
+            return
+        if getattr(user, "role", "") != "STAFF":
+            return
+        if not getattr(user, "tenant_id", None):
+            return
+
+        from resources.models import Resource
+
+        linked = Resource.objects.filter(tenant_id=user.tenant_id, linked_user=user).first()
+        if linked:
+            update_fields = []
+            if user.email and linked.email != user.email:
+                linked.email = user.email
+                update_fields.append("email")
+            desired_name = (user.username or "").strip()
+            if desired_name and linked.name != desired_name:
+                linked.name = desired_name
+                update_fields.append("name")
+            if update_fields:
+                linked.save(update_fields=update_fields)
+            return
+
+        reusable = None
+        if user.email:
+            reusable = Resource.objects.filter(
+                tenant_id=user.tenant_id,
+                linked_user__isnull=True,
+                email=user.email,
+            ).first()
+        if reusable is None and user.username:
+            reusable = Resource.objects.filter(
+                tenant_id=user.tenant_id,
+                linked_user__isnull=True,
+                name=user.username,
+            ).first()
+
+        if reusable:
+            reusable.linked_user = user
+            update_fields = ["linked_user"]
+            if user.email and reusable.email != user.email:
+                reusable.email = user.email
+                update_fields.append("email")
+            if user.username and reusable.name != user.username:
+                reusable.name = user.username
+                update_fields.append("name")
+            reusable.save(update_fields=update_fields)
+            return
+
+        base_name = (user.username or "").strip() or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
+        candidate = base_name[:90]
+        suffix = 2
+        while Resource.objects.filter(tenant_id=user.tenant_id, name=candidate).exclude(linked_user=user).exists():
+            candidate = f"{base_name[:80]}-{suffix}"
+            suffix += 1
+
+        Resource.objects.create(
+            tenant_id=user.tenant_id,
+            linked_user=user,
+            name=candidate,
+            email=(user.email or "").strip() or None,
+            is_active=True,
+        )
+
     def _is_public_sso_flow(self, request) -> bool:
         if request is None:
             return False
@@ -71,6 +136,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if update_fields:
             user.save(update_fields=update_fields)
             logger.info("public sso role sync user id=%s fields=%s", user.id, update_fields)
+        self._ensure_staff_resource_binding(user)
 
     def _is_first_owner_bootstrap(self) -> bool:
         User = get_user_model()
@@ -209,6 +275,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             if shop_signup_flow:
                 self._promote_user_to_shop_owner(request, sociallogin.user)
                 request.session.pop("allow_shop_signup", None)
+            self._ensure_staff_resource_binding(sociallogin.user)
             return
 
         extra_data = sociallogin.account.extra_data or {}
@@ -240,6 +307,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             if shop_signup_flow:
                 self._promote_user_to_shop_owner(request, authorized_user)
                 request.session.pop("allow_shop_signup", None)
+            self._ensure_staff_resource_binding(authorized_user)
             sociallogin.connect(request, authorized_user)
             return
 
@@ -310,6 +378,8 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
                 user.save(update_fields=update_fields)
                 logger.info("save_user: bootstrap user updated id=%s fields=%s", user.id, update_fields)
             messages.success(request, "初回管理者アカウントの作成が完了し、店舗を自動開設しました。")
+
+        self._ensure_staff_resource_binding(user)
 
         if request is not None and request.session.get("allow_public_sso_login"):
             request.session.pop("allow_public_sso_login", None)

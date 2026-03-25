@@ -12,7 +12,7 @@ from django.views.generic import TemplateView
 
 from allauth.socialaccount.models import SocialAccount
 from bookings.models import Booking
-from resources.models import Resource, ResourceProfile
+from resources.models import Resource, ResourceProfile, ServicePreset
 from resources.services import schedule_service
 from tenants.models import Tenant
 
@@ -82,9 +82,15 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        tenant = self._tenant()
         resource = self._profile_resource()
         profile = getattr(resource, "profile", None) if resource else None
         tags = profile.tags if profile and isinstance(profile.tags, list) else []
+        metadata = profile.metadata if profile and isinstance(profile.metadata, dict) else {}
+        selected_service_ids = [str(item) for item in (metadata.get("service_preset_ids") or [])]
+        service_presets = ServicePreset.objects.none()
+        if tenant:
+            service_presets = ServicePreset.objects.filter(tenant=tenant).order_by("sort_order", "id")
 
         context.update(self._base_nav_context())
         context.update(
@@ -97,6 +103,8 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
                 "allow_30_min": profile.allow_30_min if profile else False,
                 "allow_60_min": profile.allow_60_min if profile else True,
                 "allow_120_min": profile.allow_120_min if profile else False,
+                "service_presets": service_presets,
+                "selected_service_ids": selected_service_ids,
             }
         )
         return context
@@ -109,17 +117,28 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
 
         resource = self._profile_resource()
         if resource:
+            tenant = self._tenant()
             profile, _ = ResourceProfile.objects.get_or_create(resource=resource)
             raw_tags = (request.POST.get("profile_tags") or "").replace("，", ",")
             parsed_tags = [tag.strip() for tag in raw_tags.split(",") if tag.strip()]
+            valid_service_ids = {
+                str(item)
+                for item in ServicePreset.objects.filter(tenant=tenant).values_list("id", flat=True)
+            } if tenant else set()
+            selected_service_ids = [sid for sid in request.POST.getlist("service_preset_ids") if sid in valid_service_ids]
+            selected_presets = ServicePreset.objects.filter(id__in=selected_service_ids, tenant=tenant) if tenant else ServicePreset.objects.none()
+            selected_durations = set(selected_presets.values_list("duration_minutes", flat=True))
+            metadata = profile.metadata if isinstance(profile.metadata, dict) else {}
+            metadata["service_preset_ids"] = selected_service_ids
 
             profile.intro = (request.POST.get("profile_intro") or "").strip()
             profile.avatar_url = (request.POST.get("profile_avatar_url") or "").strip() or None
             profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
             profile.tags = parsed_tags
-            profile.allow_30_min = request.POST.get("allow_30_min") == "on"
-            profile.allow_60_min = request.POST.get("allow_60_min") == "on"
-            profile.allow_120_min = request.POST.get("allow_120_min") == "on"
+            profile.metadata = metadata
+            profile.allow_30_min = 30 in selected_durations
+            profile.allow_60_min = 60 in selected_durations
+            profile.allow_120_min = 120 in selected_durations
             profile.save()
             messages.success(request, "プロフィール情報を保存しました。")
         else:

@@ -118,6 +118,7 @@ def _send_booking_emails_logic(booking):
         'time_range': time_range_str,
         'duration_minutes': duration_minutes,
         'duration_hours': duration_hours,
+        'selected_service_name': (booking.selected_service_name or '').strip(),
     }
 
     def _render_text_with_duration(text, ctx):
@@ -152,6 +153,7 @@ def _send_booking_emails_logic(booking):
             'resource_name': booking.resource.name,
             'tenant_name': booking.tenant.name,
             'service_name': service_name,
+            'selected_service_name': (booking.selected_service_name or '').strip(),
             'start_date': date_str,
             'time_range': time_range_str,
             'duration_minutes': duration_minutes,

@@ -99,21 +99,20 @@
                         <input type="text" name="profile_tags" value="{{ profile_tags_text|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: 深夜対応, 英語OK, 初心者歓迎">
                     </div>
                     <div class="md:col-span-2">
-                        <label class="mb-2 block text-xs text-slate-500">対応モジュール（施術時間）</label>
+                        <label class="mb-2 block text-xs text-slate-500">対応サービス（予約可能）</label>
+                        {% if service_presets %}
                         <div class="flex flex-wrap gap-3">
-                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                                <input type="checkbox" name="allow_30_min" {% if allow_30_min %}checked{% endif %}>
-                                30分
+                            {% for preset in service_presets %}
+                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm {% if not preset.is_active %}opacity-60{% endif %}">
+                                <input type="checkbox" name="service_preset_ids" value="{{ preset.id }}" {% if preset.id|stringformat:'s' in selected_service_ids %}checked{% endif %}>
+                                {{ preset.name }}（{{ preset.duration_minutes }}分）
                             </label>
-                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                                <input type="checkbox" name="allow_60_min" {% if allow_60_min %}checked{% endif %}>
-                                60分
-                            </label>
-                            <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                                <input type="checkbox" name="allow_120_min" {% if allow_120_min %}checked{% endif %}>
-                                120分
-                            </label>
+                            {% endfor %}
                         </div>
+                        <p class="mt-2 text-xs text-slate-500">管理者が設定したサービスプリセットから、対応可能なものだけ選択してください。</p>
+                        {% else %}
+                        <p class="text-sm text-amber-700">利用可能なサービスプリセットが未設定です。管理者に追加をご依頼ください。</p>
+                        {% endif %}
                     </div>
                 </div>
                 {% else %}

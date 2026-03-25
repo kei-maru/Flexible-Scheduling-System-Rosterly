@@ -80,7 +80,7 @@
   - A 管理员（`is_superuser` 或 `is_staff 且非 cast`）→ B `ADMIN`
   - A 员工（`is_cast=True`）→ B `STAFF`
   - A 普通用户 → B `CONSUMER`
-- A 来源用户在 B 侧缺失租户时，默认绑定到 `Veludo` 公共租户（可配置）。
+- A 普通用户（`CONSUMER`）在 B 侧不绑定租户（`tenant=null`），仅用于 A 端身份透传。
 
 ### 5.1 Staff（店员）
 
@@ -204,6 +204,8 @@
 - 预约订单与邮件通知应显示用户实际选择的服务名称。
 - 店员在个人资料页可勾选“可提供的服务预设”（复选框），用于运营展示与能力配置。
 - 若是 System A 定制版场景，可继续沿用“由预约开始/结束时间相减推导时长”的方式，不强依赖 System A 自身服务表结构。
+- A->B Cast 同步时，若仅传 `allow_30/60/120_min`，B 侧会自动映射到同租户 `ServicePreset`（按时长匹配）并回填到 `profile.metadata.service_preset_ids`。
+- A->B 订单同步时，若未明确传 `service_id/service_name`，B 侧会按订单时长匹配 `ServicePreset` 自动补齐服务名。
 
 ## 10. 邮件功能设计
 
@@ -259,6 +261,8 @@
   - System B 作为统一身份源（IdP）上线 `authorize/exchange`。
   - System A 改为 SSO 消费方（SP），完成 callback 映射与会话建立。
   - A/B 账号映射口径统一为 `saas_user_id -> discord_uid -> discord_id`。
+- 已完成（2026-03-26）：
+  - System A 个人资料页（cast 用户）保存后，强制触发 `sync_cast_profile_to_system_b`（`transaction.on_commit`），确保 `allow_30/60/120_min` 变更实时同步到 System B。
   - B 中 A 端用户与员工用户完成角色区分（`CONSUMER` vs `STAFF/ADMIN`）。
 - 已完成（2026-03-25）：
   - A 发起 SSO 时透传 `a_role=ADMIN|STAFF|CONSUMER`。

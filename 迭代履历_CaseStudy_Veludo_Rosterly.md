@@ -233,6 +233,22 @@
 
 ---
 
+## 4.11 Phase 10：映射修复与员工视角收口（2026-03-26）
+
+关键内容：
+- 修复员工端排班页“预约红块点击误判为可删除”问题，改为跳转预约一览高亮对应订单。
+- 修复 Cast CMS 介绍文中的 `\u000d\u000a` 等转义残留显示问题（前后端双向清洗）。
+- 新增 A->B `course(30/60/120)` 与 B 侧 `ServicePreset` 自动映射，回填 `service_preset_ids`。
+- 新增 System A 个人资料保存后的强制同步（`on_commit` 触发），确保 course 变更实时同步到 System B。
+- 新增订单服务名自动补齐：当未传 `service_id/service_name` 时按时长自动匹配服务预设。
+- 账号口径收口：`CONSUMER` 强制 `tenant=null`；public SSO 增加 STAFF 识别兜底，减少误判为 CONSUMER。
+- 回填命令 `backfill_a_sso_users` 增强：`CONSUMER` 自动清空 tenant，fallback 模式可基于资源证据识别 STAFF。
+
+阶段结论：
+- 解决“数据已同步但员工端不可见”的尾部问题，完成身份/服务映射与员工端展示的一致性闭环。
+
+---
+
 ## 5. 关键架构结论（供讲解）
 
 1. 主体系统定位清晰：`System B` 为核心能力沉淀层，`System A` 为定制前台。  

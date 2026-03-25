@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-03-25  
+**最后更新**: 2026-03-26  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -226,6 +226,7 @@
 - 线上用途：
   - `sync_casts_to_system_b` 批量迁移命令调用该接口
   - 管理员在 System A 编辑 CastProfile 后也调用该接口做实时同步
+  - cast 用户在 System A 个人资料页保存时，后端会在事务提交后强制调用同步（`transaction.on_commit(sync_cast_profile_to_system_b)`）
 - 请求体：
 
 ```json
@@ -259,6 +260,9 @@
 ```json
 {"saas_id": "<uuid>", "status": "created"}
 ```
+
+- 同步补充规则（2026-03-26）：
+  - 当 payload 仅携带 `allow_30_min / allow_60_min / allow_120_min` 时，System B 会按时长自动映射到 `ServicePreset`，并写入 `profile.metadata.service_preset_ids`（每个时长取排序最前的有效预设）。
 
 #### `GET /api/v1/integration/resources/`
 
@@ -365,6 +369,7 @@
   - `service_id`（推荐）可指定管理员预设服务；`service_name` 作为兼容兜底
   - 订单会落库 `selected_service_name`，邮件优先显示用户所选服务名
   - `course_duration_minutes` 为可选透传字段（System A 可用 `end-start` 动态计算）
+  - 当未传 `service_id/service_name` 时，System B 会基于 `course_duration_minutes`（或 `end-start`）自动匹配同租户服务预设并补齐服务名
   - 若未选择服务，System B 邮件回退为按数据库 `Booking.start_time/end_time` 计算时长并渲染
 
 #### `GET /api/v1/integration/services/`
@@ -488,6 +493,7 @@
   - `discord_uid`：Discord 不可变 UID（强烈建议作为跨系统回填键）。
   - `discord_id`：显示名/兼容字段，可能随用户改名变化。
   - `role`：可能为 `ADMIN` / `STAFF` / `CONSUMER`，其中 `CONSUMER` 表示 A 端用户（无租户后台权限）。
+  - `CONSUMER` 口径：`tenant_id` 必须为 `null`。
 
 ### 4.4 A/B 角色映射（当前生产口径）
 

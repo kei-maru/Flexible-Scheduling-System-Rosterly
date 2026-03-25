@@ -486,6 +486,11 @@
                                 const props = item.extendedProps || {};
                                 const isBooked = props.is_booked !== undefined ? props.is_booked : item.is_booked;
                                 const isRecurring = props.is_recurring !== undefined ? props.is_recurring : item.is_recurring;
+                                const normalizedProps = {
+                                    ...props,
+                                    is_booked: isBooked,
+                                    is_recurring: isRecurring
+                                };
 
                                 let bgColor, borderColor, titleText, textColor;
 
@@ -516,7 +521,7 @@
                                     textColor: textColor,
                                     classNames: isBooked ? ['booked-slot'] : (isRecurring ? ['recurring-slot'] : ['single-slot']),
                                     editable: !isBooked, 
-                                    extendedProps: props
+                                    extendedProps: normalizedProps
                                 };
                             }) : [];
                             successCallback(events);

@@ -22,6 +22,7 @@ from django.views.generic import TemplateView
 from bookings.models import Booking
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
+from resources.services.service_mapping import resolve_booking_service_name
 from tenants.models import SaaSUser, Tenant
 
 
@@ -341,7 +342,14 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         if tenant:
             now = timezone.now()
-            orders = Booking.objects.filter(tenant=tenant).select_related("resource").order_by("-created_at")[:100]
+            orders_qs = (
+                Booking.objects.filter(tenant=tenant)
+                .select_related("resource", "resource__profile", "selected_service")
+                .order_by("-created_at")[:100]
+            )
+            orders = list(orders_qs)
+            for order in orders:
+                order.display_service_name = resolve_booking_service_name(order, tenant)
             resources = Resource.objects.filter(tenant=tenant).select_related("profile", "linked_user").order_by("name")
             staff_users = SaaSUser.objects.filter(
                 tenant=tenant,

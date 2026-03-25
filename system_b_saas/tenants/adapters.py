@@ -53,15 +53,25 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return
 
         public_tenant = self._resolve_public_sso_tenant()
-        if user.tenant_id and (not public_tenant or user.tenant_id != public_tenant.id):
-            logger.info("public sso role sync skipped user id=%s tenant_id=%s", user.id, user.tenant_id)
-            return
-
         desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
+        if desired_role == "CONSUMER":
+            from resources.models import Resource
+
+            has_staff_resource = (
+                Resource.objects.filter(linked_user=user).exists()
+                or Resource.objects.filter(external_id=str(user.id)).exists()
+            )
+            if has_staff_resource:
+                desired_role = "STAFF"
+
         desired_is_staff = desired_role in {"ADMIN", "STAFF"}
         update_fields = []
 
-        if not user.tenant_id and public_tenant:
+        if desired_role == "CONSUMER":
+            if user.tenant_id is not None:
+                user.tenant = None
+                update_fields.append("tenant")
+        elif not user.tenant_id and public_tenant:
             user.tenant = public_tenant
             update_fields.append("tenant")
 

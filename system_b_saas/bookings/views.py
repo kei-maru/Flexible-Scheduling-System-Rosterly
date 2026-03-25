@@ -16,6 +16,7 @@ from django.db.models import Q
 from bookings.tasks import process_new_booking, send_cancellation_email_task
 from tenants.permissions import IsTenantAuthorized
 from resources.models import Resource, ServicePreset
+from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
 from bookings.models import Booking
 
 
@@ -31,12 +32,15 @@ class IntegrationBookingView(APIView):
         end_time_str = request.data.get('end_time')
         service_id = request.data.get('service_id')
         service_name_raw = (request.data.get('service_name') or '').strip()
+        course_duration_raw = request.data.get("course_duration_minutes")
 
         if not all([resource_uuid, start_time_str, end_time_str]):
             return Response({'error': 'Missing required fields'}, status=400)
 
         start_time = parse_datetime(start_time_str)
         end_time = parse_datetime(end_time_str)
+        if not start_time or not end_time:
+            return Response({'error': 'Invalid datetime format'}, status=400)
 
         try:
             resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
@@ -59,6 +63,18 @@ class IntegrationBookingView(APIView):
 
         selected_service = None
         selected_service_name = None
+        duration_minutes = 0
+        try:
+            duration_minutes = int(course_duration_raw) if course_duration_raw is not None else 0
+        except (TypeError, ValueError):
+            duration_minutes = 0
+        if duration_minutes <= 0:
+            duration_minutes = max(0, int((end_time - start_time).total_seconds() // 60))
+
+        resource_profile = getattr(resource, "profile", None)
+        resource_metadata = resource_profile.metadata if resource_profile and isinstance(resource_profile.metadata, dict) else {}
+        preferred_service_ids = resource_metadata.get("service_preset_ids") or []
+
         if service_id:
             selected_service = ServicePreset.objects.filter(
                 tenant=request.tenant,
@@ -74,6 +90,20 @@ class IntegrationBookingView(APIView):
                 name=service_name_raw
             ).first()
             selected_service_name = selected_service.name if selected_service else service_name_raw
+
+        if selected_service is None:
+            selected_service = resolve_service_by_duration(
+                request.tenant,
+                duration_minutes,
+                preferred_service_ids=preferred_service_ids,
+            )
+            if selected_service and not selected_service_name:
+                selected_service_name = selected_service.name
+        elif not selected_service_name:
+            selected_service_name = selected_service.name
+
+        if not selected_service_name and duration_minutes > 0:
+            selected_service_name = f"{duration_minutes}分"
 
         try:
             with transaction.atomic():
@@ -101,7 +131,7 @@ class IntegrationBookingView(APIView):
         return Response({
             'booking_id': str(booking.id),
             'status': booking.status,
-            'service_name': booking.selected_service_name
+            'service_name': resolve_booking_service_name(booking, request.tenant)
         }, status=201)
 
     def get(self, request):
@@ -178,7 +208,7 @@ class IntegrationBookingView(APIView):
             'resource_name': b.resource.name,
             'customer_name': b.customer_name,
             'customer_email': b.customer_email,
-            'service_name': b.selected_service_name or '',
+            'service_name': resolve_booking_service_name(b, b.tenant),
             'start': b.start_time,
             'end': b.end_time,
             'status': b.status,

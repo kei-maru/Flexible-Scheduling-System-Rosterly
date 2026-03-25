@@ -60,7 +60,7 @@
                      data-resource="{{ booking.resource.name }}"
                      data-customer="{{ booking.customer_name }}"
                      data-email="{{ booking.customer_email }}"
-                     data-service="{{ booking.selected_service_name|default:'' }}"
+                     data-service="{{ booking.display_service_name|default:'' }}"
                      data-start-date="{{ booking.start_time|date:'Y/m/d (D)' }}"
                      data-time-range="{{ booking.start_time|date:'H:i' }} - {{ booking.end_time|date:'H:i' }}"
                      data-status="{{ booking.status }}"
@@ -80,7 +80,7 @@
                                     {{ booking.start_time|date:"H:i" }} - {{ booking.end_time|date:"H:i" }}
                                 </div>
                                 <div class="mt-1 text-xs text-slate-500">担当: {{ booking.resource.name }}</div>
-                                <div class="mt-1 text-xs text-slate-500">サービス: {{ booking.selected_service_name|default:"-" }}</div>
+                                <div class="mt-1 text-xs text-slate-500">サービス: {{ booking.display_service_name|default:"-" }}</div>
                             </div>
                         </div>
 

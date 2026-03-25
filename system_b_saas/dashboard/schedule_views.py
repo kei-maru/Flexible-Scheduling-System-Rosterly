@@ -17,6 +17,7 @@ from allauth.socialaccount.models import SocialAccount
 from bookings.models import Booking
 from resources.models import Availability, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
+from resources.services.service_mapping import resolve_booking_service_name
 from resources.services import schedule_service
 from tenants.models import Tenant
 
@@ -232,7 +233,11 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
         staff_resource = None
         effective_is_admin = role_is_admin
         if tenant:
-            qs = Booking.objects.filter(tenant=tenant).select_related("resource").order_by("-start_time")
+            qs = (
+                Booking.objects.filter(tenant=tenant)
+                .select_related("resource", "resource__profile", "selected_service")
+                .order_by("-start_time")
+            )
             # Shared bookings page is staff-facing: if a linked resource exists, always lock to own bookings.
             staff_resource = self._staff_default_resource(tenant)
             if staff_resource:
@@ -240,7 +245,9 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
                 effective_is_admin = False
             elif not role_is_admin:
                 qs = Booking.objects.none()
-            bookings = qs[:200]
+            bookings = list(qs[:200])
+            for booking in bookings:
+                booking.display_service_name = resolve_booking_service_name(booking, tenant)
 
         context.update(
             {

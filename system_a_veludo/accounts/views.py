@@ -15,6 +15,7 @@ from django import forms
 from django.contrib import messages
 from django.db.models import Q, Count, Avg, FloatField
 from django.db.models.functions import Cast, TruncDate, ExtractHour
+from django.db import transaction
 import requests
 import json
 import pytz
@@ -299,7 +300,25 @@ class ProfileView(LoginRequiredMixin, UpdateView):
     
     def form_valid(self, form):
         messages.success(self.request, "プロフィールを更新しました。")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+
+        if getattr(self.request.user, "is_cast", False):
+            cast_profile = CastProfile.objects.filter(user=self.request.user).first()
+            if cast_profile:
+                cast_profile_id = cast_profile.id
+
+                def _sync_latest_cast_profile():
+                    latest_profile = CastProfile.objects.filter(id=cast_profile_id).select_related("user").first()
+                    if not latest_profile:
+                        return
+                    try:
+                        sync_cast_profile_to_system_b(latest_profile)
+                    except Exception as exc:
+                        logger.warning("Profile forced sync failed user_id=%s err=%s", self.request.user.id, exc)
+
+                transaction.on_commit(_sync_latest_cast_profile)
+
+        return response
 
 # --- 5. 排班页面容器视图 (Cast后台用) ---
 class ScheduleView(LoginRequiredMixin, TemplateView):

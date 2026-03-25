@@ -5,6 +5,7 @@ from django.db import transaction
 
 from resources.models import Resource, ResourceProfile, ResourceMedia
 from resources.services.binding_service import normalize_profile_text
+from resources.services.service_mapping import course_flags_to_service_preset_ids
 from resources.services import schedule_service
 from tenants.permissions import IsTenantAuthorized
 
@@ -243,6 +244,23 @@ class IntegrationResourceView(APIView):
                     setattr(profile, field, normalize_profile_text(profile_payload[field]))
                 else:
                     setattr(profile, field, profile_payload[field])
+
+        metadata = profile.metadata if isinstance(profile.metadata, dict) else {}
+        profile.metadata = metadata
+
+        has_allow_flags = any(
+            key in profile_payload for key in {"allow_30_min", "allow_60_min", "allow_120_min"}
+        )
+        payload_metadata = profile_payload.get("metadata") if isinstance(profile_payload.get("metadata"), dict) else {}
+        explicit_service_ids_in_payload = "service_preset_ids" in payload_metadata
+        if has_allow_flags and not explicit_service_ids_in_payload:
+            metadata["service_preset_ids"] = course_flags_to_service_preset_ids(
+                resource.tenant,
+                allow_30=profile.allow_30_min,
+                allow_60=profile.allow_60_min,
+                allow_120=profile.allow_120_min,
+            )
+
         profile.save()
 
         if medias_payload is None:

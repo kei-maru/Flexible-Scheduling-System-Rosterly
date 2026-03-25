@@ -3,10 +3,11 @@ from django.db import connection, transaction
 from allauth.socialaccount.models import SocialAccount
 
 from tenants.models import SaaSUser, Tenant
+from resources.models import Resource
 
 
 class Command(BaseCommand):
-    help = "One-time backfill for historical System A SSO users: role mapping + veludo tenant binding."
+    help = "One-time backfill for historical System A SSO users: role mapping + tenant normalization."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -126,6 +127,13 @@ class Command(BaseCommand):
                     desired_role = self._resolve_role(bool(a_is_superuser), bool(a_is_staff), bool(a_is_cast))
                 else:
                     desired_role = b_user.role if b_user.role in {"ADMIN", "STAFF", "CONSUMER"} else "CONSUMER"
+                    if desired_role == "CONSUMER":
+                        has_staff_resource = (
+                            Resource.objects.filter(linked_user=b_user).exists()
+                            or Resource.objects.filter(external_id=str(b_user.id)).exists()
+                        )
+                        if has_staff_resource:
+                            desired_role = "STAFF"
 
                 desired_is_staff = desired_role in {"ADMIN", "STAFF"}
 
@@ -141,7 +149,12 @@ class Command(BaseCommand):
                     changed_fields.append("is_staff")
                     staff_flag_changed += 1
 
-                if b_user.tenant_id != tenant.id:
+                if desired_role == "CONSUMER":
+                    if b_user.tenant_id is not None:
+                        b_user.tenant = None
+                        changed_fields.append("tenant")
+                        tenant_changed += 1
+                elif b_user.tenant_id != tenant.id:
                     b_user.tenant = tenant
                     changed_fields.append("tenant")
                     tenant_changed += 1

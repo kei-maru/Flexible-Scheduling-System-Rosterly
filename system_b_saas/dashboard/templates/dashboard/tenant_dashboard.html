@@ -370,7 +370,7 @@
                                             </span>
                                         </div>
                                         <div class="mt-1 text-sm text-slate-800">{{ order.customer_name }} / {{ order.start_time|date:"m/d H:i" }}</div>
-                                        <div class="mt-1 text-[11px] text-slate-500">サービス: {{ order.selected_service_name|default:'-' }}</div>
+                                        <div class="mt-1 text-[11px] text-slate-500">サービス: {{ order.display_service_name|default:'-' }}</div>
                                     </div>
                                     {% empty %}
                                     <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">予約がありません。</div>
@@ -800,13 +800,26 @@
             }
         }
 
+        function normalizeEscapedMultiline(text) {
+            if (!text) return "";
+            return String(text)
+                .replace(/\\u000[dD]\\u000[aA]/g, "\n")
+                .replace(/\\u000[dD]/g, "\n")
+                .replace(/\\u000[aA]/g, "\n")
+                .replace(/\\r\\n/g, "\n")
+                .replace(/\\n/g, "\n")
+                .replace(/\r\n/g, "\n")
+                .replace(/\r/g, "\n")
+                .trim();
+        }
+
         function selectCast(button) {
             document.querySelectorAll(".cast-item").forEach((el) => el.classList.remove("active"));
             button.classList.add("active");
 
             const resourceId = button.dataset.resourceId || "";
             const resourceName = button.dataset.name || "--";
-            const intro = button.dataset.intro || "";
+            const intro = normalizeEscapedMultiline(button.dataset.intro || "");
             const avatarUrl = button.dataset.avatarUrl || "";
             const youtubeUrl = button.dataset.youtubeUrl || "";
             const tags = button.dataset.tags || "";

@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 from uuid import uuid4
 
 from django.contrib import messages
@@ -14,7 +15,7 @@ from django.views.generic import TemplateView
 
 from allauth.socialaccount.models import SocialAccount
 from bookings.models import Booking
-from resources.models import Resource, ResourceProfile, ServicePreset
+from resources.models import Availability, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services import schedule_service
 from tenants.models import Tenant
@@ -184,13 +185,13 @@ class SharedScheduleView(SharedBaseMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tenant = self._tenant()
-        role = getattr(self.request.user, "role", "STAFF")
         resource = None
+        initial_focus_date = ""
 
         if tenant:
-            if role == "STAFF":
-                resource = self._staff_default_resource(tenant)
-            else:
+            # Shared (staff-facing) schedule should always prioritize the current user's own resource.
+            resource = self._staff_default_resource(tenant)
+            if not resource and self._is_admin():
                 requested_id = self.request.GET.get("resource_id")
                 if requested_id:
                     try:
@@ -200,8 +201,20 @@ class SharedScheduleView(SharedBaseMixin, TemplateView):
                 if not resource:
                     resource = Resource.objects.filter(tenant=tenant, is_active=True).order_by("name").first()
 
+        if resource:
+            visible_after = timezone.now() + timedelta(hours=24)
+            next_shift_start = (
+                Availability.objects.filter(resource=resource, is_booked=False, end_time__gt=visible_after)
+                .order_by("start_time")
+                .values_list("start_time", flat=True)
+                .first()
+            )
+            if next_shift_start:
+                initial_focus_date = next_shift_start.date().isoformat()
+
         context["is_cast"] = bool(resource)
         context["current_resource_id"] = str(resource.id) if resource else ""
+        context["initial_focus_date"] = initial_focus_date
         context.update(self._base_nav_context())
         return context
 
@@ -213,25 +226,27 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         tenant = self._tenant()
         role = getattr(self.request.user, "role", "STAFF")
-        is_admin = role == "ADMIN" or self.request.user.is_superuser
+        role_is_admin = role == "ADMIN" or self.request.user.is_superuser
 
         bookings = Booking.objects.none()
         staff_resource = None
+        effective_is_admin = role_is_admin
         if tenant:
             qs = Booking.objects.filter(tenant=tenant).select_related("resource").order_by("-start_time")
-            if not is_admin:
-                staff_resource = self._staff_default_resource(tenant)
-                if staff_resource:
-                    qs = qs.filter(resource=staff_resource)
-                else:
-                    qs = Booking.objects.none()
+            # Shared bookings page is staff-facing: if a linked resource exists, always lock to own bookings.
+            staff_resource = self._staff_default_resource(tenant)
+            if staff_resource:
+                qs = qs.filter(resource=staff_resource)
+                effective_is_admin = False
+            elif not role_is_admin:
+                qs = Booking.objects.none()
             bookings = qs[:200]
 
         context.update(
             {
                 "bookings": bookings,
-                "is_admin": is_admin,
-                "is_staff_view": not is_admin,
+                "is_admin": effective_is_admin,
+                "is_staff_view": not effective_is_admin,
                 "staff_resource_id": str(staff_resource.id) if staff_resource else "",
                 "now_iso": timezone.now().isoformat(),
             }

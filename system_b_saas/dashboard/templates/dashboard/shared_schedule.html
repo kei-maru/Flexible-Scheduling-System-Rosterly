@@ -370,6 +370,7 @@
                 updateStatus('error');
                 return;
             }
+            const INITIAL_FOCUS_DATE = "{{ initial_focus_date|default:'' }}";
 
             // モバイル判定
             var isMobile = window.innerWidth < 768;
@@ -401,6 +402,7 @@
                 
                 // デバイスに応じて初期表示を選択
                 initialView: isMobile ? 'mobileThreeDay' : 'pcWeek',
+                initialDate: INITIAL_FOCUS_DATE || undefined,
                 
                 height: 'auto',
                 slotMinTime: '00:00:00',

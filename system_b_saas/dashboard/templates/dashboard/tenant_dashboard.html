@@ -91,10 +91,10 @@
             <header class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
                     <h1 id="page-title" class="text-2xl font-bold text-slate-900">Users & Roles</h1>
-                    <p class="mt-1 text-sm text-slate-500">店舗運営に必要なユーザー・公開情報・予約運用を管理するパネルです。</p>
+                    <p id="page-description" class="mt-1 text-sm text-slate-500">ユーザー情報とアカウント権限をまとめて管理できます。</p>
                 </div>
                 <div class="flex gap-2">
-                    <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
+                    <a href="{% url 'shared_home' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
                         スタッフ画面へ
                     </a>
                     <button onclick="location.reload()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
@@ -131,62 +131,59 @@
                 </div>
                 <p class="mb-3 text-xs text-slate-500">Discord ID と予約リソースは登録時に確定されるため、この画面では変更できません。</p>
 
-                <div class="overflow-x-auto rounded-lg border border-slate-200">
-                    <table class="admin-table w-full">
-                        <thead>
-                            <tr>
-                                <th>ユーザー名</th>
-                                <th>メール</th>
-                                <th>Discord ID（固定）</th>
-                                <th>権限</th>
-                                <th>予約リソース（固定）</th>
-                                <th>有効（予約対象）</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in staff_rows %}
-                            <tr class="user-row" data-role="{{ row.user.role|lower }}" data-name="{{ row.user.username|lower }} {{ row.user.email|default:''|lower }}">
-                                <td colspan="7">
-                                    <form method="post" class="grid grid-cols-1 gap-2 md:grid-cols-7 md:items-center">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="save_staff" value="true">
-                                        <input type="hidden" name="user_id" value="{{ row.user.id }}">
+                <form method="post" id="users-batch-form" onsubmit="confirmUserBatchSave(event)">
+                    {% csrf_token %}
+                    <input type="hidden" name="save_staff_batch" value="true">
 
-                                        <input type="text" name="username" value="{{ row.user.username }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
-                                        <input type="email" name="email" value="{{ row.user.email|default:'' }}" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
-                                        <input type="text" value="{{ row.user.discord_id|default:'' }}" readonly class="rounded-md border border-slate-200 bg-slate-100 px-2 py-2 text-sm text-slate-500">
-
-                                        <select name="role" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
+                    <div class="overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="admin-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>ユーザー名</th>
+                                    <th>メール</th>
+                                    <th>Discord ID（固定）</th>
+                                    <th>権限</th>
+                                    <th>有効（予約対象）</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in staff_rows %}
+                                <tr class="user-row user-edit-row" data-user-id="{{ row.user.id }}" data-role="{{ row.user.role|lower }}" data-name="{{ row.user.username|lower }} {{ row.user.email|default:''|lower }}" data-display-name="{{ row.user.username|default:'(no-name)'|escape }}">
+                                    <td>
+                                        <input type="hidden" name="user_ids" value="{{ row.user.id }}">
+                                        <input type="text" name="username__{{ row.user.id }}" value="{{ row.user.username }}" data-original="{{ row.user.username|default:''|escape }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                    </td>
+                                    <td>
+                                        <input type="email" name="email__{{ row.user.id }}" value="{{ row.user.email|default:'' }}" data-original="{{ row.user.email|default:''|escape }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                    </td>
+                                    <td>
+                                        <input type="text" value="{{ row.user.discord_id|default:'' }}" readonly class="w-full rounded-md border border-slate-200 bg-slate-100 px-2 py-2 text-sm text-slate-500">
+                                    </td>
+                                    <td>
+                                        <select name="role__{{ row.user.id }}" data-original="{{ row.user.role }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
                                             <option value="STAFF" {% if row.user.role == 'STAFF' %}selected{% endif %}>STAFF</option>
                                             <option value="ADMIN" {% if row.user.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
                                         </select>
+                                    </td>
+                                    <td>
+                                        <label class="inline-flex items-center gap-2 whitespace-nowrap text-xs text-slate-700">
+                                            <input type="checkbox" name="is_active__{{ row.user.id }}" {% if row.user.is_active %}checked{% endif %} data-original="{% if row.user.is_active %}1{% else %}0{% endif %}" class="h-4 w-4 accent-indigo-600">
+                                            予約対象として有効
+                                        </label>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-slate-500">ユーザーが存在しません。</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
 
-                                        <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-sm text-slate-700">
-                                            <div class="font-medium">{{ row.linked_resource_name|default:'自動割当済み' }}</div>
-                                            <div class="mt-1 text-[11px] text-slate-500">登録時に自動連携</div>
-                                        </div>
-
-                                        <div class="flex items-center justify-center">
-                                            <label class="inline-flex items-center gap-2 whitespace-nowrap text-xs text-slate-700">
-                                                <input type="checkbox" name="is_active" {% if row.user.is_active %}checked{% endif %} class="h-4 w-4 accent-indigo-600">
-                                                予約対象として有効
-                                            </label>
-                                        </div>
-
-                                        <div class="flex items-center justify-center">
-                                            <button type="submit" class="inline-flex h-9 items-center rounded-md bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700">保存</button>
-                                        </div>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">ユーザーが存在しません。</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <p class="mt-3 text-xs text-slate-500">有効をオンにすると、該当スタッフは予約対象として公開されます。`STAFF` の予約リソース連携は自動で維持されます。</p>
+                    <div class="mt-4 flex items-center justify-between gap-4">
+                        <p class="text-xs text-slate-500">有効をオンにすると、該当スタッフは予約対象として公開されます。`STAFF` の予約リソース連携は自動で維持されます。</p>
+                        <button type="submit" class="inline-flex h-10 items-center rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">変更内容を確認して保存</button>
+                    </div>
+                </form>
             </section>
 
             <section id="section-content" class="hidden-section">
@@ -236,12 +233,13 @@
                             <input type="hidden" name="resource_id" id="cms-resource-id" value="">
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div>
+                                <div class="md:col-span-2">
                                     <label class="mb-1 block text-xs text-slate-500">プロフィール画像</label>
                                     <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
                                         <div class="mb-3 flex items-center gap-3">
-                                            <img id="cms-avatar-preview" src="" alt="avatar preview" class="hidden h-14 w-14 rounded-full border border-slate-200 object-cover">
-                                            <span id="cms-avatar-empty" class="text-xs text-slate-500">未設定</span>
+                                            <img id="cms-avatar-preview" src="" alt="avatar preview" class="hidden h-16 w-16 rounded-full border border-slate-200 object-cover">
+                                            <span id="cms-avatar-empty" class="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500">未設定</span>
+                                            <p class="text-xs text-slate-500">予約時にお客様へ表示される画像です。</p>
                                         </div>
                                         <input id="cms-avatar-file" type="file" name="profile_avatar_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-full file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
                                         <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-600">
@@ -262,7 +260,7 @@
                             </div>
 
                             <div>
-                                <label class="mb-1 block text-xs text-slate-500">自己紹介</label>
+                                <label class="mb-1 block text-xs text-slate-500">紹介文</label>
                                 <textarea id="cms-intro" name="profile_intro" rows="6" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
                             </div>
 
@@ -273,7 +271,7 @@
                                     {% for preset in service_presets %}
                                     <label class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
                                         <input type="checkbox" name="service_preset_ids" value="{{ preset.id }}" class="cms-service-checkbox">
-                                        {{ preset.name }}（{{ preset.duration_minutes }}分）
+                                        {{ preset.name }}（{{ preset.duration_minutes }}分 / ¥{{ preset.price|floatformat:0 }}）
                                     </label>
                                     {% endfor %}
                                 </div>
@@ -322,12 +320,29 @@
                                 <div>Orders: <span id="count-orders" class="font-semibold text-slate-800">{{ orders|length }}</span></div>
                             </div>
                         </div>
+                        <div class="border-b border-slate-200 bg-slate-50 px-5 py-3">
+                            <div class="flex flex-col gap-2 md:flex-row md:items-end">
+                                <div>
+                                    <label for="range-start" class="mb-1 block text-[11px] text-slate-500">開始日時</label>
+                                    <input id="range-start" type="datetime-local" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
+                                </div>
+                                <div>
+                                    <label for="range-end" class="mb-1 block text-[11px] text-slate-500">終了日時</label>
+                                    <input id="range-end" type="datetime-local" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
+                                </div>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="applyScheduleFilters()" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">検索</button>
+                                    <button type="button" onclick="resetScheduleRange()" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100">リセット</button>
+                                </div>
+                            </div>
+                            <p class="mt-2 text-[11px] text-slate-500">シフトは初期表示で今後1か月分、注文は最新100件を表示します。</p>
+                        </div>
                         <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                             <div>
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-regular fa-calendar mr-1 text-indigo-600"></i> Upcoming Shifts</h3>
                                 <div class="space-y-2">
                                     {% for shift in upcoming_shifts %}
-                                    <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}">
+                                    <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}" data-start="{{ shift.start_time|date:'c' }}">
                                         <div class="text-xs font-semibold text-indigo-700">{{ shift.resource.name }}</div>
                                         <div class="mt-1 text-sm text-slate-800">{{ shift.start_time|date:"m/d H:i" }} - {{ shift.end_time|date:"H:i" }}</div>
                                         <div class="mt-1 text-[11px] text-slate-500">{% if shift.is_recurring %}RECURRING{% else %}SINGLE{% endif %}</div>
@@ -335,7 +350,7 @@
                                     {% empty %}
                                     <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">シフトがありません。</div>
                                     {% endfor %}
-                                    <div id="no-shifts-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">No shifts for this cast.</div>
+                                    <div id="no-shifts-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">条件に一致するシフトがありません。</div>
                                 </div>
                             </div>
 
@@ -343,7 +358,7 @@
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-solid fa-receipt mr-1 text-indigo-600"></i> Order History</h3>
                                 <div class="space-y-2">
                                     {% for order in orders %}
-                                    <div class="order-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ order.resource.id }}">
+                                    <div class="order-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ order.resource.id }}" data-start="{{ order.start_time|date:'c' }}">
                                         <div class="flex items-center justify-between">
                                             <div class="text-xs font-semibold text-indigo-700">{{ order.resource.name }}</div>
                                             <span class="rounded px-2 py-0.5 text-[10px]
@@ -360,7 +375,7 @@
                                     {% empty %}
                                     <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">予約がありません。</div>
                                     {% endfor %}
-                                    <div id="no-orders-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">No orders for this cast.</div>
+                                    <div id="no-orders-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">条件に一致する予約がありません。</div>
                                 </div>
                             </div>
                         </div>
@@ -371,27 +386,38 @@
             <section id="section-services" class="hidden-section">
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <div class="panel p-5">
-                        <h2 class="mb-1 text-lg font-semibold text-slate-900">サービスプリセット作成</h2>
+                        <div class="mb-1 flex items-center justify-between">
+                            <h2 id="service-form-title" class="text-lg font-semibold text-slate-900">サービスプリセット作成</h2>
+                            <button type="button" id="service-form-cancel" onclick="resetServicePresetForm()" class="hidden rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">新規作成に戻す</button>
+                        </div>
                         <p class="mb-4 text-xs text-slate-500">スタッフのプロフィール対応サービスと予約選択肢に反映されます。</p>
-                        <form method="post" class="space-y-4">
+                        <form method="post" id="service-preset-form" class="space-y-4">
                             {% csrf_token %}
                             <input type="hidden" name="save_service" value="true">
-                            <input type="hidden" name="service_id" value="">
+                            <input type="hidden" id="service-id-input" name="service_id" value="">
 
                             <div>
                                 <label class="mb-1 block text-xs text-slate-500">サービス名</label>
-                                <input type="text" name="service_name" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. 90分 ASMR コース">
+                                <input type="text" id="service-name-input" name="service_name" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. 90分 ASMR コース">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">価格（JPY）</label>
+                                <input type="number" id="service-price-input" name="price" min="0" step="1" required value="0" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">説明</label>
+                                <textarea id="service-description-input" name="service_description" rows="2" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="..."></textarea>
                             </div>
                             <div>
                                 <label class="mb-1 block text-xs text-slate-500">所要時間（分）</label>
-                                <input type="number" name="duration_minutes" min="1" required value="60" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <input type="number" id="service-duration-input" name="duration_minutes" min="1" required value="60" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             </div>
                             <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                <input type="checkbox" name="is_active" checked class="accent-indigo-600">
+                                <input type="checkbox" id="service-active-input" name="is_active" checked class="accent-indigo-600">
                                 有効
                             </label>
                             <div>
-                                <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">保存</button>
+                                <button id="service-save-btn" type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">保存</button>
                             </div>
                         </form>
                     </div>
@@ -405,7 +431,9 @@
                                 <thead>
                                     <tr>
                                         <th>名称</th>
+                                        <th>価格</th>
                                         <th>時間</th>
+                                        <th>説明</th>
                                         <th>有効</th>
                                         <th>操作</th>
                                     </tr>
@@ -414,7 +442,9 @@
                                     {% for svc in service_presets %}
                                     <tr>
                                         <td class="font-medium text-slate-900">{{ svc.name }}</td>
+                                        <td class="text-slate-700">¥{{ svc.price|floatformat:0 }}</td>
                                         <td class="text-slate-700">{{ svc.duration_minutes }} 分</td>
+                                        <td class="max-w-xs truncate text-slate-600" title="{{ svc.description }}">...</td>
                                         <td>
                                             {% if svc.is_active %}
                                             <span class="rounded bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-700">有効</span>
@@ -423,16 +453,30 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <form method="post" onsubmit="return confirm('このサービスプリセットを削除しますか？');">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="delete_service" value="true">
-                                                <input type="hidden" name="service_id" value="{{ svc.id }}">
-                                                <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">削除</button>
-                                            </form>
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                                    data-service-id="{{ svc.id }}"
+                                                    data-name="{{ svc.name|escapejs }}"
+                                                    data-description="{{ svc.description|default:''|escapejs }}"
+                                                    data-price="{{ svc.price|floatformat:0 }}"
+                                                    data-duration="{{ svc.duration_minutes }}"
+                                                    data-active="{% if svc.is_active %}1{% else %}0{% endif %}"
+                                                    onclick="editServicePreset(this)">
+                                                    編集
+                                                </button>
+                                                <form method="post" onsubmit="return confirm('このサービスプリセットを削除しますか？');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="delete_service" value="true">
+                                                    <input type="hidden" name="service_id" value="{{ svc.id }}">
+                                                    <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">削除</button>
+                                                </form>
+                                            </div>
                                         </td>
                                     </tr>
                                     {% empty %}
-                                    <tr><td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500">サービスプリセットがありません。</td></tr>
+                                    <tr><td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">サービスプリセットがありません。</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -552,6 +596,18 @@
             </section>
     </main>
 
+    <div id="users-confirm-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
+        <div class="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <h3 class="text-lg font-semibold text-slate-900">変更内容を適用しますか？</h3>
+            <p class="mt-1 text-xs text-slate-500">以下の内容でユーザー情報を更新します。</p>
+            <ul id="users-change-list" class="mt-4 max-h-72 list-disc space-y-2 overflow-y-auto pl-5 text-sm text-slate-700"></ul>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" onclick="closeUsersConfirmModal()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">キャンセル</button>
+                <button type="button" id="users-confirm-submit" class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">この内容で保存</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const PAGE_TITLES = {
             users: "Users & Roles",
@@ -559,6 +615,13 @@
             shifts: "Shifts & Orders",
             services: "Service Presets",
             email: "Email Templates",
+        };
+        const MODULE_DESCRIPTIONS = {
+            users: "ユーザー情報とアカウント権限をまとめて管理できます。",
+            content: "キャストの公開情報（画像・紹介文・対応サービス）を編集するモジュールです。",
+            shifts: "キャスト別にシフトと予約履歴を横断確認するモジュールです。",
+            services: "予約で使用するサービスプリセットを作成・管理するモジュールです。",
+            email: "予約通知メールの送信設定と文面を管理するモジュールです。",
         };
 
         function switchTab(tabName) {
@@ -576,6 +639,8 @@
 
             const titleEl = document.getElementById("page-title");
             if (titleEl) titleEl.innerText = PAGE_TITLES[tabName] || "管理者ダッシュボード";
+            const descEl = document.getElementById("page-description");
+            if (descEl) descEl.innerText = MODULE_DESCRIPTIONS[tabName] || "";
         }
 
         function filterUsers() {
@@ -591,11 +656,132 @@
             });
         }
 
+        let pendingUsersForm = null;
+
+        function openUsersConfirmModal() {
+            const modal = document.getElementById("users-confirm-modal");
+            if (!modal) return;
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+        }
+
+        function closeUsersConfirmModal() {
+            const modal = document.getElementById("users-confirm-modal");
+            if (!modal) return;
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+            pendingUsersForm = null;
+        }
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function confirmUserBatchSave(event) {
+            event.preventDefault();
+            const form = event.target;
+            const rows = form.querySelectorAll(".user-edit-row");
+            const changes = [];
+
+            rows.forEach((row) => {
+                const userId = row.dataset.userId;
+                const displayName = row.dataset.displayName || `ID:${userId}`;
+                const usernameInput = form.querySelector(`input[name="username__${userId}"]`);
+                const emailInput = form.querySelector(`input[name="email__${userId}"]`);
+                const roleInput = form.querySelector(`select[name="role__${userId}"]`);
+                const activeInput = form.querySelector(`input[name="is_active__${userId}"]`);
+
+                if (usernameInput && usernameInput.dataset.original !== usernameInput.value) {
+                    changes.push(`${displayName}: ユーザー名「${usernameInput.dataset.original || '-'}」→「${usernameInput.value || '-'}」`);
+                }
+                if (emailInput && emailInput.dataset.original !== emailInput.value) {
+                    changes.push(`${displayName}: メール「${emailInput.dataset.original || '-'}」→「${emailInput.value || '-'}」`);
+                }
+                if (roleInput && roleInput.dataset.original !== roleInput.value) {
+                    changes.push(`${displayName}: 権限「${roleInput.dataset.original || '-'}」→「${roleInput.value || '-'}」`);
+                }
+                if (activeInput) {
+                    const oldActive = activeInput.dataset.original === "1";
+                    if (oldActive !== activeInput.checked) {
+                        changes.push(`${displayName}: 有効状態「${oldActive ? "有効" : "無効"}」→「${activeInput.checked ? "有効" : "無効"}」`);
+                    }
+                }
+            });
+
+            if (!changes.length) {
+                alert("変更内容がありません。");
+                return false;
+            }
+
+            const listEl = document.getElementById("users-change-list");
+            if (listEl) {
+                listEl.innerHTML = changes.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+            }
+
+            pendingUsersForm = form;
+            openUsersConfirmModal();
+            return false;
+        }
+
         function setCmsServiceSelections(csvValue) {
             const selected = new Set((csvValue || "").split(",").map(v => v.trim()).filter(Boolean));
             document.querySelectorAll(".cms-service-checkbox").forEach((cb) => {
                 cb.checked = selected.has(cb.value);
             });
+        }
+
+        function resetServicePresetForm() {
+            const form = document.getElementById("service-preset-form");
+            if (!form) return;
+            form.reset();
+
+            const idInput = document.getElementById("service-id-input");
+            const title = document.getElementById("service-form-title");
+            const saveBtn = document.getElementById("service-save-btn");
+            const cancelBtn = document.getElementById("service-form-cancel");
+            const priceInput = document.getElementById("service-price-input");
+            const durationInput = document.getElementById("service-duration-input");
+            const activeInput = document.getElementById("service-active-input");
+
+            if (idInput) idInput.value = "";
+            if (title) title.innerText = "サービスプリセット作成";
+            if (saveBtn) saveBtn.innerText = "保存";
+            if (cancelBtn) cancelBtn.classList.add("hidden");
+            if (priceInput && !priceInput.value) priceInput.value = "0";
+            if (durationInput && !durationInput.value) durationInput.value = "60";
+            if (activeInput) activeInput.checked = true;
+        }
+
+        function editServicePreset(button) {
+            const title = document.getElementById("service-form-title");
+            const idInput = document.getElementById("service-id-input");
+            const nameInput = document.getElementById("service-name-input");
+            const descInput = document.getElementById("service-description-input");
+            const priceInput = document.getElementById("service-price-input");
+            const durationInput = document.getElementById("service-duration-input");
+            const activeInput = document.getElementById("service-active-input");
+            const saveBtn = document.getElementById("service-save-btn");
+            const cancelBtn = document.getElementById("service-form-cancel");
+
+            if (idInput) idInput.value = button.dataset.serviceId || "";
+            if (nameInput) nameInput.value = button.dataset.name || "";
+            if (descInput) descInput.value = button.dataset.description || "";
+            if (priceInput) priceInput.value = button.dataset.price || "0";
+            if (durationInput) durationInput.value = button.dataset.duration || "60";
+            if (activeInput) activeInput.checked = (button.dataset.active || "0") === "1";
+            if (title) title.innerText = "サービスプリセット編集";
+            if (saveBtn) saveBtn.innerText = "更新";
+            if (cancelBtn) cancelBtn.classList.remove("hidden");
+
+            const formPanel = document.getElementById("service-preset-form");
+            if (formPanel) {
+                formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
         }
 
         function renderCmsAvatarPreview(url) {
@@ -645,21 +831,33 @@
             setCmsServiceSelections(selectedServices);
         }
 
-        function filterSchedule(castId, element) {
-            document.querySelectorAll(".schedule-cast-item").forEach((el) => el.classList.remove("active"));
-            if (element) element.classList.add("active");
+        let currentScheduleCastId = "all";
 
-            const titleTarget = document.getElementById("schedule-view-target");
-            if (titleTarget) {
-                const title = castId === "all"
-                    ? "All Casts"
-                    : (element.querySelector(".text-sm") ? element.querySelector(".text-sm").innerText : "Selected");
-                titleTarget.innerText = title;
-            }
+        function parseRangeValue(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input || !input.value) return null;
+            const ms = new Date(input.value).getTime();
+            return Number.isFinite(ms) ? ms : null;
+        }
+
+        function inSelectedRange(isoDate, startMs, endMs) {
+            const targetMs = new Date(isoDate).getTime();
+            if (!Number.isFinite(targetMs)) return true;
+            if (startMs !== null && targetMs < startMs) return false;
+            if (endMs !== null && targetMs > endMs) return false;
+            return true;
+        }
+
+        function applyScheduleFilters() {
+            const castId = currentScheduleCastId;
+            const startMs = parseRangeValue("range-start");
+            const endMs = parseRangeValue("range-end");
 
             let shiftCount = 0;
             document.querySelectorAll(".shift-card").forEach((card) => {
-                const visible = castId === "all" || card.dataset.castId === castId;
+                const castOk = castId === "all" || card.dataset.castId === castId;
+                const rangeOk = inSelectedRange(card.dataset.start || "", startMs, endMs);
+                const visible = castOk && rangeOk;
                 card.classList.toggle("hidden", !visible);
                 if (visible) shiftCount += 1;
             });
@@ -670,7 +868,9 @@
 
             let orderCount = 0;
             document.querySelectorAll(".order-card").forEach((card) => {
-                const visible = castId === "all" || card.dataset.castId === castId;
+                const castOk = castId === "all" || card.dataset.castId === castId;
+                const rangeOk = inSelectedRange(card.dataset.start || "", startMs, endMs);
+                const visible = castOk && rangeOk;
                 card.classList.toggle("hidden", !visible);
                 if (visible) orderCount += 1;
             });
@@ -678,6 +878,29 @@
             if (countOrderEl) countOrderEl.innerText = String(orderCount);
             const noOrderEl = document.getElementById("no-orders-msg");
             if (noOrderEl) noOrderEl.classList.toggle("hidden", orderCount > 0);
+        }
+
+        function resetScheduleRange() {
+            const start = document.getElementById("range-start");
+            const end = document.getElementById("range-end");
+            if (start) start.value = "";
+            if (end) end.value = "";
+            applyScheduleFilters();
+        }
+
+        function filterSchedule(castId, element) {
+            currentScheduleCastId = castId;
+            document.querySelectorAll(".schedule-cast-item").forEach((el) => el.classList.remove("active"));
+            if (element) element.classList.add("active");
+
+            const titleTarget = document.getElementById("schedule-view-target");
+            if (titleTarget) {
+                const title = castId === "all"
+                    ? "All Casts"
+                    : (element.querySelector(".text-sm") ? element.querySelector(".text-sm").innerText : "Selected");
+                titleTarget.innerText = title;
+            }
+            applyScheduleFilters();
         }
 
         let allTemplates = {};
@@ -731,10 +954,37 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
+            const confirmSubmitBtn = document.getElementById("users-confirm-submit");
+            if (confirmSubmitBtn) {
+                confirmSubmitBtn.addEventListener("click", function () {
+                    if (pendingUsersForm) {
+                        pendingUsersForm.submit();
+                    }
+                });
+            }
+
+            const confirmModal = document.getElementById("users-confirm-modal");
+            if (confirmModal) {
+                confirmModal.addEventListener("click", function (event) {
+                    if (event.target === confirmModal) {
+                        closeUsersConfirmModal();
+                    }
+                });
+            }
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape") {
+                    closeUsersConfirmModal();
+                }
+            });
+
             const firstCast = document.querySelector(".cast-item");
             if (firstCast) selectCast(firstCast);
 
             filterSchedule("all", document.querySelector(".schedule-cast-item"));
+            const rangeStart = document.getElementById("range-start");
+            const rangeEnd = document.getElementById("range-end");
+            if (rangeStart) rangeStart.addEventListener("change", applyScheduleFilters);
+            if (rangeEnd) rangeEnd.addEventListener("change", applyScheduleFilters);
 
             const avatarFileInput = document.getElementById("cms-avatar-file");
             if (avatarFileInput) {
@@ -780,6 +1030,7 @@
             }
 
             switchTemplateType("BOOKING_CONFIRMED");
+            resetServicePresetForm();
         });
     </script>
 </body>

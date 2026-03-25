@@ -44,6 +44,13 @@ class SharedBaseMixin(LoginRequiredMixin):
         return role == "ADMIN" or self.request.user.is_superuser
 
     def _avatar_url(self):
+        tenant = self._tenant()
+        if tenant:
+            resource = self._staff_default_resource(tenant)
+            profile = getattr(resource, "profile", None) if resource else None
+            if profile and profile.avatar_url:
+                return profile.avatar_url
+
         social = SocialAccount.objects.filter(user=self.request.user, provider="discord").first()
         if not social:
             return ""

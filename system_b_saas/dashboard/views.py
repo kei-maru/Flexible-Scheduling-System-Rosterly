@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -256,35 +257,75 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         profile.save()
 
-    def _save_staff_profile(self, request, tenant):
-        user_id = request.POST.get("user_id")
-        if not user_id:
-            raise ValueError("Missing user_id")
+    def _save_staff_profiles_batch(self, request, tenant):
+        user_ids = [uid for uid in request.POST.getlist("user_ids") if uid]
+        if not user_ids:
+            raise ValueError("No user rows to update")
 
-        user = SaaSUser.objects.get(id=user_id, tenant=tenant)
-        user.username = (request.POST.get("username") or user.username).strip()
-        user.email = (request.POST.get("email") or "").strip()
-        user.role = request.POST.get("role") if request.POST.get("role") in ["ADMIN", "STAFF"] else user.role
-        user.is_active = request.POST.get("is_active") == "on"
-        user.save(update_fields=["username", "email", "role", "is_active"])
+        updated_count = 0
+        for user_id in user_ids:
+            user = SaaSUser.objects.filter(id=user_id).first()
+            if not user:
+                continue
 
-        if user.role == "STAFF":
-            linked = self._ensure_staff_resource_binding(user, tenant)
-        else:
-            linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
+            # 管理パネル上の対象は「同一 tenant」または「未割当ユーザー」のみ
+            if user.tenant_id not in [tenant.id, None]:
+                continue
 
-        if linked and linked.is_active != user.is_active:
-            linked.is_active = user.is_active
-            linked.save(update_fields=["is_active"])
+            username = (request.POST.get(f"username__{user_id}") or user.username).strip() or user.username
+            email = (request.POST.get(f"email__{user_id}") or "").strip()
+            role_raw = request.POST.get(f"role__{user_id}")
+            role = role_raw if role_raw in ["ADMIN", "STAFF"] else user.role
+            is_active = request.POST.get(f"is_active__{user_id}") == "on"
+
+            update_fields = []
+            if user.tenant_id is None:
+                user.tenant = tenant
+                update_fields.append("tenant")
+            if user.username != username:
+                user.username = username
+                update_fields.append("username")
+            if (user.email or "") != email:
+                user.email = email
+                update_fields.append("email")
+            if user.role != role:
+                user.role = role
+                update_fields.append("role")
+            if user.is_active != is_active:
+                user.is_active = is_active
+                update_fields.append("is_active")
+
+            if update_fields:
+                user.save(update_fields=update_fields)
+                updated_count += 1
+
+            if user.role == "STAFF":
+                linked = self._ensure_staff_resource_binding(user, tenant)
+            else:
+                linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
+
+            if linked and linked.is_active != user.is_active:
+                linked.is_active = user.is_active
+                linked.save(update_fields=["is_active"])
+
+        return updated_count
 
     def _save_service_preset(self, request, tenant):
         service_id = (request.POST.get("service_id") or "").strip()
         name = (request.POST.get("service_name") or "").strip()
+        description = (request.POST.get("service_description") or "").strip() or "..."
+        price_raw = (request.POST.get("price") or "").strip()
         duration_raw = (request.POST.get("duration_minutes") or "").strip()
         is_active = request.POST.get("is_active") == "on"
 
         if not name:
             raise ValueError("Service name is required")
+        try:
+            price = Decimal(price_raw or "0")
+        except (InvalidOperation, ValueError):
+            raise ValueError("Price must be a valid number")
+        if price < 0:
+            raise ValueError("Price must be zero or greater")
         if not duration_raw.isdigit() or int(duration_raw) <= 0:
             raise ValueError("Duration must be a positive integer")
         duration_minutes = int(duration_raw)
@@ -292,15 +333,19 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if service_id:
             preset = ServicePreset.objects.get(id=service_id, tenant=tenant)
             preset.name = name
+            preset.description = description
+            preset.price = price
             preset.duration_minutes = duration_minutes
             preset.is_active = is_active
-            preset.save(update_fields=["name", "duration_minutes", "is_active", "updated_at"])
+            preset.save(update_fields=["name", "description", "price", "duration_minutes", "is_active", "updated_at"])
             return
 
         max_order = ServicePreset.objects.filter(tenant=tenant).aggregate(m=Max("sort_order")).get("m") or 0
         ServicePreset.objects.create(
             tenant=tenant,
             name=name,
+            description=description,
+            price=price,
             duration_minutes=duration_minutes,
             is_active=is_active,
             sort_order=max_order + 1,
@@ -322,9 +367,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             elif request.POST.get("save_cast_profile") == "true":
                 self._save_cast_profile(request, tenant)
                 messages.success(request, "Cast CMS を更新しました。")
-            elif request.POST.get("save_staff") == "true":
-                self._save_staff_profile(request, tenant)
-                messages.success(request, "スタッフ情報を更新しました。")
+            elif request.POST.get("save_staff_batch") == "true" or request.POST.get("save_staff") == "true":
+                updated_count = self._save_staff_profiles_batch(request, tenant)
+                messages.success(request, f"ユーザー情報を更新しました（{updated_count} 件）。")
             elif request.POST.get("save_service") == "true":
                 self._save_service_preset(request, tenant)
                 messages.success(request, "サービスプリセットを保存しました。")
@@ -356,22 +401,26 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         service_name_suggestions = []
 
         if tenant:
-            orders = Booking.objects.filter(tenant=tenant).select_related("resource").order_by("-created_at")[:80]
+            now = timezone.now()
+            orders = Booking.objects.filter(tenant=tenant).select_related("resource").order_by("-created_at")[:100]
             resources = Resource.objects.filter(tenant=tenant).select_related("profile", "linked_user").order_by("name")
-            staff_users = SaaSUser.objects.filter(tenant=tenant).order_by("role", "username")
+            staff_users = SaaSUser.objects.filter(
+                tenant=tenant,
+                role__in=["STAFF", "ADMIN"],
+            ).order_by("role", "username")
             for u in staff_users:
                 linked_resource = Resource.objects.filter(tenant=tenant, linked_user=u).first()
                 staff_rows.append(
                     {
                         "user": u,
-                        "linked_resource_id": str(linked_resource.id) if linked_resource else "",
                         "linked_resource_name": linked_resource.name if linked_resource else "未割当",
                     }
                 )
             upcoming_shifts = Availability.objects.filter(
                 resource__tenant=tenant,
-                start_time__gte=timezone.now(),
-            ).select_related("resource").order_by("start_time")[:60]
+                start_time__gte=now,
+                start_time__lt=now + timedelta(days=31),
+            ).select_related("resource").order_by("start_time")[:200]
             service_presets = ServicePreset.objects.filter(tenant=tenant).order_by("sort_order", "id")
 
             preset_names = list(service_presets.values_list("name", flat=True))

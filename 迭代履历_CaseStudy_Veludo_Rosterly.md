@@ -224,6 +224,8 @@
 - 管理员面板重构为白色主基调，并收敛为 `Users & Roles / Cast CMS / Shifts & Orders / Service Presets / Email Templates` 模块架构。
 - 店员资料与 Cast CMS 支持按 `ServicePreset` 复选并同步兼容时长字段（`allow_30/60/120_min`）。
 - 邮件模板服务名支持 `{{ selected_service_name }}` 变量，并基于历史预约服务名做预填建议。
+- `ServicePreset` 增加 `description` 与 `price` 字段，管理端录入与接口返回同步升级，为后续记账/运营扩展预留数据能力。
+- 服务预设展示口径调整为整数日元（不显示小数），说明字段允许 `...` 占位以支持快速运营录入。
 
 阶段结论：
 - 角色语义从“仅区分消费者/员工”升级为“与 A 组织角色一致映射”，并形成可回放的历史数据修正路径。

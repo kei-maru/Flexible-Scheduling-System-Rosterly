@@ -162,6 +162,8 @@ class ServicePreset(models.Model):
     """
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='service_presets')
     name = models.CharField("サービス名", max_length=120)
+    description = models.TextField("説明", blank=True, default="")
+    price = models.DecimalField("価格", max_digits=10, decimal_places=2, default=0)
     duration_minutes = models.PositiveIntegerField("所要時間(分)", default=60)
     is_active = models.BooleanField("有効", default=True)
     sort_order = models.IntegerField(default=0)

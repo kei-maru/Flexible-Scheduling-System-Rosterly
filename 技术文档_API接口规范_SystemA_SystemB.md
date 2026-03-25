@@ -374,8 +374,20 @@
 
 ```json
 [
-  {"id": 1, "name": "60分 ASMR コース", "duration_minutes": 60},
-  {"id": 2, "name": "90分 ASMR コース", "duration_minutes": 90}
+  {
+    "id": 1,
+    "name": "60分 ASMR コース",
+    "description": "...",
+    "price": 8000,
+    "duration_minutes": 60
+  },
+  {
+    "id": 2,
+    "name": "90分 ASMR コース",
+    "description": "...",
+    "price": 12000,
+    "duration_minutes": 90
+  }
 ]
 ```
 

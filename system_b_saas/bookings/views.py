@@ -238,6 +238,8 @@ class IntegrationServiceListView(APIView):
             {
                 'id': s.id,
                 'name': s.name,
+                'description': s.description,
+                'price': int(s.price),
                 'duration_minutes': s.duration_minutes,
             }
             for s in services

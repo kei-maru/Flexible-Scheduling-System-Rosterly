@@ -71,7 +71,7 @@ class ScheduleTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(ServicePreset)
 class ServicePresetAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tenant', 'duration_minutes', 'is_active', 'sort_order')
+    list_display = ('name', 'tenant', 'price', 'duration_minutes', 'is_active', 'sort_order')
     list_filter = ('tenant', 'is_active')
-    search_fields = ('name', 'tenant__name')
+    search_fields = ('name', 'description', 'tenant__name')
     ordering = ('tenant', 'sort_order', 'id')

@@ -195,6 +195,8 @@
 - 服务预设由管理员维护。
 - 每个服务预设至少包含：
   - 服务名称
+  - 服务说明（当前运营口径可使用 `...` 占位）
+  - 服务价格（用于后续记账与运营扩展）
   - 时长
   - 启用状态
   - 排序
@@ -267,6 +269,7 @@
   - 管理员面板改为白色主基调并收敛为 `Users & Roles / Cast CMS / Shifts & Orders / Service Presets / Email Templates` 五大模块。
   - 店员资料与管理员 Cast CMS 均支持按 `ServicePreset` 复选；兼容回写 `allow_30/60/120_min`。
   - 邮件模板服务名新增 `{{ selected_service_name }}` 变量并接入预填建议。
+  - `Service Presets` 新增 `説明` 与 `価格` 字段，预约服务列表可返回该信息用于前台与后续记账扩展。
   - 个人资料页中 `Discord ID` 调整为只读，后端不再接受该字段更新。
   - 员工端个人资料页已接入 `ResourceProfile` 扩展字段保存（intro/tags/avatar/youtube/allow_30/60/120）。
 

@@ -217,9 +217,13 @@
 - B 侧 public SSO 角色同步完善：已绑定 `Veludo` tenant 的 A 来源账号仍会按 `a_role` 更新角色。
 - 新增历史数据修正命令 `backfill_a_sso_users`，支持 dry-run / apply。
 - 生产实操补充：当 B 侧不可见 A `core_user` 时进入 fallback，只批量修 tenant，角色需手动 `--admin-ids/--staff-ids`。
+- 员工端前台统一改造：`/home|/profile|/schedule|/bookings` 对齐同一 Header 设计语言。
+- 员工资料页接入 `ResourceProfile` 扩展字段保存，`Discord ID` 改为只读并在后端禁改。
+- 修复头像菜单 hover 丢失导致的 logout 下拉消失问题，改为点击展开模式。
 
 阶段结论：
 - 角色语义从“仅区分消费者/员工”升级为“与 A 组织角色一致映射”，并形成可回放的历史数据修正路径。
+- 员工端交互与资料维护闭环完成，身份账号与业务资源的绑定关系更清晰。
 
 ---
 

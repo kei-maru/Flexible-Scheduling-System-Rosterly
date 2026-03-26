@@ -15,16 +15,22 @@ from django.contrib.auth.views import LoginView
 from django.core.files.storage import default_storage
 from django.db.models import Max
 from django.shortcuts import redirect
+from django.http import JsonResponse
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django import forms
 from django.views import View
 from django.views.generic import TemplateView
+from django.db import transaction
+from datetime import timedelta
 
 from bookings.models import Booking
+from bookings.tasks import process_new_booking
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
-from resources.services.service_mapping import resolve_booking_service_name
+from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
 from tenants.models import SaaSUser, StaffInvite, Tenant
 
 
@@ -254,6 +260,140 @@ class DashboardTermsView(TemplateView):
     template_name = "dashboard/terms.html"
 
 
+class DashboardPublicBookingView(TemplateView):
+    template_name = "dashboard/public_booking.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        tenant_slug = kwargs.get("tenant_slug")
+        tenant = Tenant.objects.filter(slug=tenant_slug).first()
+        if not tenant:
+            context.update({"tenant": None, "resources": [], "services": []})
+            return context
+
+        resources = (
+            Resource.objects.filter(tenant=tenant, is_active=True)
+            .select_related("profile")
+            .order_by("name")
+        )
+        services = ServicePreset.objects.filter(tenant=tenant, is_active=True).order_by("sort_order", "id")
+
+        context.update(
+            {
+                "tenant": tenant,
+                "resources": resources,
+                "services": services,
+                "tenant_logo_url": tenant.logo.url if getattr(tenant, "logo", None) else "",
+            }
+        )
+        return context
+
+
+class DashboardPublicBookingAvailabilityApi(View):
+    def get(self, request, tenant_slug, *args, **kwargs):
+        tenant = Tenant.objects.filter(slug=tenant_slug).first()
+        if not tenant:
+            return JsonResponse({"error": "Tenant not found"}, status=404)
+
+        resource_id = (request.GET.get("resource_id") or "").strip()
+        if not resource_id:
+            return JsonResponse({"error": "resource_id is required"}, status=400)
+
+        try:
+            resource = Resource.objects.get(tenant=tenant, id=resource_id, is_active=True)
+        except Resource.DoesNotExist:
+            return JsonResponse({"error": "Resource not found"}, status=404)
+
+        now = timezone.now()
+        horizon = now + timedelta(days=14)
+        slots = (
+            Availability.objects.filter(
+                resource=resource,
+                is_booked=False,
+                end_time__gt=now + timedelta(hours=24),
+                start_time__lt=horizon,
+            )
+            .order_by("start_time")[:300]
+        )
+        data = [
+            {
+                "id": str(slot.id),
+                "start": slot.start_time.isoformat(),
+                "end": slot.end_time.isoformat(),
+            }
+            for slot in slots
+        ]
+        return JsonResponse({"slots": data})
+
+
+class DashboardPublicBookingCreateApi(View):
+    def post(self, request, tenant_slug, *args, **kwargs):
+        tenant = Tenant.objects.filter(slug=tenant_slug).first()
+        if not tenant:
+            return JsonResponse({"error": "Tenant not found"}, status=404)
+
+        resource_id = (request.POST.get("resource_id") or "").strip()
+        customer_name = (request.POST.get("customer_name") or "").strip()
+        customer_email = (request.POST.get("customer_email") or "").strip()
+        start_raw = (request.POST.get("start_time") or "").strip()
+        service_id = (request.POST.get("service_id") or "").strip()
+
+        if not all([resource_id, customer_name, customer_email, start_raw]):
+            return JsonResponse({"error": "Missing required fields"}, status=400)
+
+        start_time = parse_datetime(start_raw)
+        if not start_time:
+            return JsonResponse({"error": "Invalid start_time"}, status=400)
+        if timezone.is_naive(start_time):
+            start_time = timezone.make_aware(start_time, timezone.get_current_timezone())
+
+        try:
+            resource = Resource.objects.get(tenant=tenant, id=resource_id, is_active=True)
+        except Resource.DoesNotExist:
+            return JsonResponse({"error": "Resource not found"}, status=404)
+
+        selected_service = None
+        duration_minutes = 60
+        if service_id:
+            selected_service = ServicePreset.objects.filter(tenant=tenant, id=service_id, is_active=True).first()
+            if not selected_service:
+                return JsonResponse({"error": "Invalid service"}, status=400)
+            duration_minutes = selected_service.duration_minutes
+        else:
+            selected_service = resolve_service_by_duration(tenant, duration_minutes)
+
+        end_time = start_time + timedelta(minutes=max(1, duration_minutes))
+        if start_time < timezone.now() + timedelta(hours=24):
+            return JsonResponse({"error": "Must book 24h in advance"}, status=400)
+
+        conflict = Booking.objects.filter(
+            tenant=tenant,
+            resource=resource,
+            start_time__lt=end_time + timedelta(minutes=30),
+            end_time__gt=start_time - timedelta(minutes=30),
+            status="CONFIRMED",
+        ).exists()
+        if conflict:
+            return JsonResponse({"error": "Time slot unavailable"}, status=409)
+
+        selected_service_name = selected_service.name if selected_service else ""
+        with transaction.atomic():
+            booking = Booking.objects.create(
+                tenant=tenant,
+                resource=resource,
+                customer_email=customer_email,
+                customer_name=customer_name,
+                selected_service=selected_service,
+                selected_service_name=selected_service_name,
+                start_time=start_time,
+                end_time=end_time,
+                status="CONFIRMED",
+            )
+            transaction.on_commit(lambda: process_new_booking.delay(booking.id))
+
+        return JsonResponse({"ok": True, "booking_id": str(booking.id)})
+
+
 def dashboard_logout(request):
     logout(request)
     return redirect("dashboard_login")
@@ -285,6 +425,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if tenant:
             return tenant
         return Tenant.objects.first()
+
+    def _public_booking_url(self, tenant):
+        if not tenant:
+            return ""
+        return self.request.build_absolute_uri(reverse("dashboard_public_booking", kwargs={"tenant_slug": tenant.slug}))
 
     def _save_template(self, request, tenant):
         event_type = request.POST.get("event_type")
@@ -682,6 +827,13 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         next_24h_count = sum(1 for s in upcoming_shifts if s.start_time <= timezone.now() + timedelta(hours=24))
 
+        tenant_logo_url = ""
+        if tenant and getattr(tenant, "logo", None):
+            try:
+                tenant_logo_url = tenant.logo.url
+            except Exception:
+                tenant_logo_url = ""
+
         context.update(
             {
                 "orders": orders,
@@ -697,6 +849,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "default_service_name_prefill": default_service_name_prefill,
                 "tenant_name": tenant.name if tenant else "未設定店舗",
                 "tenant_contact_email": tenant.contact_email if tenant else "",
+                "tenant_logo_url": tenant_logo_url,
+                "public_booking_url": self._public_booking_url(tenant),
                 "recent_invites": recent_invites,
             }
         )

@@ -71,11 +71,18 @@ class SharedBaseMixin(LoginRequiredMixin):
 
     def _base_nav_context(self):
         tenant = self._tenant()
+        tenant_logo_url = ""
+        if tenant and getattr(tenant, "logo", None):
+            try:
+                tenant_logo_url = tenant.logo.url
+            except Exception:
+                tenant_logo_url = ""
         return {
             "is_admin": self._is_admin(),
             "user_avatar_url": self._avatar_url(),
             "user_initial": (self.request.user.username[:1] or "U").upper(),
             "tenant_name": tenant.name if tenant else "未設定店舗",
+            "tenant_logo_url": tenant_logo_url,
         }
 
 

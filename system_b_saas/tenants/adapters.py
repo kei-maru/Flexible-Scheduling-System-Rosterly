@@ -3,7 +3,6 @@ from allauth.exceptions import ImmediateHttpResponse
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.messages import get_messages
 from django.shortcuts import redirect
 from django.utils.text import slugify
 from allauth.socialaccount.models import SocialAccount
@@ -38,6 +37,14 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if request is None:
             return False
         return bool(request.session.get("allow_shop_signup"))
+
+    def _is_shop_signup_intent(self, request) -> bool:
+        if request is None:
+            return False
+        next_hint = str(request.GET.get("next") or request.POST.get("next") or "").strip()
+        if not next_hint:
+            return False
+        return next_hint.startswith("/dashboard/register-shop/form/")
 
     def _invite_token(self, request) -> str:
         if request is None:
@@ -309,8 +316,10 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
 
         logger.warning("pre_social_login: denied, no authorized account")
         if request is not None:
-            list(get_messages(request))
-            request.session["dashboard_auth_blocked_message"] = "このアカウントにはスタッフ/管理者権限がありません。"
+            try:
+                request.session["dashboard_auth_blocked_message"] = "このアカウントにはスタッフ/管理者権限がありません。"
+            except Exception:
+                pass
         raise ImmediateHttpResponse(redirect("dashboard_login"))
 
     def is_open_for_signup(self, request, sociallogin):
@@ -321,6 +330,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         allowed = (
             self._is_public_sso_flow(request)
             or self._is_shop_signup_flow(request)
+            or self._is_shop_signup_intent(request)
             or bool(self._resolve_staff_invite(request))
             or self._is_first_owner_bootstrap()
         )

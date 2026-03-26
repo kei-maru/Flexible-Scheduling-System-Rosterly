@@ -539,6 +539,22 @@
   - 功能：员工邀请链接入口。
   - 行为：携带店铺上下文进入 OAuth，登录成功后直接绑定邀请目标租户与角色（默认 `STAFF`，可选 `ADMIN`）。
 
+- `GET /dashboard/book/<tenant_slug>/`
+  - 功能：店铺公开预约页面（System B 原生页面，Rosterly 设计语言）。
+  - 说明：Store Settings 中“预约链接（自动生成）”已切换为该路由，不再依赖 `localhost:8000` 的 System A 页面。
+  - 数据隔离：仅展示当前 `tenant_slug` 对应店铺的 Resource 与 ServicePreset。
+
+- `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
+  - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
+
+- `POST /dashboard/book/<tenant_slug>/api/create/`
+  - 功能：提交公开预约。
+  - 必填：`resource_id`、`customer_name`、`customer_email`、`start_time`
+  - 可选：`service_id`
+  - 校验：
+    - 预约开始时间需大于当前时间 24 小时
+    - 保持前后 30 分钟冲突检测规则
+
 邀请模型：`tenants.StaffInvite`
 - 字段：`token`、`tenant`、`role`、`expires_at`、`max_uses`、`used_count`、`is_active`。
 - 规则：过期、超次数或手动失效后不可再用。

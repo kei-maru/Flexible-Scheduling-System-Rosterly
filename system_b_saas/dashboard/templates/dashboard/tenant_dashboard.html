@@ -56,6 +56,9 @@
         <div class="mx-auto max-w-7xl px-5 py-4">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-3">
+                    {% if tenant_logo_url %}
+                    <img src="{{ tenant_logo_url }}" alt="tenant logo" class="h-9 w-9 rounded-full border border-slate-200 object-cover">
+                    {% endif %}
                     <a href="{% url 'tenant_dashboard' %}" class="text-2xl font-bold tracking-tight text-indigo-700 hover:text-indigo-800">Rosterly</a>
                     <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
                 </div>
@@ -188,6 +191,16 @@
                             </div>
                         </div>
                         {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if public_booking_url %}
+                    <div class="mt-4 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
+                        <div class="mb-2 font-semibold text-slate-900">予約リンク（自動生成）</div>
+                        <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div class="break-all rounded border border-slate-200 bg-slate-50 px-2 py-2 text-[12px] md:flex-1">{{ public_booking_url }}</div>
+                            <a href="{{ public_booking_url }}" target="_blank" rel="noopener" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">開く</a>
+                        </div>
                     </div>
                     {% endif %}
                 </div>

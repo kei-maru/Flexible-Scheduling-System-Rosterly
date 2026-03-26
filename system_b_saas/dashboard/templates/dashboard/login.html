@@ -65,8 +65,6 @@
         <p>将来的に Google / Apple / GitHub などの認証を追加予定です。</p>
       </div>
 
-      <div class="info">ローカルアカウントログインは開発・検証専用です。本番運用の正式導線ではありません。</div>
-      <p style="margin-top:10px;font-size:12px;color:#64748b">ローカル検証ログイン: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
       {% else %}
       <div class="warn">Discord OAuth が未設定です。`SYSTEM_B_DISCORD_CLIENT_ID` / `SYSTEM_B_DISCORD_SECRET` を先に設定してください。</div>
       <p style="margin-top:10px;font-size:12px;color:#64748b">一時的にローカルアカウントでログインできます: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
@@ -76,7 +74,7 @@
       <div class="alert">{{ auth_blocked_message }}</div>
       {% elif messages %}
       {% for message in messages %}
-      <div class="alert">{{ message }}</div>
+      <div class="{% if 'success' in message.tags %}info{% elif 'warning' in message.tags %}warn{% elif 'error' in message.tags %}alert{% else %}alert{% endif %}">{{ message }}</div>
       {% endfor %}
       {% endif %}
     </section>

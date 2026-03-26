@@ -35,7 +35,7 @@
     {% if messages %}
       <div style="margin-top:10px;display:grid;gap:8px;">
         {% for message in messages %}
-          <div style="border:1px solid #fda4af;background:#fff1f2;color:#be123c;border-radius:10px;padding:8px 10px;font-size:13px;">{{ message }}</div>
+          <div style="border:1px solid {% if 'success' in message.tags %}#86efac{% elif 'warning' in message.tags %}#fcd34d{% else %}#fda4af{% endif %};background:{% if 'success' in message.tags %}#f0fdf4{% elif 'warning' in message.tags %}#fffbeb{% else %}#fff1f2{% endif %};color:{% if 'success' in message.tags %}#166534{% elif 'warning' in message.tags %}#92400e{% else %}#be123c{% endif %};border-radius:10px;padding:8px 10px;font-size:13px;">{{ message }}</div>
         {% endfor %}
       </div>
     {% endif %}
@@ -73,7 +73,7 @@
       </div>
 
       <div class="actions">
-        <button type="submit" class="btn btn-primary" onclick="return submitShopForm()">登録を完了</button>
+        <button type="submit" class="btn btn-primary">登録を完了</button>
       </div>
     </form>
 
@@ -100,8 +100,8 @@ function addServiceRow(seed) {
   root.appendChild(row);
 }
 
-function submitShopForm() {
-  const rows = document.querySelectorAll('.service-row');
+function buildServicesPayload() {
+  const rows = document.querySelectorAll('#services .service-row');
   const payload = [];
   rows.forEach((row) => {
     const name = row.querySelector('.svc-name').value.trim();
@@ -113,9 +113,13 @@ function submitShopForm() {
       description: row.querySelector('.svc-description').value.trim() || '...',
     });
   });
-  document.getElementById('preset-services-json').value = JSON.stringify(payload);
-  return true;
+  return payload;
 }
+
+document.getElementById('shop-form').addEventListener('submit', function () {
+  const payload = buildServicesPayload();
+  document.getElementById('preset-services-json').value = JSON.stringify(payload);
+});
 
 addServiceRow({name: '60分 VRASMR コース', duration_minutes: 60, price: 0, description: '...'});
 </script>

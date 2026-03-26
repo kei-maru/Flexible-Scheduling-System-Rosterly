@@ -3,6 +3,7 @@ from allauth.exceptions import ImmediateHttpResponse
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.shortcuts import redirect
 from django.utils.text import slugify
 from allauth.socialaccount.models import SocialAccount
@@ -90,7 +91,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if update_fields:
             user.save(update_fields=update_fields)
             logger.info("public sso role sync user id=%s fields=%s", user.id, update_fields)
-        if desired_role == "STAFF":
+        if desired_role in {"STAFF", "ADMIN"}:
             self._ensure_staff_resource_binding(user)
 
     def _is_first_owner_bootstrap(self) -> bool:
@@ -211,7 +212,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             request.session.pop("allow_public_sso_login", None)
             request.session.pop("sso_role_hint", None)
 
-        if desired_role == "STAFF":
+        if desired_role in {"STAFF", "ADMIN"}:
             self._ensure_staff_resource_binding(user)
 
         return True
@@ -307,7 +308,9 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return
 
         logger.warning("pre_social_login: denied, no authorized account")
-        messages.error(request, "認可済みのスタッフまたは管理者のみログインできます。店舗管理者へお問い合わせください。")
+        if request is not None:
+            list(get_messages(request))
+            request.session["dashboard_auth_blocked_message"] = "このアカウントにはスタッフ/管理者権限がありません。"
         raise ImmediateHttpResponse(redirect("dashboard_login"))
 
     def is_open_for_signup(self, request, sociallogin):
@@ -366,7 +369,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
                 logger.info("save_user: bootstrap user updated id=%s fields=%s", user.id, update_fields)
             messages.success(request, "初回管理者アカウントの作成が完了し、店舗を自動開設しました。")
 
-        if user.role == "STAFF":
+        if user.role in {"STAFF", "ADMIN"}:
             self._ensure_staff_resource_binding(user)
 
         if request is not None and request.session.get("allow_public_sso_login"):

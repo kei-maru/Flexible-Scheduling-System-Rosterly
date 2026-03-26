@@ -118,7 +118,7 @@ def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=Non
 def ensure_staff_resource_binding(user, tenant=None):
     if user is None:
         return None
-    if getattr(user, "role", "") != "STAFF":
+    if getattr(user, "role", "") not in {"STAFF", "ADMIN"}:
         return None
 
     tenant_obj = tenant or getattr(user, "tenant", None)

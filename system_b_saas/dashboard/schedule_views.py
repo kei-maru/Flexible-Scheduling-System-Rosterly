@@ -34,7 +34,7 @@ class SharedBaseMixin(LoginRequiredMixin):
         return getattr(self.request.user, "tenant", None)
 
     def _staff_default_resource(self, tenant):
-        if getattr(self.request.user, "role", "") == "STAFF":
+        if getattr(self.request.user, "role", "") in {"STAFF", "ADMIN"}:
             auto_bound = ensure_staff_resource_binding(self.request.user, tenant=tenant)
             if auto_bound:
                 return auto_bound
@@ -263,7 +263,7 @@ class _ScheduleApiBase(LoginRequiredMixin, View):
         return getattr(request.user, "tenant", None)
 
     def _staff_default_resource(self, request, tenant):
-        if getattr(request.user, "role", "") == "STAFF":
+        if getattr(request.user, "role", "") in {"STAFF", "ADMIN"}:
             auto_bound = ensure_staff_resource_binding(request.user, tenant=tenant)
             if auto_bound:
                 return auto_bound

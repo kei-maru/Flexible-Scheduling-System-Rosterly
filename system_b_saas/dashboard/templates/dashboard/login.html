@@ -72,7 +72,9 @@
       <p style="margin-top:10px;font-size:12px;color:#64748b">一時的にローカルアカウントでログインできます: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
       {% endif %}
 
-      {% if messages %}
+      {% if auth_blocked_message %}
+      <div class="alert">{{ auth_blocked_message }}</div>
+      {% elif messages %}
       {% for message in messages %}
       <div class="alert">{{ message }}</div>
       {% endfor %}

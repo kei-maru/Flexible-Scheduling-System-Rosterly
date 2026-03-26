@@ -59,6 +59,7 @@ class DashboardLoginView(TemplateView):
             settings.SYSTEM_B_DISCORD_CLIENT_ID and settings.SYSTEM_B_DISCORD_SECRET
         )
         context["next_url"] = next_url
+        context["auth_blocked_message"] = self.request.session.pop("dashboard_auth_blocked_message", "")
         return context
 
 
@@ -189,6 +190,9 @@ class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
             update_fields.append("is_superuser")
         if update_fields:
             user.save(update_fields=update_fields)
+
+        # Admin owner should also get a bound Resource for schedule/booking operations.
+        ensure_staff_resource_binding(user, tenant=tenant)
 
         preset_services = []
         raw_json = (form.cleaned_data.get("preset_services_json") or "").strip()
@@ -463,7 +467,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 user.save(update_fields=update_fields)
                 updated_count += 1
 
-            if user.role == "STAFF":
+            if user.role in {"STAFF", "ADMIN"}:
                 linked = self._ensure_staff_resource_binding(user, tenant)
             else:
                 linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()

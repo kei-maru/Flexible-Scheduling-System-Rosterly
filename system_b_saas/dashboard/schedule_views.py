@@ -226,24 +226,20 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tenant = self._tenant()
-        role = getattr(self.request.user, "role", "STAFF")
-        role_is_admin = role == "ADMIN" or self.request.user.is_superuser
 
         bookings = Booking.objects.none()
         staff_resource = None
-        effective_is_admin = role_is_admin
         if tenant:
             qs = (
                 Booking.objects.filter(tenant=tenant)
                 .select_related("resource", "resource__profile", "selected_service")
                 .order_by("-start_time")
             )
-            # Shared bookings page is staff-facing: if a linked resource exists, always lock to own bookings.
+            # Shared bookings page is always staff-facing and locked to own bookings.
             staff_resource = self._staff_default_resource(tenant)
             if staff_resource:
                 qs = qs.filter(resource=staff_resource)
-                effective_is_admin = False
-            elif not role_is_admin:
+            else:
                 qs = Booking.objects.none()
             bookings = list(qs[:200])
             for booking in bookings:
@@ -252,8 +248,8 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
         context.update(
             {
                 "bookings": bookings,
-                "is_admin": effective_is_admin,
-                "is_staff_view": not effective_is_admin,
+                "is_admin": False,
+                "is_staff_view": True,
                 "staff_resource_id": str(staff_resource.id) if staff_resource else "",
                 "now_iso": timezone.now().isoformat(),
             }

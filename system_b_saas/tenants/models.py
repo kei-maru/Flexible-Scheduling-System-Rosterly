@@ -10,6 +10,8 @@ class Tenant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True) 
+    contact_email = models.EmailField(blank=True, null=True)
+    logo = models.ImageField(upload_to='tenant_logos/', blank=True, null=True)
     webhook_url = models.URLField(blank=True, null=True, help_text="预定成功后，系统会向此地址发送 POST 请求")
     
     # API 模式认证 (Phase 1 核心)
@@ -57,3 +59,38 @@ class SSOAuthCode(models.Model):
     @property
     def is_expired(self):
         return timezone.now() >= self.expires_at
+
+
+class StaffInvite(models.Model):
+    ROLE_CHOICES = [
+        ('STAFF', 'Staff'),
+        ('ADMIN', 'Admin'),
+    ]
+
+    token = models.CharField(max_length=96, unique=True, db_index=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='staff_invites')
+    role = models.CharField(max_length=16, choices=ROLE_CHOICES, default='STAFF')
+    max_uses = models.PositiveIntegerField(default=1)
+    used_count = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        SaaSUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_staff_invites',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'staff_invites'
+        ordering = ['-created_at']
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_available(self):
+        return self.is_active and not self.is_expired and self.used_count < self.max_uses

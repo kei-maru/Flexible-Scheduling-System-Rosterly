@@ -88,25 +88,18 @@ def sso_authorize(request):
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
     if role_hint == 'CONSUMER' and not request.user.is_superuser:
-        from resources.models import Resource
-
-        has_staff_resource = (
-            Resource.objects.filter(linked_user=request.user).exists()
-            or Resource.objects.filter(external_id=str(request.user.id)).exists()
-        )
-        if not has_staff_resource:
-            update_fields = []
-            if request.user.role != 'CONSUMER':
-                request.user.role = 'CONSUMER'
-                update_fields.append('role')
-            if request.user.is_staff:
-                request.user.is_staff = False
-                update_fields.append('is_staff')
-            if getattr(request.user, 'tenant_id', None) is not None:
-                request.user.tenant = None
-                update_fields.append('tenant')
-            if update_fields:
-                request.user.save(update_fields=update_fields)
+        update_fields = []
+        if request.user.role != 'CONSUMER':
+            request.user.role = 'CONSUMER'
+            update_fields.append('role')
+        if request.user.is_staff:
+            request.user.is_staff = False
+            update_fields.append('is_staff')
+        if getattr(request.user, 'tenant_id', None) is not None:
+            request.user.tenant = None
+            update_fields.append('tenant')
+        if update_fields:
+            request.user.save(update_fields=update_fields)
 
     public_sso_flow = bool(request.session.get('allow_public_sso_login'))
     request.session.pop('allow_public_sso_login', None)

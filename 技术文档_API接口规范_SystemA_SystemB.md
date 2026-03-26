@@ -496,14 +496,6 @@
   - `role`：可能为 `ADMIN` / `STAFF` / `CONSUMER`，其中 `CONSUMER` 表示 A 端用户（无租户后台权限）。
   - `CONSUMER` 口径：`tenant_id` 必须为 `null`。
 
-### 4.4 A/B 角色映射（当前生产口径）
-
-- A 发起 SSO 时角色提示：
-  - A 管理员（`is_superuser` 或 `is_staff 且非 cast`）→ `a_role=ADMIN`
-  - A 员工（`is_cast=True`）→ `a_role=STAFF`
-  - 其余用户 → `a_role=CONSUMER`
-- B 在 authorize/social login 流程中按该提示同步 `SaaSUser.role` 与 `SaaSUser.is_staff`。
-
 ### 4.3 System A 映射优先级（落地口径）
 
 - 必须按以下顺序匹配本地影子用户：
@@ -512,7 +504,44 @@
   3. `discord_id`（仅历史兼容兜底）
 - 禁止仅按显示名做长期唯一映射。
 
+### 4.4 A/B 角色映射（当前生产口径）
+
+- A 发起 SSO 时角色提示：
+  - A 管理员（`is_superuser` 或 `is_staff 且非 cast`）→ `a_role=ADMIN`
+  - A 员工（`is_cast=True`）→ `a_role=STAFF`
+  - 其余用户 → `a_role=CONSUMER`
+- B 在 authorize/social login 流程中按该提示同步 `SaaSUser.role` 与 `SaaSUser.is_staff`。
+
+### 4.5 角色与租户同步修复（2026-03-26）
+
+- Public SSO 不再根据 `Resource.external_id=user.id` 做二次“员工推断”。
+- `a_role=CONSUMER` 时，B 侧强制写入：
+  - `role=CONSUMER`
+  - `is_staff=False`
+  - `tenant=null`
+- Public SSO 的历史兼容“按 `discord_id` 展示名匹配账号”已收紧；优先使用 Discord SocialAccount 的 `uid` 绑定，避免展示名碰撞造成误映射。
+- A 侧普通用户被误授予 `STAFF/Tenant` 的问题按上述规则修复。
+
 ---
+
+## 附录 A. Dashboard 入口补充（System B 内部）
+
+以下为 System B 管理后台内部路由（非 Integration API）：
+
+- `GET /dashboard/register-shop/`
+  - 功能：触发初次店铺注册 OAuth 导流（Discord）。
+- `GET|POST /dashboard/register-shop/form/`
+  - 功能：OAuth 后填写店铺表单并完成落库。
+  - 表单字段：`shop_name`（必填）、`owner_email`（必填）、`logo`（可选）、`preset_services_json`（可选）。
+  - 成功后写入：`Tenant.name/logo/contact_email`，并将当前账号提升为该店 `ADMIN`。
+  - 取消时支持清理本次临时 Discord 注册记录（仅限本次 provisional 账号）。
+- `GET /dashboard/invite/<token>/`
+  - 功能：员工邀请链接入口。
+  - 行为：携带店铺上下文进入 OAuth，登录成功后直接绑定邀请目标租户与角色（默认 `STAFF`，可选 `ADMIN`）。
+
+邀请模型：`tenants.StaffInvite`
+- 字段：`token`、`tenant`、`role`、`expires_at`、`max_uses`、`used_count`、`is_active`。
+- 规则：过期、超次数或手动失效后不可再用。
 
 ## 5. 常见状态码
 

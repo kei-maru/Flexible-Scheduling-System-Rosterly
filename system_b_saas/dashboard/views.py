@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 from uuid import uuid4
+import secrets
 
 from django.conf import settings
 from django.contrib import messages
@@ -16,6 +17,7 @@ from django.db.models import Max
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
+from django import forms
 from django.views import View
 from django.views.generic import TemplateView
 
@@ -23,7 +25,7 @@ from bookings.models import Booking
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services.service_mapping import resolve_booking_service_name
-from tenants.models import SaaSUser, Tenant
+from tenants.models import SaaSUser, StaffInvite, Tenant
 
 
 class DashboardLoginView(TemplateView):
@@ -78,8 +80,170 @@ class DashboardRegisterShopRedirectView(View):
             return redirect("dashboard_login")
 
         request.session["allow_shop_signup"] = True
-        target_next = next_url or "/dashboard/login/"
+        request.session.pop("shop_signup_provisional_user_id", None)
+        request.session.pop("allow_staff_invite_token", None)
+        target_next = next_url or "/dashboard/register-shop/form/"
         return redirect(f"/accounts/discord/login/?process=login&next={quote(target_next, safe='')}")
+
+
+class DashboardShopSignupForm(forms.Form):
+    shop_name = forms.CharField(max_length=100, required=True)
+    owner_email = forms.EmailField(required=True)
+    logo = forms.ImageField(required=False)
+    preset_services_json = forms.CharField(required=False)
+
+
+class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/shop_signup_form.html"
+
+    def _is_shop_signup_session(self):
+        return bool(self.request.session.get("allow_shop_signup"))
+
+    def _is_provisional_user(self, user):
+        provisional_id = self.request.session.get("shop_signup_provisional_user_id")
+        return provisional_id and str(provisional_id) == str(getattr(user, "id", ""))
+
+    def _cleanup_provisional_identity(self, user):
+        if not user:
+            return
+        if getattr(user, "tenant_id", None):
+            return
+        if not self._is_provisional_user(user):
+            return
+
+        from allauth.socialaccount.models import SocialAccount, SocialToken
+
+        SocialToken.objects.filter(account__user=user).delete()
+        SocialAccount.objects.filter(user=user).delete()
+        user.delete()
+        self.request.session.pop("shop_signup_provisional_user_id", None)
+
+    def dispatch(self, request, *args, **kwargs):
+        if not self._is_shop_signup_session():
+            messages.warning(request, "店舗登録セッションが見つかりません。最初からやり直してください。")
+            return redirect("dashboard_login")
+
+        if getattr(request.user, "tenant_id", None):
+            request.session.pop("allow_shop_signup", None)
+            request.session.pop("shop_signup_provisional_user_id", None)
+            messages.info(request, "このアカウントはすでに店舗登録済みです。")
+            return redirect("tenant_dashboard")
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["default_shop_name"] = f"{(self.request.user.username or 'Rosterly')[:50]} Shop"
+        context["default_owner_email"] = self.request.user.email or ""
+        return context
+
+    def post(self, request, *args, **kwargs):
+        if request.POST.get("cancel_signup") == "true":
+            self._cleanup_provisional_identity(request.user)
+            logout(request)
+            request.session.pop("allow_shop_signup", None)
+            messages.info(request, "店舗登録をキャンセルしました。今回の認証情報を破棄しました。")
+            return redirect("dashboard_login")
+
+        form = DashboardShopSignupForm(request.POST, request.FILES)
+        if not form.is_valid():
+            for _field, errs in form.errors.items():
+                for err in errs:
+                    messages.error(request, str(err))
+            return self.get(request, *args, **kwargs)
+
+        shop_name = form.cleaned_data["shop_name"].strip()
+        owner_email = form.cleaned_data["owner_email"].strip()
+        logo = form.cleaned_data.get("logo")
+
+        from tenants.adapters import SaaSDiscordSocialAdapter
+
+        adapter = SaaSDiscordSocialAdapter()
+        tenant_slug = adapter._build_unique_tenant_slug(shop_name)
+        tenant = Tenant.objects.create(
+            name=shop_name,
+            slug=tenant_slug,
+            contact_email=owner_email,
+            logo=logo,
+            api_key=secrets.token_urlsafe(24)[:32],
+            api_secret=secrets.token_urlsafe(32),
+            enable_saas_dashboard=True,
+        )
+
+        user = request.user
+        update_fields = []
+        if user.email != owner_email:
+            user.email = owner_email
+            update_fields.append("email")
+        if user.tenant_id != tenant.id:
+            user.tenant = tenant
+            update_fields.append("tenant")
+        if user.role != "ADMIN":
+            user.role = "ADMIN"
+            update_fields.append("role")
+        if not user.is_staff:
+            user.is_staff = True
+            update_fields.append("is_staff")
+        if user.is_superuser:
+            user.is_superuser = False
+            update_fields.append("is_superuser")
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        preset_services = []
+        raw_json = (form.cleaned_data.get("preset_services_json") or "").strip()
+        if raw_json:
+            try:
+                parsed = json.loads(raw_json)
+                if isinstance(parsed, list):
+                    preset_services = parsed
+            except json.JSONDecodeError:
+                preset_services = []
+
+        max_order = 0
+        for item in preset_services:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            try:
+                duration = int(item.get("duration_minutes") or 60)
+            except (TypeError, ValueError):
+                duration = 60
+            try:
+                price = Decimal(str(item.get("price") or "0"))
+            except (InvalidOperation, ValueError):
+                price = Decimal("0")
+            description = str(item.get("description") or "...").strip() or "..."
+            max_order += 1
+            ServicePreset.objects.create(
+                tenant=tenant,
+                name=name,
+                description=description,
+                price=max(price, Decimal("0")),
+                duration_minutes=max(1, duration),
+                is_active=True,
+                sort_order=max_order,
+            )
+
+        request.session.pop("allow_shop_signup", None)
+        request.session.pop("shop_signup_provisional_user_id", None)
+        messages.success(request, "店舗登録が完了しました。")
+        return redirect("tenant_dashboard")
+
+
+class DashboardInviteAcceptView(View):
+    def get(self, request, token, *args, **kwargs):
+        invite = StaffInvite.objects.filter(token=token).select_related("tenant").first()
+        if not invite or not invite.is_available:
+            messages.error(request, "招待リンクが無効または期限切れです。")
+            return redirect("dashboard_login")
+
+        request.session["allow_staff_invite_token"] = invite.token
+        request.session["allow_public_sso_login"] = True
+        request.session["sso_role_hint"] = invite.role if invite.role in {"ADMIN", "STAFF"} else "STAFF"
+        return redirect(f"/accounts/discord/login/?process=login&next={quote('/dashboard/login/', safe='')}")
 
 
 class DashboardTermsView(TemplateView):
@@ -138,14 +302,74 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             "is_active": True,
         }
 
-        if "logo" in request.FILES:
-            defaults_data["logo"] = request.FILES["logo"]
-
         EmailTemplate.objects.update_or_create(
             tenant=tenant,
             event_type=event_type,
             defaults=defaults_data,
         )
+
+    def _save_tenant_settings(self, request, tenant):
+        name = (request.POST.get("tenant_name") or "").strip()
+        contact_email = (request.POST.get("tenant_contact_email") or "").strip()
+
+        if not name:
+            raise ValueError("店舗名は必須です")
+        if not contact_email:
+            raise ValueError("店舗メールは必須です")
+
+        update_fields = []
+        if tenant.name != name:
+            tenant.name = name
+            update_fields.append("name")
+        if (tenant.contact_email or "") != contact_email:
+            tenant.contact_email = contact_email
+            update_fields.append("contact_email")
+        if request.FILES.get("tenant_logo"):
+            tenant.logo = request.FILES["tenant_logo"]
+            update_fields.append("logo")
+
+        if update_fields:
+            tenant.save(update_fields=update_fields)
+
+    def _create_staff_invite(self, request, tenant):
+        role = (request.POST.get("invite_role") or "STAFF").strip().upper()
+        if role not in {"STAFF", "ADMIN"}:
+            role = "STAFF"
+
+        expire_hours_raw = (request.POST.get("invite_expire_hours") or "72").strip()
+        max_uses_raw = (request.POST.get("invite_max_uses") or "1").strip()
+        try:
+            expire_hours = max(1, int(expire_hours_raw))
+        except ValueError:
+            expire_hours = 72
+        try:
+            max_uses = max(1, int(max_uses_raw))
+        except ValueError:
+            max_uses = 1
+
+        token = secrets.token_urlsafe(32)
+        invite = StaffInvite.objects.create(
+            token=token,
+            tenant=tenant,
+            role=role,
+            max_uses=max_uses,
+            expires_at=timezone.now() + timedelta(hours=expire_hours),
+            created_by=request.user,
+        )
+        return invite
+
+    def _deactivate_staff_invite(self, request, tenant):
+        invite_id = (request.POST.get("invite_id") or "").strip()
+        if not invite_id:
+            raise ValueError("Missing invite_id")
+
+        invite = StaffInvite.objects.filter(id=invite_id, tenant=tenant).first()
+        if not invite:
+            raise ValueError("Invite not found")
+
+        if invite.is_active:
+            invite.is_active = False
+            invite.save(update_fields=["is_active"])
 
     def _store_profile_avatar(self, tenant, resource, avatar_file):
         ext = ""
@@ -316,6 +540,15 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             elif request.POST.get("delete_service") == "true":
                 self._delete_service_preset(request, tenant)
                 messages.success(request, "サービスプリセットを削除しました。")
+            elif request.POST.get("save_tenant_settings") == "true":
+                self._save_tenant_settings(request, tenant)
+                messages.success(request, "店舗設定を保存しました。")
+            elif request.POST.get("create_staff_invite") == "true":
+                invite = self._create_staff_invite(request, tenant)
+                messages.success(request, f"招待リンクを発行しました: /dashboard/invite/{invite.token}/")
+            elif request.POST.get("deactivate_staff_invite") == "true":
+                self._deactivate_staff_invite(request, tenant)
+                messages.success(request, "招待リンクを削除しました。")
             else:
                 messages.error(request, "未対応のダッシュボード操作です。")
         except SaaSUser.DoesNotExist:
@@ -339,6 +572,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         upcoming_shifts = Availability.objects.none()
         cast_rows = []
         service_name_suggestions = []
+        recent_invites = []
 
         if tenant:
             now = timezone.now()
@@ -401,13 +635,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     }
                 )
 
+            recent_invites = list(
+                StaffInvite.objects.filter(tenant=tenant, is_active=True)
+                .order_by("-created_at")[:5]
+            )
+
         default_service_name_prefill = service_name_suggestions[0] if service_name_suggestions else "{{ selected_service_name }}"
 
         templates_data = {}
         for event_type in ["BOOKING_CONFIRMED", "BOOKING_CANCELLED"]:
             try:
                 t = EmailTemplate.objects.get(tenant=tenant, event_type=event_type)
-                logo_url = t.logo.url if t.logo else ""
+                logo_url = tenant.logo.url if tenant and tenant.logo else (t.logo.url if t.logo else "")
                 templates_data[event_type] = {
                     "subject": t.subject_template,
                     "email_title": t.email_title,
@@ -432,7 +671,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     "button_link": "#",
                     "footer_title": "当社のキャンセルポリシー",
                     "footer_text": "...",
-                    "logo_url": "",
+                    "logo_url": tenant.logo.url if tenant and tenant.logo else "",
                     "send_to_customer": True,
                     "send_to_cast": True,
                 }
@@ -453,6 +692,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "service_name_suggestions_json": json.dumps(service_name_suggestions, ensure_ascii=False),
                 "default_service_name_prefill": default_service_name_prefill,
                 "tenant_name": tenant.name if tenant else "未設定店舗",
+                "tenant_contact_email": tenant.contact_email if tenant else "",
+                "recent_invites": recent_invites,
             }
         )
         return context

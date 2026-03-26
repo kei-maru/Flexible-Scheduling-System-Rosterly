@@ -91,10 +91,19 @@ def _send_booking_emails_logic(booking):
         t_footer_text = tpl.footer_text
         raw_subject = tpl.subject_template
 
-        # --- Logo 路径逻辑 ---
-        # 1. 获取本地文件系统的绝对路径 (用于 open 读取)
-        # 例如: /app/media/tenants/logos/shop.png
-        logo_fs_path = tpl.logo.path if tpl.logo else None
+        # Logo source priority: tenant logo > template logo
+        logo_fs_path = None
+        tenant_logo = getattr(booking.tenant, "logo", None)
+        if tenant_logo:
+            try:
+                logo_fs_path = tenant_logo.path
+            except Exception:
+                logo_fs_path = None
+        if not logo_fs_path and tpl.logo:
+            try:
+                logo_fs_path = tpl.logo.path
+            except Exception:
+                logo_fs_path = None
 
     except EmailTemplate.DoesNotExist:
         print("[Email Warning] No EmailTemplate found.")

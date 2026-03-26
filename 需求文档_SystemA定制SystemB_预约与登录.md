@@ -268,6 +268,12 @@
   - 管理员 `Shifts & Orders` 支持按“天”筛选（不再要求分钟级）。
   - 管理员订单列表排序改为按预约时间（`start_time`）倒序。
   - B 中 A 端用户与员工用户完成角色区分（`CONSUMER` vs `STAFF/ADMIN`）。
+  - 员工端 `预约一览` 调整为固定员工视角（不再显示管理员视角切换）；列表信息由 `担当: 自己` 调整为 `客户: xxx`。
+  - 修复 A->B public SSO 角色漂移：普通用户不再被误判为 `STAFF`，`CONSUMER` 强制 `tenant=null`。
+  - 初次店铺注册改为 OAuth 后补全表单：`店铺名(必填) / logo / owner email(必填) / 预设服务`，提交后统一落库。
+  - 店铺注册中途取消支持清理本次临时 Discord 账号记录（provisional 账号）。
+  - 管理员 `Users & Roles` 新增左侧 `店铺设置` 区块，并新增邀请员工按钮（生成带租户参数的邀请链接，登录后自动入店为 `STAFF`，预留扩展其他登录方式）。
+  - 管理员邮件模板页 Logo 改为与店铺 Logo 自动同步。
 - 已完成（2026-03-25）：
   - A 发起 SSO 时透传 `a_role=ADMIN|STAFF|CONSUMER`。
   - B 在 public SSO 流程按 `a_role` 同步 `role/is_staff`。

@@ -9,7 +9,7 @@ from allauth.socialaccount.models import SocialAccount
 import secrets
 import logging
 
-from tenants.models import Tenant
+from tenants.models import Tenant, StaffInvite
 from resources.services.binding_service import ensure_staff_resource_binding
 
 
@@ -38,6 +38,20 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return False
         return bool(request.session.get("allow_shop_signup"))
 
+    def _invite_token(self, request) -> str:
+        if request is None:
+            return ""
+        return str(request.session.get("allow_staff_invite_token") or "").strip()
+
+    def _resolve_staff_invite(self, request):
+        token = self._invite_token(request)
+        if not token:
+            return None
+        invite = StaffInvite.objects.filter(token=token).select_related("tenant").first()
+        if not invite or not invite.is_available:
+            return None
+        return invite
+
     def _public_sso_tenant_slug(self) -> str:
         return str(getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_SLUG", "Veludo") or "Veludo").strip()
 
@@ -54,15 +68,6 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
 
         public_tenant = self._resolve_public_sso_tenant()
         desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
-        if desired_role == "CONSUMER":
-            from resources.models import Resource
-
-            has_staff_resource = (
-                Resource.objects.filter(linked_user=user).exists()
-                or Resource.objects.filter(external_id=str(user.id)).exists()
-            )
-            if has_staff_resource:
-                desired_role = "STAFF"
 
         desired_is_staff = desired_role in {"ADMIN", "STAFF"}
         update_fields = []
@@ -85,7 +90,8 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if update_fields:
             user.save(update_fields=update_fields)
             logger.info("public sso role sync user id=%s fields=%s", user.id, update_fields)
-        self._ensure_staff_resource_binding(user)
+        if desired_role == "STAFF":
+            self._ensure_staff_resource_binding(user)
 
     def _is_first_owner_bootstrap(self) -> bool:
         User = get_user_model()
@@ -170,6 +176,46 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if request is not None:
             messages.success(request, "店舗登録が完了しました。ADMIN 権限を付与しました。")
 
+    def _apply_staff_invite(self, request, user) -> bool:
+        invite = self._resolve_staff_invite(request)
+        if not invite or user is None:
+            return False
+
+        if user.tenant_id and user.tenant_id != invite.tenant_id and getattr(user, "role", "") in {"ADMIN", "STAFF"}:
+            messages.error(request, "このアカウントは別店舗に所属しています。別アカウントで招待リンクをご利用ください。")
+            raise ImmediateHttpResponse(redirect("dashboard_login"))
+
+        desired_role = invite.role if invite.role in {"ADMIN", "STAFF"} else "STAFF"
+        update_fields = []
+
+        if user.tenant_id != invite.tenant_id:
+            user.tenant = invite.tenant
+            update_fields.append("tenant")
+        if user.role != desired_role:
+            user.role = desired_role
+            update_fields.append("role")
+        if user.is_staff != (desired_role in {"ADMIN", "STAFF"}):
+            user.is_staff = desired_role in {"ADMIN", "STAFF"}
+            update_fields.append("is_staff")
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        invite.used_count += 1
+        if invite.used_count >= invite.max_uses:
+            invite.is_active = False
+        invite.save(update_fields=["used_count", "is_active"])
+
+        if request is not None:
+            request.session.pop("allow_staff_invite_token", None)
+            request.session.pop("allow_public_sso_login", None)
+            request.session.pop("sso_role_hint", None)
+
+        if desired_role == "STAFF":
+            self._ensure_staff_resource_binding(user)
+
+        return True
+
     def _build_unique_username(self, base_username: str, discord_numeric_id: str) -> str:
         User = get_user_model()
         candidate = (base_username or "discord_user").strip().lower().replace(" ", "_")
@@ -216,52 +262,40 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         public_sso_flow = self._is_public_sso_flow(request)
         role_hint = self._sso_role_hint(request)
         shop_signup_flow = self._is_shop_signup_flow(request)
+        invite = self._resolve_staff_invite(request)
         logger.info("pre_social_login: existing=%s", sociallogin.is_existing)
         # Existing social account: standard allauth flow.
         if sociallogin.is_existing:
+            if invite and self._apply_staff_invite(request, sociallogin.user):
+                return
             if public_sso_flow:
                 self._sync_public_sso_role(sociallogin.user, role_hint)
-            if shop_signup_flow:
-                self._promote_user_to_shop_owner(request, sociallogin.user)
-                request.session.pop("allow_shop_signup", None)
-            self._ensure_staff_resource_binding(sociallogin.user)
             return
 
         extra_data = sociallogin.account.extra_data or {}
-        discord_username = extra_data.get("username")
         discord_id_numeric = extra_data.get("id", "")
-        discriminator = extra_data.get("discriminator")
 
-        candidates = []
-        if discord_username and discriminator and discriminator != "0":
-            candidates.append(f"{discord_username}#{discriminator}")
-        if discord_username:
-            candidates.append(discord_username)
-        if discord_id_numeric:
-            candidates.append(discord_id_numeric)
-
-        User = get_user_model()
         authorized_user = None
         if discord_id_numeric:
             linked_social = SocialAccount.objects.filter(provider="discord", uid=str(discord_id_numeric)).select_related("user").first()
             if linked_social:
                 authorized_user = linked_social.user
-
-        if authorized_user is None:
-            authorized_user = User.objects.filter(discord_id__in=candidates).first()
         if authorized_user:
             logger.info("pre_social_login: matched authorized user id=%s", authorized_user.id)
+            if invite and self._apply_staff_invite(request, authorized_user):
+                sociallogin.connect(request, authorized_user)
+                return
             if public_sso_flow:
                 self._sync_public_sso_role(authorized_user, role_hint)
-            if shop_signup_flow:
-                self._promote_user_to_shop_owner(request, authorized_user)
-                request.session.pop("allow_shop_signup", None)
-            self._ensure_staff_resource_binding(authorized_user)
             sociallogin.connect(request, authorized_user)
             return
 
         if public_sso_flow:
             logger.info("pre_social_login: allowing public SSO user provisioning")
+            return
+
+        if invite:
+            logger.info("pre_social_login: allowing invite signup provisioning")
             return
 
         if shop_signup_flow:
@@ -272,7 +306,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             logger.info("pre_social_login: allowing bootstrap signup")
             return
 
-        logger.warning("pre_social_login: denied, no authorized account candidates=%s", candidates)
+        logger.warning("pre_social_login: denied, no authorized account")
         messages.error(request, "認可済みのスタッフまたは管理者のみログインできます。店舗管理者へお問い合わせください。")
         raise ImmediateHttpResponse(redirect("dashboard_login"))
 
@@ -284,6 +318,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         allowed = (
             self._is_public_sso_flow(request)
             or self._is_shop_signup_flow(request)
+            or bool(self._resolve_staff_invite(request))
             or self._is_first_owner_bootstrap()
         )
         logger.info("is_open_for_signup: allowed=%s", allowed)
@@ -305,8 +340,11 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if public_sso_flow:
             self._sync_public_sso_role(user, role_hint)
 
+        invite_applied = self._apply_staff_invite(request, user)
+
         if shop_signup_flow and not public_sso_flow:
-            self._promote_user_to_shop_owner(request, user)
+            if request is not None:
+                request.session["shop_signup_provisional_user_id"] = user.id
         elif is_first_bootstrap and not public_sso_flow:
             tenant = self._ensure_bootstrap_tenant()
             update_fields = []
@@ -328,11 +366,15 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
                 logger.info("save_user: bootstrap user updated id=%s fields=%s", user.id, update_fields)
             messages.success(request, "初回管理者アカウントの作成が完了し、店舗を自動開設しました。")
 
-        self._ensure_staff_resource_binding(user)
+        if user.role == "STAFF":
+            self._ensure_staff_resource_binding(user)
 
         if request is not None and request.session.get("allow_public_sso_login"):
             request.session.pop("allow_public_sso_login", None)
-        if request is not None and request.session.get("allow_shop_signup"):
+        if request is not None and request.session.get("allow_shop_signup") and not shop_signup_flow:
             request.session.pop("allow_shop_signup", None)
+
+        if invite_applied and request is not None:
+            request.session.pop("allow_staff_invite_token", None)
 
         return user

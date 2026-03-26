@@ -37,9 +37,6 @@
             <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">プロフィール管理</a>
             <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">シフト管理</a>
             <a href="{% url 'shared_bookings' %}" class="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm text-white">予約一覧</a>
-            {% if is_admin %}
-            <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">管理者ダッシュボード</a>
-            {% endif %}
         </div>
 
         <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -48,7 +45,7 @@
                 <p class="mt-2 text-sm text-slate-500">予約の確認と、権限に応じたステータス更新を行えます。</p>
             </div>
             <div class="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                {% if is_admin %}管理者ビュー{% else %}スタッフビュー{% endif %}
+                スタッフビュー
             </div>
         </div>
 
@@ -79,7 +76,7 @@
                                 <div class="text-base font-semibold text-slate-900">
                                     {{ booking.start_time|date:"H:i" }} - {{ booking.end_time|date:"H:i" }}
                                 </div>
-                                <div class="mt-1 text-xs text-slate-500">担当: {{ booking.resource.name }}</div>
+                                <div class="mt-1 text-xs text-slate-500">顧客: {{ booking.customer_name }}</div>
                                 <div class="mt-1 text-xs text-slate-500">サービス: {{ booking.display_service_name|default:"-" }}</div>
                             </div>
                         </div>
@@ -150,9 +147,6 @@
             </div>
 
             <div class="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 p-4 md:flex-row">
-                {% if is_admin %}
-                <button id="btn-cancel" onclick="updateBookingStatus('CANCELLED')" class="flex-1 rounded-md border border-rose-200 bg-rose-50 py-2 text-xs font-semibold tracking-widest text-rose-700 hover:bg-rose-100">キャンセル</button>
-                {% endif %}
                 <button id="btn-complete" onclick="updateBookingStatus('COMPLETED')" class="flex-1 rounded-md border border-emerald-200 bg-emerald-50 py-2 text-xs font-semibold tracking-widest text-emerald-700 hover:bg-emerald-100">完了</button>
                 <button onclick="closeModal()" class="flex-1 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold tracking-widest text-slate-700 hover:bg-slate-100">閉じる</button>
             </div>

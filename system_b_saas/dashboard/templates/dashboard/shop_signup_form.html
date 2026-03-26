@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>店舗登録 | Rosterly</title>
+  <style>
+    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--line:#e2e8f0;--muted:#64748b;--accent:#3730a3}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at 20% 15%,rgba(55,48,163,.08),transparent 35%),var(--bg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI";color:var(--text)}
+    .wrap{min-height:100vh;display:grid;place-items:center;padding:22px}
+    .card{width:min(840px,100%);background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 20px 50px -30px rgba(15,23,42,.45);padding:26px}
+    h1{margin:0 0 6px;font-size:30px}
+    p{margin:0;color:var(--muted);font-size:14px;line-height:1.65}
+    .grid{margin-top:18px;display:grid;gap:12px;grid-template-columns:1fr 1fr}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .full{grid-column:1/-1}
+    label{font-size:12px;color:#334155}
+    input,textarea{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:10px 12px;font-size:14px;background:#fff}
+    .service-row{display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:8px;margin-top:8px}
+    .btn{border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .actions{margin-top:18px;display:flex;gap:10px;justify-content:flex-end}
+    .muted{font-size:12px;color:var(--muted)}
+    .line{margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:14px}
+    @media (max-width:860px){.grid{grid-template-columns:1fr}.service-row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="card">
+    <h1>初回 店舗登録</h1>
+    <p>Discord 認証は完了しました。以下を入力すると店舗が作成され、あなたは管理者として登録されます。</p>
+
+    {% if messages %}
+      <div style="margin-top:10px;display:grid;gap:8px;">
+        {% for message in messages %}
+          <div style="border:1px solid #fda4af;background:#fff1f2;color:#be123c;border-radius:10px;padding:8px 10px;font-size:13px;">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="shop-form">
+      {% csrf_token %}
+      <div class="grid">
+        <div class="field">
+          <label>店铺名（必填）</label>
+          <input type="text" name="shop_name" required value="{{ default_shop_name }}" maxlength="100">
+        </div>
+        <div class="field">
+          <label>你的 Email（必填）</label>
+          <input type="email" name="owner_email" required value="{{ default_owner_email }}">
+        </div>
+        <div class="field full">
+          <label>店铺 Logo（可选）</label>
+          <input type="file" name="logo" accept="image/*">
+        </div>
+
+        <div class="field full line">
+          <label>预设服务（可选）</label>
+          <p class="muted">可以先填 1-3 条，后续可在 Service Presets 继续管理。</p>
+          <div id="services"></div>
+          <button type="button" class="btn" onclick="addServiceRow()">+ 添加预设服务</button>
+          <input type="hidden" name="preset_services_json" id="preset-services-json">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" onclick="return submitShopForm()">完成注册</button>
+      </div>
+    </form>
+
+    <form method="post" style="margin-top:10px;">
+      {% csrf_token %}
+      <input type="hidden" name="cancel_signup" value="true">
+      <button class="btn" type="submit" onclick="return confirm('取消后将删除本次 Discord 注册记录，确定继续吗？')">取消并删除本次认证记录</button>
+    </form>
+  </section>
+</div>
+
+<script>
+function addServiceRow(seed) {
+  const root = document.getElementById('services');
+  const row = document.createElement('div');
+  row.className = 'service-row';
+  row.innerHTML = `
+    <input placeholder="服务名" class="svc-name" value="${seed?.name || ''}">
+    <input placeholder="时长(分)" type="number" min="1" class="svc-duration" value="${seed?.duration_minutes || 60}">
+    <input placeholder="价格" type="number" min="0" step="1" class="svc-price" value="${seed?.price || 0}">
+    <input placeholder="说明" class="svc-description" value="${seed?.description || '...'}">
+    <button type="button" class="btn" onclick="this.closest('.service-row').remove()">删除</button>
+  `;
+  root.appendChild(row);
+}
+
+function submitShopForm() {
+  const rows = document.querySelectorAll('.service-row');
+  const payload = [];
+  rows.forEach((row) => {
+    const name = row.querySelector('.svc-name').value.trim();
+    if (!name) return;
+    payload.push({
+      name,
+      duration_minutes: Number(row.querySelector('.svc-duration').value || 60),
+      price: Number(row.querySelector('.svc-price').value || 0),
+      description: row.querySelector('.svc-description').value.trim() || '...',
+    });
+  });
+  document.getElementById('preset-services-json').value = JSON.stringify(payload);
+  return true;
+}
+
+addServiceRow({name: '60分 VRASMR コース', duration_minutes: 60, price: 0, description: '...'});
+</script>
+</body>
+</html>

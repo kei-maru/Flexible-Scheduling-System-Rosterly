@@ -725,6 +725,17 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         if tenant:
             now = timezone.now()
+            staff_users = list(
+                SaaSUser.objects.filter(
+                    tenant=tenant,
+                    role__in=["STAFF", "ADMIN"],
+                ).order_by("role", "username")
+            )
+
+            # Keep Users & Roles and Cast CMS aligned by ensuring each staff/admin has a bound Resource.
+            for staff_user in staff_users:
+                self._ensure_staff_resource_binding(staff_user, tenant)
+
             orders_qs = (
                 Booking.objects.filter(tenant=tenant)
                 .select_related("resource", "resource__profile", "selected_service")
@@ -733,13 +744,15 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             orders = list(orders_qs)
             for order in orders:
                 order.display_service_name = resolve_booking_service_name(order, tenant)
-            resources = Resource.objects.filter(tenant=tenant).select_related("profile", "linked_user").order_by("name")
-            staff_users = SaaSUser.objects.filter(
-                tenant=tenant,
-                role__in=["STAFF", "ADMIN"],
-            ).order_by("role", "username")
+            resources = list(
+                Resource.objects.filter(tenant=tenant)
+                .select_related("profile", "linked_user")
+                .order_by("name")
+            )
+            resource_by_user_id = {r.linked_user_id: r for r in resources if r.linked_user_id}
+
             for u in staff_users:
-                linked_resource = Resource.objects.filter(tenant=tenant, linked_user=u).first()
+                linked_resource = resource_by_user_id.get(u.id)
                 staff_rows.append(
                     {
                         "user": u,
@@ -765,7 +778,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 if name and name not in service_name_suggestions:
                     service_name_suggestions.append(name)
 
-            for resource in resources:
+            # Cast CMS list follows Users & Roles ordering to keep both modules in sync.
+            for u in staff_users:
+                resource = resource_by_user_id.get(u.id)
+                if not resource:
+                    continue
                 profile = getattr(resource, "profile", None)
                 tags = profile.tags if profile and isinstance(profile.tags, list) else []
                 metadata = profile.metadata if profile and isinstance(profile.metadata, dict) else {}

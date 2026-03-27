@@ -56,10 +56,10 @@
         <div class="mx-auto max-w-7xl px-5 py-4">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-3">
+                    <a href="{% url 'tenant_dashboard' %}" class="text-2xl font-bold tracking-tight text-indigo-700 hover:text-indigo-800">Rosterly</a>
                     {% if tenant_logo_url %}
                     <img src="{{ tenant_logo_url }}" alt="tenant logo" class="h-9 w-9 rounded-full border border-slate-200 object-cover">
                     {% endif %}
-                    <a href="{% url 'tenant_dashboard' %}" class="text-2xl font-bold tracking-tight text-indigo-700 hover:text-indigo-800">Rosterly</a>
                     <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
                 </div>
                 <div class="flex items-center gap-3 text-sm text-slate-600">
@@ -420,6 +420,10 @@
                                     <label for="range-end" class="mb-1 block text-[11px] text-slate-500">終了日</label>
                                     <input id="range-end" type="date" class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
                                 </div>
+                                <div class="md:min-w-[240px]">
+                                    <label for="schedule-name-search" class="mb-1 block text-[11px] text-slate-500">名称検索</label>
+                                    <input id="schedule-name-search" type="text" placeholder="Cast / 顧客 / サービス" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
+                                </div>
                                 <div class="flex gap-2">
                                     <button type="button" onclick="applyScheduleFilters()" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">検索</button>
                                     <button type="button" onclick="resetScheduleRange()" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100">リセット</button>
@@ -432,7 +436,7 @@
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-regular fa-calendar mr-1 text-indigo-600"></i> Upcoming Shifts</h3>
                                 <div class="space-y-2">
                                     {% for shift in upcoming_shifts %}
-                                    <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}" data-start="{{ shift.start_time|date:'c' }}">
+                                    <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}" data-start="{{ shift.start_time|date:'c' }}" data-name="{{ shift.resource.name|lower }}">
                                         <div class="text-xs font-semibold text-indigo-700">{{ shift.resource.name }}</div>
                                         <div class="mt-1 text-sm text-slate-800">{{ shift.start_time|date:"m/d H:i" }} - {{ shift.end_time|date:"H:i" }}</div>
                                         <div class="mt-1 text-[11px] text-slate-500">{% if shift.is_recurring %}RECURRING{% else %}SINGLE{% endif %}</div>
@@ -448,7 +452,7 @@
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-solid fa-receipt mr-1 text-indigo-600"></i> Order History</h3>
                                 <div class="space-y-2">
                                     {% for order in orders %}
-                                    <div class="order-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ order.resource.id }}" data-start="{{ order.start_time|date:'c' }}">
+                                    <div class="order-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ order.resource.id }}" data-start="{{ order.start_time|date:'c' }}" data-name="{{ order.resource.name|lower }} {{ order.customer_name|lower }} {{ order.display_service_name|default:''|lower }}">
                                         <div class="flex items-center justify-between">
                                             <div class="text-xs font-semibold text-indigo-700">{{ order.resource.name }}</div>
                                             <span class="rounded px-2 py-0.5 text-[10px]
@@ -964,12 +968,14 @@
             const castId = currentScheduleCastId;
             const startMs = parseRangeStartValue("range-start");
             const endMs = parseRangeEndValue("range-end");
+            const nameSearch = ((document.getElementById("schedule-name-search") || {}).value || "").toLowerCase().trim();
 
             let shiftCount = 0;
             document.querySelectorAll(".shift-card").forEach((card) => {
                 const castOk = castId === "all" || card.dataset.castId === castId;
                 const rangeOk = inSelectedRange(card.dataset.start || "", startMs, endMs);
-                const visible = castOk && rangeOk;
+                const nameOk = !nameSearch || (card.dataset.name || "").includes(nameSearch);
+                const visible = castOk && rangeOk && nameOk;
                 card.classList.toggle("hidden", !visible);
                 if (visible) shiftCount += 1;
             });
@@ -982,7 +988,8 @@
             document.querySelectorAll(".order-card").forEach((card) => {
                 const castOk = castId === "all" || card.dataset.castId === castId;
                 const rangeOk = inSelectedRange(card.dataset.start || "", startMs, endMs);
-                const visible = castOk && rangeOk;
+                const nameOk = !nameSearch || (card.dataset.name || "").includes(nameSearch);
+                const visible = castOk && rangeOk && nameOk;
                 card.classList.toggle("hidden", !visible);
                 if (visible) orderCount += 1;
             });
@@ -995,8 +1002,10 @@
         function resetScheduleRange() {
             const start = document.getElementById("range-start");
             const end = document.getElementById("range-end");
+            const name = document.getElementById("schedule-name-search");
             if (start) start.value = "";
             if (end) end.value = "";
+            if (name) name.value = "";
             applyScheduleFilters();
         }
 
@@ -1097,8 +1106,10 @@
             filterSchedule("all", document.querySelector(".schedule-cast-item"));
             const rangeStart = document.getElementById("range-start");
             const rangeEnd = document.getElementById("range-end");
+            const nameSearch = document.getElementById("schedule-name-search");
             if (rangeStart) rangeStart.addEventListener("change", applyScheduleFilters);
             if (rangeEnd) rangeEnd.addEventListener("change", applyScheduleFilters);
+            if (nameSearch) nameSearch.addEventListener("input", applyScheduleFilters);
 
             const avatarFileInput = document.getElementById("cms-avatar-file");
             if (avatarFileInput) {

@@ -17,6 +17,8 @@ system_a_veludo/media/
 
 # 忽略运行时备份目录与环境备份
 backups/
+reports/
+runtime_data/
 .env.backup*
 
 # 忽略 Django 收集的静态文件目录 (也就是 Nginx 读取的目录)

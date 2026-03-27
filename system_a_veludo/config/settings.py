@@ -152,6 +152,7 @@ SAAS_API_KEY_HEADER = os.environ.get('SAAS_API_KEY_HEADER', 'X-Tenant-Key')
 CAST_SOURCE = os.environ.get('CAST_SOURCE', 'remote')
 CAST_SOURCE_FALLBACK_LOCAL = os.environ.get('CAST_SOURCE_FALLBACK_LOCAL', 'True') == 'True'
 CAST_SOURCE_SKIP_LOCAL_LINK = os.environ.get('CAST_SOURCE_SKIP_LOCAL_LINK', 'False') == 'True'
+CAST_SOURCE_REQUIRE_NUMERIC_EXTERNAL_ID = os.environ.get('CAST_SOURCE_REQUIRE_NUMERIC_EXTERNAL_ID', 'False') == 'True'
 
 A_LOGIN_MODE = os.environ.get('A_LOGIN_MODE', 'hybrid').strip().lower()
 SYSTEM_B_SSO_CLIENT_ID = os.environ.get('SYSTEM_B_SSO_CLIENT_ID', '').strip()

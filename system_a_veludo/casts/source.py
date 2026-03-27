@@ -20,6 +20,10 @@ def skip_local_link():
     return bool(getattr(settings, "CAST_SOURCE_SKIP_LOCAL_LINK", False))
 
 
+def require_numeric_external_id():
+    return bool(getattr(settings, "CAST_SOURCE_REQUIRE_NUMERIC_EXTERNAL_ID", False))
+
+
 def _safe_tags(tags):
     if isinstance(tags, list):
         return tags
@@ -125,11 +129,13 @@ def get_public_casts():
         try:
             client = SaaSClient()
             rows = client.get_resources(active_only=True)
-            casts = [
-                RemoteCastAdapter(row)
-                for row in rows
-                if row.get("id") and _is_numeric_external_id(row.get("external_id"))
-            ]
+            casts = []
+            for row in rows:
+                if not row.get("id"):
+                    continue
+                if require_numeric_external_id() and not _is_numeric_external_id(row.get("external_id")):
+                    continue
+                casts.append(RemoteCastAdapter(row))
 
             # Emergency-safe behavior: if local profile tables are missing/broken,
             # still return remote casts instead of failing the whole page.

@@ -29,9 +29,6 @@ def _identity_keys(user):
     if user is None:
         return keys
 
-    if getattr(user, "id", None) is not None:
-        keys.append(str(user.id).strip())
-
     social_uid = (
         SocialAccount.objects.filter(user=user, provider="discord")
         .values_list("uid", flat=True)
@@ -75,7 +72,8 @@ def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=Non
     if user.username and not user.email and not keys:
         match_q |= Q(linked_user__isnull=True, name=user.username)
     if keys:
-        # external_id is the strongest identity key (saas_user_id / discord uid / discord id fallback).
+        # Do not use internal SaaS user numeric id for external_id matching.
+        # external_id comes from System A user id and numeric overlap can cause cross-user hijacking.
         # Migrate schedule data even if this source resource was historically linked to a wrong user.
         match_q |= Q(external_id__in=keys)
 

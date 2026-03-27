@@ -522,6 +522,18 @@
 - Public SSO 的历史兼容“按 `discord_id` 展示名匹配账号”已收紧；优先使用 Discord SocialAccount 的 `uid` 绑定，避免展示名碰撞造成误映射。
 - A 侧普通用户被误授予 `STAFF/Tenant` 的问题按上述规则修复。
 
+### 4.6 Resource external_id 绑定规则收紧（2026-03-27）
+
+- 规则更新：
+  - `Resource.external_id` 仅用于承接 A 侧外部标识，不再允许以 B 侧 `SaaSUser.id` 作为匹配键参与自动绑定。
+  - 绑定与复用优先顺序：Discord `SocialAccount.uid` -> `discord_id`（历史兼容）。
+- 原因：
+  - A/B 两端数值ID并非同一命名空间；历史迁移后可能发生 numeric id 重用。
+  - 若将 B `user.id` 参与 external_id 匹配，会出现“资源被错误用户认领”。
+- 事故样例（已修复）：
+  - `resource_id=41b3a02c-88b2-4879-a264-bbaf815d11bc` 曾被 `orikasayom(id=14)` 占用，实际历史归属为 `nemuifia`。
+  - 修复后已解除错误 `linked_user` 并恢复资源名，等待 A 侧正确同步回填。
+
 ---
 
 ## 附录 A. Dashboard 入口补充（System B 内部）

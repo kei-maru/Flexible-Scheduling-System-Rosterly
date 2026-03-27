@@ -251,6 +251,29 @@
 
 ---
 
+## 4.12 Phase 11：Resource 串号事故修复（2026-03-27）
+
+关键内容：
+- 定位并修复 Veludo 员工资源串号事故：`nemuifia` 历史资源被 `orikasayom(id=14)` 误占用。
+- 根因确认：`resources_resource.external_id` 承接的是 A 侧外部ID，但 B 侧历史绑定逻辑同时将 `SaaSUser.id` 作为匹配键，发生 numeric id 重用碰撞。
+- 线上数据修复：
+  - 资源 `41b3a02c-88b2-4879-a264-bbaf815d11bc` 解除错误 `linked_user_id=14`；
+  - 资源名恢复为 `常眠フィア`；
+  - 保留 `external_id=14` 以便 A 侧正确回填。
+- 代码修复（防复发）：
+  - `resources/services/binding_service.py` 移除 `SaaSUser.id` 参与 `external_id` 匹配；
+  - 绑定仅保留 Discord 稳定身份键（`SocialAccount.uid` / `discord_id`）。
+- 交付数据审计表：
+  - 全量同步表、异常表、审计建议表与身份对照表写入 `reports/`，支撑后续批量清洗。
+- 文档同步：
+  - `技术文档_架构部署与运维.md`、`技术文档_API接口规范_SystemA_SystemB.md` 已补充此次事故与规则变更。
+
+阶段结论：
+- 彻底阻断“跨系统数字ID碰撞导致资源错绑”的高风险路径。
+- 员工资源映射规则从“可能误命中”收敛为“稳定身份键优先”。
+
+---
+
 ## 5. 关键架构结论（供讲解）
 
 1. 主体系统定位清晰：`System B` 为核心能力沉淀层，`System A` 为定制前台。  

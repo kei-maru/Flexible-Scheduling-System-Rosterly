@@ -26,6 +26,7 @@ class Booking(models.Model):
 
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
+    booking_type = models.CharField(max_length=20, default='PUBLIC')
     
     status = models.CharField(choices=STATUS_CHOICES, default='CONFIRMED', max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)

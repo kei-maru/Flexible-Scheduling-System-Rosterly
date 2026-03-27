@@ -63,6 +63,9 @@
                     <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
                 </div>
                 <div class="flex items-center gap-3 text-sm text-slate-600">
+                    <button onclick="switchTab('subscription')" class="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                        <i class="fa-solid fa-credit-card"></i> サブスクリプション管理
+                    </button>
                     <span class="rounded-md border border-slate-200 bg-white px-3 py-1.5">ログイン中: {{ request.user.username }}</span>
                     <a href="{% url 'logout' %}" class="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
                         <i class="fa-solid fa-right-from-bracket"></i> ログアウト
@@ -74,7 +77,7 @@
                 <button id="tab-shop" onclick="switchTab('shop')" class="tab-btn active inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-store text-slate-500"></i> Store Settings
                 </button>
-                <button id="tab-users" onclick="switchTab('users')" class="tab-btn active inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                <button id="tab-users" onclick="switchTab('users')" class="tab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-users text-slate-500"></i> Users & Roles
                 </button>
                 <button id="tab-content" onclick="switchTab('content')" class="tab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
@@ -142,6 +145,19 @@
                                 <div>
                                     <label class="mb-1 block text-xs text-slate-500">店舗メール</label>
                                     <input type="email" name="tenant_contact_email" required value="{{ tenant_contact_email|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">店舗タイプ</label>
+                                    <div class="flex flex-wrap gap-3 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="radio" name="store_type" value="CORE_TIME" {% if store_type == 'CORE_TIME' %}checked{% endif %}>
+                                            コアタイム制
+                                        </label>
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="radio" name="store_type" value="FLEX_SHIFT" {% if store_type != 'CORE_TIME' %}checked{% endif %}>
+                                            自由シフト制
+                                        </label>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs text-slate-500">店舗ロゴ</label>
@@ -261,6 +277,53 @@
                     {% endif %}
                     </div>
                 </div>
+                </div>
+            </section>
+
+            <section id="section-subscription" class="hidden-section panel p-5">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <div class="rounded-lg border border-slate-200 bg-white p-4">
+                        <p class="text-xs text-slate-500">公開予約の最終確定可否に影響します（ACTIVE / TRIAL のみ確定可能）。</p>
+                        <form method="post" class="mt-4 space-y-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="save_subscription_settings" value="true">
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">サブスクリプション状態</label>
+                                <select name="subscription_status" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <option value="ACTIVE" {% if subscription_status == 'ACTIVE' %}selected{% endif %}>ACTIVE（有効）</option>
+                                    <option value="TRIAL" {% if subscription_status == 'TRIAL' %}selected{% endif %}>TRIAL（試用）</option>
+                                    <option value="CANCELED" {% if subscription_status == 'CANCELED' %}selected{% endif %}>CANCELED（停止）</option>
+                                    <option value="NONE" {% if subscription_status == 'NONE' %}selected{% endif %}>NONE（未契約）</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">プランコード</label>
+                                <input type="text" name="subscription_plan_code" value="{{ subscription_plan_code|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: basic-monthly">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">契約開始日時</label>
+                                <input type="datetime-local" name="subscription_started_at" value="{% if subscription_started_at %}{{ subscription_started_at|date:'Y-m-d\\TH:i' }}{% endif %}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs text-slate-500">契約終了日時</label>
+                                <input type="datetime-local" name="subscription_ends_at" value="{% if subscription_ends_at %}{{ subscription_ends_at|date:'Y-m-d\\TH:i' }}{% endif %}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </div>
+                            <button type="submit" class="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">サブスクリプションを保存</button>
+                        </form>
+                    </div>
+
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h3 class="text-sm font-semibold text-slate-900">現在の状態</h3>
+                        <div class="mt-3 space-y-2 text-sm text-slate-700">
+                            <div>状態: <span class="font-semibold">{{ subscription_status|default:'ACTIVE' }}</span></div>
+                            <div>店舗タイプ: <span class="font-semibold">{% if is_core_time_store %}コアタイム制{% else %}自由シフト制{% endif %}</span></div>
+                            <div>予約公開日数: <span class="font-semibold">{{ booking_window_days|default:14 }} 日</span></div>
+                            <div>必須情報: <span class="font-semibold">{% if required_customer_fields %}{{ required_customer_fields|join:', ' }}{% else %}なし{% endif %}</span></div>
+                            {% if public_booking_url %}
+                            <a href="{{ public_booking_url }}" target="_blank" rel="noopener" class="inline-block text-xs text-indigo-700 underline hover:text-indigo-900">予約リンクを開く</a>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -518,6 +581,10 @@
                                     <div class="order-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ order.resource.id }}" data-start="{{ order.start_time|date:'c' }}" data-name="{{ order.resource.name|lower }} {{ order.customer_name|lower }} {{ order.display_service_name|default:''|lower }}">
                                         <div class="flex items-center justify-between">
                                             <div class="text-xs font-semibold text-indigo-700">{{ order.resource.name }}</div>
+                                            <div class="flex items-center gap-1">
+                                            {% if order.booking_type == 'CORE_TIME' %}
+                                            <span class="rounded bg-indigo-100 px-2 py-0.5 text-[10px] text-indigo-700">core-time</span>
+                                            {% endif %}
                                             <span class="rounded px-2 py-0.5 text-[10px]
                                                 {% if order.status == 'CONFIRMED' %}bg-emerald-100 text-emerald-700
                                                 {% elif order.status == 'CANCELLED' %}bg-rose-100 text-rose-700
@@ -525,6 +592,7 @@
                                                 {% else %}bg-slate-100 text-slate-700{% endif %}">
                                                 {{ order.status }}
                                             </span>
+                                            </div>
                                         </div>
                                         <div class="mt-1 text-sm text-slate-800">{{ order.customer_name }} / {{ order.start_time|date:"m/d H:i" }}</div>
                                         <div class="mt-1 text-[11px] text-slate-500">サービス: {{ order.display_service_name|default:'-' }}</div>
@@ -536,6 +604,84 @@
                                 </div>
                             </div>
                         </div>
+
+                        {% if is_core_time_store %}
+                        <div class="border-t border-slate-200 p-5">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h3 class="text-sm font-semibold text-slate-900"><i class="fa-solid fa-pen-to-square mr-1 text-indigo-600"></i> Core-Time 注文編集</h3>
+                                <button type="button" onclick="resetCoreTimeForm()" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">新規入力</button>
+                            </div>
+                            <form method="post" id="core-time-form" class="grid grid-cols-1 gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:grid-cols-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="save_core_time_order" value="true">
+                                <input type="hidden" name="core_booking_id" id="core-booking-id" value="">
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">担当者</label>
+                                    <select name="core_resource_id" id="core-resource-id" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm" required>
+                                        <option value="">選択してください</option>
+                                        {% for r in resources %}
+                                        <option value="{{ r.id }}">{{ r.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">顧客名</label>
+                                    <input type="text" name="core_customer_name" id="core-customer-name" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm" required>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">VRCID</label>
+                                    <input type="text" name="core_customer_vrcid" id="core-customer-vrcid" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">サービス名</label>
+                                    <select name="core_service_preset_id" id="core-service-preset-id" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm" required>
+                                        <option value="">選択してください</option>
+                                        {% for svc in service_presets %}
+                                        {% if svc.is_active %}
+                                        <option value="{{ svc.id }}">{{ svc.name }}（{{ svc.duration_minutes }}分）</option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">開始日時</label>
+                                    <input type="datetime-local" name="core_start_time" id="core-start-time" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm" required>
+                                </div>
+                                <div class="md:col-span-3 flex flex-wrap gap-2">
+                                    <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">保存</button>
+                                    <button type="button" onclick="deleteCoreTimeOrder()" class="rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">削除</button>
+                                </div>
+                            </form>
+
+                            <div class="mt-3 space-y-2">
+                                {% for cto in core_time_orders %}
+                                <button type="button" class="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-left text-sm hover:bg-indigo-50"
+                                    onclick="editCoreTimeOrder(this)"
+                                    data-id="{{ cto.id }}"
+                                    data-resource-id="{{ cto.resource.id }}"
+                                    data-customer-name="{{ cto.customer_name|escapejs }}"
+                                    data-customer-vrcid="{{ cto.customer_id|default:''|escapejs }}"
+                                    data-service-preset-id="{% if cto.selected_service_id %}{{ cto.selected_service_id }}{% endif %}"
+                                    data-start="{{ cto.start_time|date:'Y-m-d\\TH:i' }}"
+                                    >
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-semibold text-indigo-700">core-time / {{ cto.resource.name }}</span>
+                                        <span class="text-xs text-slate-500">{{ cto.start_time|date:"m/d H:i" }}</span>
+                                    </div>
+                                    <div class="text-xs text-slate-600">{{ cto.customer_name }}{% if cto.selected_service_name %} / {{ cto.selected_service_name }}{% endif %}</div>
+                                </button>
+                                {% empty %}
+                                <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs text-slate-500">core-time 注文はまだありません。</div>
+                                {% endfor %}
+                            </div>
+
+                            <form id="core-time-delete-form" method="post" class="hidden">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_core_time_order" value="true">
+                                <input type="hidden" name="core_booking_id" id="core-delete-booking-id" value="">
+                            </form>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </section>
@@ -768,6 +914,7 @@
     <script>
         const PAGE_TITLES = {
             shop: "Store Settings",
+            subscription: "Subscription",
             users: "Users & Roles",
             content: "Cast CMS",
             shifts: "Shifts & Orders",
@@ -776,6 +923,7 @@
         };
         const MODULE_DESCRIPTIONS = {
             shop: "店舗基本情報と招待リンクを管理できます。",
+            subscription: "サブスクリプション情報と契約期間を管理できます。",
             users: "ユーザー情報とアカウント権限をまとめて管理できます。",
             content: "キャストの公開情報（画像・紹介文・対応サービス）を編集するモジュールです。",
             shifts: "キャスト別にシフトと予約履歴を横断確認するモジュールです。",
@@ -784,7 +932,7 @@
         };
 
         function switchTab(tabName) {
-            ["shop", "users", "content", "shifts", "services", "email"].forEach((key) => {
+            ["shop", "subscription", "users", "content", "shifts", "services", "email"].forEach((key) => {
                 const section = document.getElementById("section-" + key);
                 const tab = document.getElementById("tab-" + key);
                 if (section) section.classList.add("hidden-section");
@@ -1159,6 +1307,48 @@
             applyScheduleFilters();
         }
 
+        function resetCoreTimeForm() {
+            const form = document.getElementById("core-time-form");
+            if (!form) return;
+            form.reset();
+            const idInput = document.getElementById("core-booking-id");
+            if (idInput) idInput.value = "";
+        }
+
+        function editCoreTimeOrder(button) {
+            const idInput = document.getElementById("core-booking-id");
+            const resourceInput = document.getElementById("core-resource-id");
+            const nameInput = document.getElementById("core-customer-name");
+            const vrcidInput = document.getElementById("core-customer-vrcid");
+            const serviceInput = document.getElementById("core-service-preset-id");
+            const startInput = document.getElementById("core-start-time");
+
+            if (idInput) idInput.value = button.dataset.id || "";
+            if (resourceInput) resourceInput.value = button.dataset.resourceId || "";
+            if (nameInput) nameInput.value = button.dataset.customerName || "";
+            if (vrcidInput) vrcidInput.value = button.dataset.customerVrcid || "";
+            if (serviceInput) serviceInput.value = button.dataset.servicePresetId || "";
+            if (startInput) startInput.value = button.dataset.start || "";
+
+            const form = document.getElementById("core-time-form");
+            if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        function deleteCoreTimeOrder() {
+            const idInput = document.getElementById("core-booking-id");
+            const bookingId = idInput ? idInput.value : "";
+            if (!bookingId) {
+                alert("先に編集対象の core-time 注文を選択してください。");
+                return;
+            }
+            if (!confirm("この core-time 注文を削除しますか？")) return;
+            const deleteId = document.getElementById("core-delete-booking-id");
+            const form = document.getElementById("core-time-delete-form");
+            if (!deleteId || !form) return;
+            deleteId.value = bookingId;
+            form.submit();
+        }
+
         function filterSchedule(castId, element) {
             currentScheduleCastId = castId;
             document.querySelectorAll(".schedule-cast-item").forEach((el) => el.classList.remove("active"));
@@ -1225,7 +1415,9 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
-            switchTab("shop");
+            const params = new URLSearchParams(window.location.search);
+            const initialTab = params.get("tab") || "shop";
+            switchTab(initialTab);
 
             const confirmSubmitBtn = document.getElementById("users-confirm-submit");
             if (confirmSubmitBtn) {

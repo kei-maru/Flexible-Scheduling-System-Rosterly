@@ -85,6 +85,20 @@ def _normalize_required_customer_fields(values):
     return result
 
 
+def _tenant_is_subscribed(tenant):
+    status = (getattr(tenant, "subscription_status", "") or "").upper()
+    if status not in {"ACTIVE", "TRIAL"}:
+        return False
+    ends_at = getattr(tenant, "subscription_ends_at", None)
+    if ends_at and ends_at <= timezone.now():
+        return False
+    return True
+
+
+def _is_core_time_store(tenant):
+    return (getattr(tenant, "store_type", "FLEX_SHIFT") or "FLEX_SHIFT").upper() == "CORE_TIME"
+
+
 def _agreement_modules_for_template(raw_json, legacy_label="", legacy_body=""):
     items = []
     for row in _normalize_agreement_modules(raw_json, legacy_label=legacy_label, legacy_body=legacy_body):
@@ -360,6 +374,8 @@ class DashboardPublicBookingView(TemplateView):
                 "booking_window_days": max(1, int(getattr(tenant, "booking_window_days", 14) or 14)),
                 "store_contract_label": (tenant.store_contract_label or "店舗利用規約").strip() or "店舗利用規約",
                 "store_contract_url": (tenant.store_contract_url or "").strip(),
+                "tenant_is_subscribed": _tenant_is_subscribed(tenant),
+                "subscription_status": (tenant.subscription_status or "").upper() or "NONE",
                 "required_customer_fields": _normalize_required_customer_fields(
                     getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
                 ),
@@ -430,6 +446,10 @@ class DashboardPublicBookingCreateApi(View):
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
         if not tenant:
             return JsonResponse({"error": "Tenant not found"}, status=404)
+        if not _tenant_is_subscribed(tenant):
+            return JsonResponse({"error": "この店舗は未契約のため、現在予約を受け付けていません。"}, status=403)
+        if _is_core_time_store(tenant):
+            return JsonResponse({"error": "この店舗はコアタイム制のため、公開予約は受け付けていません。"}, status=403)
 
         resource_id = (request.POST.get("resource_id") or "").strip()
         customer_name = (request.POST.get("customer_name") or "").strip()
@@ -514,6 +534,7 @@ class DashboardPublicBookingCreateApi(View):
                 selected_service_name=selected_service_name,
                 start_time=start_time,
                 end_time=end_time,
+                booking_type="PUBLIC",
                 status="CONFIRMED",
             )
             transaction.on_commit(lambda: process_new_booking.delay(booking.id))
@@ -587,6 +608,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
     def _save_tenant_settings(self, request, tenant):
         name = (request.POST.get("tenant_name") or "").strip()
         contact_email = (request.POST.get("tenant_contact_email") or "").strip()
+        store_type = (request.POST.get("store_type") or "FLEX_SHIFT").strip().upper()
         booking_window_days_raw = (request.POST.get("booking_window_days") or "14").strip()
         store_contract_label = (request.POST.get("store_contract_label") or "").strip()
         store_contract_url = (request.POST.get("store_contract_url") or "").strip() or None
@@ -600,6 +622,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             raise ValueError("店舗名は必須です")
         if not contact_email:
             raise ValueError("店舗メールは必須です")
+        if store_type not in {"CORE_TIME", "FLEX_SHIFT"}:
+            raise ValueError("店舗タイプが不正です")
         if not store_contract_label:
             raise ValueError("店舗契約は必須です")
         try:
@@ -616,6 +640,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if (tenant.contact_email or "") != contact_email:
             tenant.contact_email = contact_email
             update_fields.append("contact_email")
+        if (tenant.store_type or "FLEX_SHIFT") != store_type:
+            tenant.store_type = store_type
+            update_fields.append("store_type")
         if tenant.booking_window_days != booking_window_days:
             tenant.booking_window_days = booking_window_days
             update_fields.append("booking_window_days")
@@ -640,6 +667,118 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         if update_fields:
             tenant.save(update_fields=update_fields)
+
+    def _save_subscription_settings(self, request, tenant):
+        subscription_status = (request.POST.get("subscription_status") or "ACTIVE").strip().upper()
+        subscription_plan_code = (request.POST.get("subscription_plan_code") or "").strip()
+        subscription_started_at_raw = (request.POST.get("subscription_started_at") or "").strip()
+        subscription_ends_at_raw = (request.POST.get("subscription_ends_at") or "").strip()
+
+        if subscription_status not in {"ACTIVE", "TRIAL", "CANCELED", "NONE"}:
+            raise ValueError("サブスクリプション状態が不正です")
+
+        subscription_started_at = parse_datetime(subscription_started_at_raw) if subscription_started_at_raw else None
+        subscription_ends_at = parse_datetime(subscription_ends_at_raw) if subscription_ends_at_raw else None
+        if subscription_started_at and timezone.is_naive(subscription_started_at):
+            subscription_started_at = timezone.make_aware(subscription_started_at, timezone.get_current_timezone())
+        if subscription_ends_at and timezone.is_naive(subscription_ends_at):
+            subscription_ends_at = timezone.make_aware(subscription_ends_at, timezone.get_current_timezone())
+
+        update_fields = []
+        if (tenant.subscription_status or "").upper() != subscription_status:
+            tenant.subscription_status = subscription_status
+            update_fields.append("subscription_status")
+        if (tenant.subscription_plan_code or "") != subscription_plan_code:
+            tenant.subscription_plan_code = subscription_plan_code
+            update_fields.append("subscription_plan_code")
+        if tenant.subscription_started_at != subscription_started_at:
+            tenant.subscription_started_at = subscription_started_at
+            update_fields.append("subscription_started_at")
+        if tenant.subscription_ends_at != subscription_ends_at:
+            tenant.subscription_ends_at = subscription_ends_at
+            update_fields.append("subscription_ends_at")
+
+        if update_fields:
+            tenant.save(update_fields=update_fields)
+
+    def _save_core_time_order(self, request, tenant):
+        if not _is_core_time_store(tenant):
+            raise ValueError("コアタイム制の店舗でのみ操作できます")
+
+        booking_id = (request.POST.get("core_booking_id") or "").strip()
+        resource_id = (request.POST.get("core_resource_id") or "").strip()
+        customer_name = (request.POST.get("core_customer_name") or "").strip()
+        customer_vrcid = (request.POST.get("core_customer_vrcid") or "").strip()
+        service_preset_id = (request.POST.get("core_service_preset_id") or "").strip()
+        start_raw = (request.POST.get("core_start_time") or "").strip()
+
+        if not all([resource_id, customer_name, service_preset_id, start_raw]):
+            raise ValueError("必須項目を入力してください")
+
+        start_time = parse_datetime(start_raw)
+        if not start_time:
+            raise ValueError("開始日時の形式が不正です")
+        if timezone.is_naive(start_time):
+            start_time = timezone.make_aware(start_time, timezone.get_current_timezone())
+
+        resource = Resource.objects.filter(tenant=tenant, id=resource_id).first()
+        if not resource:
+            raise ValueError("担当者が見つかりません")
+        service_preset = ServicePreset.objects.filter(tenant=tenant, id=service_preset_id, is_active=True).first()
+        if not service_preset:
+            raise ValueError("サービスが見つかりません")
+        end_time = start_time + timedelta(minutes=service_preset.duration_minutes)
+
+        if booking_id:
+            booking = Booking.objects.filter(id=booking_id, tenant=tenant, booking_type="CORE_TIME").first()
+            if not booking:
+                raise ValueError("編集対象のコアタイム注文が見つかりません")
+            booking.resource = resource
+            booking.customer_name = customer_name
+            booking.customer_id = customer_vrcid or None
+            booking.selected_service = service_preset
+            booking.selected_service_name = service_preset.name
+            booking.start_time = start_time
+            booking.end_time = end_time
+            booking.status = "CONFIRMED"
+            booking.booking_type = "CORE_TIME"
+            booking.save(
+                update_fields=[
+                    "resource",
+                    "customer_name",
+                    "customer_id",
+                    "selected_service",
+                    "selected_service_name",
+                    "start_time",
+                    "end_time",
+                    "status",
+                    "booking_type",
+                ]
+            )
+            return
+
+        Booking.objects.create(
+            tenant=tenant,
+            resource=resource,
+            customer_name=customer_name,
+            customer_id=customer_vrcid or None,
+            selected_service=service_preset,
+            selected_service_name=service_preset.name,
+            start_time=start_time,
+            end_time=end_time,
+            status="CONFIRMED",
+            booking_type="CORE_TIME",
+        )
+
+    def _delete_core_time_order(self, request, tenant):
+        if not _is_core_time_store(tenant):
+            raise ValueError("コアタイム制の店舗でのみ操作できます")
+        booking_id = (request.POST.get("core_booking_id") or "").strip()
+        if not booking_id:
+            raise ValueError("注文IDが必要です")
+        deleted, _ = Booking.objects.filter(id=booking_id, tenant=tenant, booking_type="CORE_TIME").delete()
+        if not deleted:
+            raise ValueError("削除対象のコアタイム注文が見つかりません")
 
     def _create_staff_invite(self, request, tenant):
         role = (request.POST.get("invite_role") or "STAFF").strip().upper()
@@ -840,14 +979,17 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         tenant = self._resolve_tenant()
+        target_tab = "shop"
 
         try:
             if request.POST.get("save_template") == "true":
                 self._save_template(request, tenant)
                 messages.success(request, "メールテンプレートを保存しました。")
+                target_tab = "email"
             elif request.POST.get("save_cast_profile") == "true":
                 self._save_cast_profile(request, tenant)
                 messages.success(request, "Cast CMS を更新しました。")
+                target_tab = "content"
             elif request.POST.get("save_staff_batch") == "true" or request.POST.get("save_staff") == "true":
                 updated_count, blocked_count = self._save_staff_profiles_batch(request, tenant)
                 messages.success(request, f"ユーザー情報を更新しました（{updated_count} 件）。")
@@ -856,21 +998,39 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                         request,
                         f"{blocked_count} 件は、プロフィール画面でプラットフォーム利用規約への同意が未完了のため、予約対象として有効化されませんでした。",
                     )
+                target_tab = "users"
             elif request.POST.get("save_service") == "true":
                 self._save_service_preset(request, tenant)
                 messages.success(request, "サービスプリセットを保存しました。")
+                target_tab = "services"
             elif request.POST.get("delete_service") == "true":
                 self._delete_service_preset(request, tenant)
                 messages.success(request, "サービスプリセットを削除しました。")
+                target_tab = "services"
             elif request.POST.get("save_tenant_settings") == "true":
                 self._save_tenant_settings(request, tenant)
                 messages.success(request, "店舗設定を保存しました。")
+                target_tab = "shop"
+            elif request.POST.get("save_subscription_settings") == "true":
+                self._save_subscription_settings(request, tenant)
+                messages.success(request, "サブスクリプション設定を保存しました。")
+                target_tab = "subscription"
+            elif request.POST.get("save_core_time_order") == "true":
+                self._save_core_time_order(request, tenant)
+                messages.success(request, "コアタイム注文を保存しました。")
+                target_tab = "shifts"
+            elif request.POST.get("delete_core_time_order") == "true":
+                self._delete_core_time_order(request, tenant)
+                messages.success(request, "コアタイム注文を削除しました。")
+                target_tab = "shifts"
             elif request.POST.get("create_staff_invite") == "true":
                 invite = self._create_staff_invite(request, tenant)
                 messages.success(request, f"招待リンクを発行しました: /dashboard/invite/{invite.token}/")
+                target_tab = "shop"
             elif request.POST.get("deactivate_staff_invite") == "true":
                 self._deactivate_staff_invite(request, tenant)
                 messages.success(request, "招待リンクを削除しました。")
+                target_tab = "shop"
             else:
                 messages.error(request, "未対応のダッシュボード操作です。")
         except SaaSUser.DoesNotExist:
@@ -880,7 +1040,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         except Exception as exc:
             messages.error(request, f"エラー: {exc}")
 
-        return redirect("tenant_dashboard")
+        return redirect(f"{reverse('tenant_dashboard')}?tab={target_tab}")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -895,6 +1055,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         cast_rows = []
         service_name_suggestions = []
         recent_invites = []
+        core_time_orders = []
 
         if tenant:
             now = timezone.now()
@@ -917,6 +1078,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             orders = list(orders_qs)
             for order in orders:
                 order.display_service_name = resolve_booking_service_name(order, tenant)
+            core_time_orders = list(
+                Booking.objects.filter(tenant=tenant, booking_type="CORE_TIME")
+                .select_related("resource")
+                .order_by("-start_time")[:200]
+            )
             resources = list(
                 Resource.objects.filter(tenant=tenant)
                 .select_related("profile", "linked_user")
@@ -1042,6 +1208,12 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "default_service_name_prefill": default_service_name_prefill,
                 "tenant_name": tenant.name if tenant else "未設定店舗",
                 "tenant_contact_email": tenant.contact_email if tenant else "",
+                "store_type": (tenant.store_type if tenant else "FLEX_SHIFT"),
+                "is_core_time_store": _is_core_time_store(tenant) if tenant else False,
+                "subscription_status": (tenant.subscription_status if tenant else "ACTIVE"),
+                "subscription_plan_code": (tenant.subscription_plan_code if tenant else ""),
+                "subscription_started_at": (tenant.subscription_started_at if tenant else None),
+                "subscription_ends_at": (tenant.subscription_ends_at if tenant else None),
                 "booking_window_days": tenant.booking_window_days if tenant else 14,
                 "store_contract_label": tenant.store_contract_label if tenant else "店舗利用規約",
                 "store_contract_url": tenant.store_contract_url if tenant else "",
@@ -1059,6 +1231,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "tenant_logo_url": tenant_logo_url,
                 "public_booking_url": self._public_booking_url(tenant),
                 "recent_invites": recent_invites,
+                "core_time_orders": core_time_orders,
             }
         )
         return context

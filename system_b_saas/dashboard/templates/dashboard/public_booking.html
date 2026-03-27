@@ -39,6 +39,13 @@
         予約は 24 時間以上先のみ受け付けます。空き枠表示は次の <span id="window-days">{{ booking_window_days|default:14 }}</span> 日です。
     </div>
 
+    {% if not tenant_is_subscribed %}
+    <div class="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+      <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+      未契約のため、現在この店舗では予約を確定できません。確認画面までは進めますが、最終予約はできません。
+    </div>
+    {% endif %}
+
     <div class="mb-5 flex flex-wrap gap-2">
         <button id="mode-cast" type="button" class="mode-btn active rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('cast')">担当者から時間を探す</button>
         <button id="mode-time" type="button" class="mode-btn rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('time')">時間から担当者を探す</button>

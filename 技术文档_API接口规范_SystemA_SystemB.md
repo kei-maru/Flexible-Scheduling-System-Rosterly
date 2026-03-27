@@ -512,6 +512,31 @@
   - 其余用户 → `a_role=CONSUMER`
 - B 在 authorize/social login 流程中按该提示同步 `SaaSUser.role` 与 `SaaSUser.is_staff`。
 
+---
+
+## 5. 管理员面板补充（2026-03-27）
+
+以下为当前后台实际行为补充（TemplateView POST 分支）：
+
+- `save_tenant_settings=true`
+  - 仅保存店铺基础信息、店铺类型、预约公开窗口、客户必填字段配置与条款模块。
+  - 不再更新订阅状态字段。
+- `save_subscription_settings=true`
+  - 专用于保存 `subscription_status / subscription_plan_code / subscription_started_at / subscription_ends_at`。
+- `save_core_time_order=true`
+  - 仅接受 Core-Time 精简字段：`core_resource_id / core_customer_name / core_customer_vrcid / core_service_preset_id / core_start_time`。
+  - `end_time` 由后端按 `ServicePreset.duration_minutes` 自动推导。
+  - `status` 统一写入 `CONFIRMED`。
+  - `selected_service` 与 `selected_service_name` 由 `core_service_preset_id` 对应预设自动写入。
+
+重定向行为：
+
+- 管理台各 POST 操作会携带 `?tab=<module>` 返回当前模块。
+- 示例：
+  - 保存订阅后返回 `?tab=subscription`
+  - 保存 Core-Time 后返回 `?tab=shifts`
+  - 保存服务预设后返回 `?tab=services`
+
 ### 4.5 角色与租户同步修复（2026-03-26）
 
 - Public SSO 不再根据 `Resource.external_id=user.id` 做二次“员工推断”。

@@ -4,7 +4,7 @@ from .models import Tenant, SaaSUser, StaffInvite
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'contact_email', 'booking_window_days', 'enable_saas_dashboard')
+    list_display = ('name', 'slug', 'contact_email', 'subscription_status', 'booking_window_days', 'enable_saas_dashboard')
     search_fields = ('name', 'contact_email', 'slug')
     list_filter = ('enable_saas_dashboard',)
     # 自动生成 slug
@@ -12,7 +12,8 @@ class TenantAdmin(admin.ModelAdmin):
     readonly_fields = ('api_key', 'api_secret')
     fieldsets = (
         ("基本信息", {"fields": ("name", "slug", "contact_email", "logo", "webhook_url", "enable_saas_dashboard")}),
-        ("预约设置", {"fields": ("booking_window_days", "store_contract_label", "store_contract_url", "required_customer_fields", "custom_terms_label", "custom_terms_body")}),
+        ("订阅设置", {"fields": ("subscription_status", "subscription_plan_code", "subscription_started_at", "subscription_ends_at")}),
+        ("预约设置", {"fields": ("store_type", "booking_window_days", "store_contract_label", "store_contract_url", "required_customer_fields", "custom_terms_label", "custom_terms_body")}),
         ("API 凭据", {"fields": ("api_key", "api_secret")}),
     )
 

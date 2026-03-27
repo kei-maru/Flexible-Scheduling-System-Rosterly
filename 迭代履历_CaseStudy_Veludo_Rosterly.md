@@ -274,6 +274,28 @@
 
 ---
 
+## 4.13 Phase 12：登录身份解耦与脏对象收口（2026-03-27）
+
+关键内容：
+- 明确双轨口径：
+  - 登录身份使用 Discord `uid`；
+  - `Resource.external_id` 仅保留 A 侧用户ID（数字口径）。
+- B 端绑定逻辑升级：
+  - `ensure_staff_resource_binding` 支持 `allow_create`；
+  - public SSO 员工流程仅绑定已有资源，不再自动创建新资源。
+- 历史脏数据清理：
+  - 清理 `external_id = Discord uid` 的记录，恢复 `external_id` 语义一致性。
+- A 端展示收口：
+  - 远端 cast 拉取仅展示数字 `external_id` 对象，降低预约页脏可预约对象暴露。
+- 运营结果：
+  - 2tail / agi7171 恢复 canonical 映射（`external_id=15/16`）；
+  - 对重复历史行做 legacy 归档处理，避免影响线上可预约列表。
+
+阶段结论：
+- 实现“认证身份域”与“业务映射域”彻底解耦，显著降低后续串号与垃圾资源复发概率。
+
+---
+
 ## 5. 关键架构结论（供讲解）
 
 1. 主体系统定位清晰：`System B` 为核心能力沉淀层，`System A` 为定制前台。  

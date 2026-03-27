@@ -28,6 +28,10 @@ def _safe_tags(tags):
     return []
 
 
+def _is_numeric_external_id(value):
+    return str(value or "").strip().isdigit()
+
+
 def _intro_appeal_from_intro(intro):
     text = intro or ""
     marker = "【アピール】"
@@ -121,7 +125,11 @@ def get_public_casts():
         try:
             client = SaaSClient()
             rows = client.get_resources(active_only=True)
-            casts = [RemoteCastAdapter(row) for row in rows if row.get("id")]
+            casts = [
+                RemoteCastAdapter(row)
+                for row in rows
+                if row.get("id") and _is_numeric_external_id(row.get("external_id"))
+            ]
 
             # Emergency-safe behavior: if local profile tables are missing/broken,
             # still return remote casts instead of failing the whole page.

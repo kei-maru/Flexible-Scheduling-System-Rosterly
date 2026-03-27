@@ -559,6 +559,19 @@
   - `resource_id=41b3a02c-88b2-4879-a264-bbaf815d11bc` 曾被 `orikasayom(id=14)` 占用，实际历史归属为 `nemuifia`。
   - 修复后已解除错误 `linked_user` 并恢复资源名，等待 A 侧正确同步回填。
 
+### 4.7 external_id / Discord 身份双轨规则（2026-03-27）
+
+- 身份双轨：
+  - 认证与登录识别：使用 Discord `SocialAccount.uid`。
+  - 跨系统资源映射：使用 `Resource.external_id`（A 侧用户ID口径）。
+- 禁止事项：
+  - 不允许将 Discord `uid` 或 `discord_id` 写入 `Resource.external_id`。
+- Public SSO 员工绑定：
+  - 只允许绑定已有 canonical 资源。
+  - 禁止在 public SSO 过程中自动创建新 `Resource`（避免垃圾可预约对象）。
+- A 端展示约束：
+  - 远端 cast 列表仅展示 `external_id` 为数字的资源，过滤历史脏数据。
+
 ---
 
 ## 附录 A. Dashboard 入口补充（System B 内部）

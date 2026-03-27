@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
-    def _ensure_staff_resource_binding(self, user):
-        ensure_staff_resource_binding(user)
+    def _ensure_staff_resource_binding(self, user, allow_create=True):
+        ensure_staff_resource_binding(user, allow_create=allow_create)
 
     def _is_public_sso_flow(self, request) -> bool:
         if request is None:
@@ -120,7 +120,9 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             user.save(update_fields=update_fields)
             logger.info("public sso role sync user id=%s fields=%s", user.id, update_fields)
         if desired_role in {"STAFF", "ADMIN"}:
-            self._ensure_staff_resource_binding(user)
+            # Public SSO should not create new resources automatically.
+            # It may only bind existing canonical resources to avoid garbage rows.
+            self._ensure_staff_resource_binding(user, allow_create=False)
 
     def _is_first_owner_bootstrap(self) -> bool:
         User = get_user_model()
@@ -241,7 +243,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             request.session.pop("sso_role_hint", None)
 
         if desired_role in {"STAFF", "ADMIN"}:
-            self._ensure_staff_resource_binding(user)
+            self._ensure_staff_resource_binding(user, allow_create=True)
 
         return True
 
@@ -401,7 +403,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             messages.success(request, "初回管理者アカウントの作成が完了し、店舗を自動開設しました。")
 
         if user.role in {"STAFF", "ADMIN"}:
-            self._ensure_staff_resource_binding(user)
+            self._ensure_staff_resource_binding(user, allow_create=not public_sso_flow)
 
         if request is not None and request.session.get("allow_public_sso_login"):
             request.session.pop("allow_public_sso_login", None)

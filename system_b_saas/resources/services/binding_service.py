@@ -51,14 +51,15 @@ def _identity_keys(user):
     return result
 
 
-def _pick_external_id(tenant, identity_keys, exclude_resource_id=None):
-    for key in identity_keys:
-        q = Resource.objects.filter(tenant=tenant, external_id=key)
-        if exclude_resource_id:
-            q = q.exclude(id=exclude_resource_id)
-        if not q.exists():
-            return key
-    return None
+def _discord_uid(user):
+    if user is None:
+        return ""
+    uid = (
+        SocialAccount.objects.filter(user=user, provider="discord")
+        .values_list("uid", flat=True)
+        .first()
+    )
+    return str(uid).strip() if uid else ""
 
 
 def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=None):
@@ -113,7 +114,7 @@ def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=Non
             source.save(update_fields=["linked_user"])
 
 
-def ensure_staff_resource_binding(user, tenant=None):
+def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
     if user is None:
         return None
     if getattr(user, "role", "") not in {"STAFF", "ADMIN"}:
@@ -124,6 +125,7 @@ def ensure_staff_resource_binding(user, tenant=None):
         return None
 
     keys = _identity_keys(user)
+    discord_uid = _discord_uid(user)
 
     linked = Resource.objects.filter(tenant=tenant_obj, linked_user=user).first()
     if linked:
@@ -138,11 +140,13 @@ def ensure_staff_resource_binding(user, tenant=None):
         if linked.is_active != user.is_active:
             linked.is_active = user.is_active
             update_fields.append("is_active")
-        if not linked.external_id:
-            ext = _pick_external_id(tenant_obj, keys, exclude_resource_id=linked.id)
-            if ext:
-                linked.external_id = ext
-                update_fields.append("external_id")
+
+        # external_id belongs to System A identity namespace.
+        # Do not auto-fill it from Discord identities in System B binding flows.
+        if discord_uid and linked.external_id == discord_uid:
+            linked.external_id = None
+            update_fields.append("external_id")
+
         if update_fields:
             linked.save(update_fields=update_fields)
         migrate_staff_schedule_data(tenant_obj, user, linked, identity_keys=keys)
@@ -180,14 +184,18 @@ def ensure_staff_resource_binding(user, tenant=None):
         if reusable.is_active != user.is_active:
             reusable.is_active = user.is_active
             update_fields.append("is_active")
-        if not reusable.external_id:
-            ext = _pick_external_id(tenant_obj, keys, exclude_resource_id=reusable.id)
-            if ext:
-                reusable.external_id = ext
-                update_fields.append("external_id")
+
+        # Keep external_id reserved for System A IDs; clear legacy UID-shaped values.
+        if discord_uid and reusable.external_id == discord_uid:
+            reusable.external_id = None
+            update_fields.append("external_id")
+
         reusable.save(update_fields=update_fields)
         migrate_staff_schedule_data(tenant_obj, user, reusable, identity_keys=keys)
         return reusable
+
+    if not allow_create:
+        return None
 
     base_name = (user.username or "").strip() or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
     candidate = base_name[:90]
@@ -196,11 +204,10 @@ def ensure_staff_resource_binding(user, tenant=None):
         candidate = f"{base_name[:80]}-{suffix}"
         suffix += 1
 
-    ext = _pick_external_id(tenant_obj, keys)
     created = Resource.objects.create(
         tenant=tenant_obj,
         linked_user=user,
-        external_id=ext,
+        external_id=None,
         name=candidate,
         email=(user.email or "").strip() or None,
         is_active=user.is_active,

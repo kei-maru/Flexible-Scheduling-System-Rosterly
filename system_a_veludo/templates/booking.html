@@ -1428,7 +1428,8 @@
                     resource_id: selectedSlot.resourceId,
                     resource_name: currentCastName,
                     start: data.start.toISOString(),
-                    end: data.end.toISOString()
+                    end: data.end.toISOString(),
+                    duration_minutes: parseInt(document.getElementById('input-duration').value || '0', 10)
                 })
             })
             .then(async res => {

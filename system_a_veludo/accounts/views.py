@@ -575,9 +575,18 @@ class BookingActionAPI(APIView):
         client = SaaSClient()
         try:
             course_duration_minutes = None
+            duration_from_client_raw = request.data.get('duration_minutes')
+            if duration_from_client_raw is not None:
+                try:
+                    parsed_duration = int(duration_from_client_raw)
+                    if parsed_duration > 0:
+                        course_duration_minutes = parsed_duration
+                except (TypeError, ValueError):
+                    course_duration_minutes = None
+
             start_dt = parse_datetime(request.data.get('start')) if request.data.get('start') else None
             end_dt = parse_datetime(request.data.get('end')) if request.data.get('end') else None
-            if start_dt and end_dt:
+            if course_duration_minutes is None and start_dt and end_dt:
                 if timezone.is_naive(start_dt):
                     start_dt = timezone.make_aware(start_dt)
                 if timezone.is_naive(end_dt):
@@ -605,7 +614,10 @@ class CastSearchAPI(APIView):
     def get(self, request):
         print("\n========== DEBUG: CastSearchAPI START ==========")
         start_str = request.GET.get('start') 
-        duration = int(request.GET.get('duration', 60))
+        try:
+            duration = int(request.GET.get('duration', 60))
+        except (TypeError, ValueError):
+            duration = 60
         
         if not start_str:
             return Response({'error': 'Start time is required'}, status=400)
@@ -620,6 +632,8 @@ class CastSearchAPI(APIView):
             if timezone.is_naive(search_start):
                 # Use localize to prevent +09:19 LMT issue
                 search_start = jst.localize(search_start)
+            else:
+                search_start = search_start.astimezone(jst)
                 
             search_end = search_start + timedelta(minutes=duration)
             
@@ -650,11 +664,19 @@ class CastSearchAPI(APIView):
                 for slot in valid_slots:
                     s = parse_datetime(slot['start'])
                     e = parse_datetime(slot['end'])
+                    if s is None or e is None:
+                        continue
                     
                     # [CRITICAL FIX] Ensure JST timezone for RESPONSE (System B slots)
                     # Previously it might default to UTC or Server Time, causing mismatch
-                    if timezone.is_naive(s): s = s.replace(tzinfo=jst) # Or use make_aware(s, jst)
-                    if timezone.is_naive(e): e = e.replace(tzinfo=jst)
+                    if timezone.is_naive(s):
+                        s = jst.localize(s)
+                    else:
+                        s = s.astimezone(jst)
+                    if timezone.is_naive(e):
+                        e = jst.localize(e)
+                    else:
+                        e = e.astimezone(jst)
                     
                     # 3. Matching Logic
                     if s <= search_start and e >= search_end:

@@ -268,7 +268,7 @@ def _send_booking_emails_logic(booking):
         msg.send()
         print(f"[Email] Sent to {recipient_name} ({recipient_email})")
 
-    if tpl.send_to_customer:
+    if tpl.send_to_customer and booking.customer_email:
         _send_single(booking.customer_email, booking.customer_name, tpl.email_title, tpl.email_greeting, is_cast=False)
     
     if tpl.send_to_cast and booking.resource.email:

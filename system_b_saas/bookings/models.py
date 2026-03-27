@@ -12,6 +12,7 @@ class Booking(models.Model):
     resource = models.ForeignKey(Resource, related_name='bookings', on_delete=models.CASCADE)
     
     customer_id = models.CharField(max_length=100, db_index=True, null=True, blank=True)
+    customer_discord_id = models.CharField(max_length=100, db_index=True, null=True, blank=True)
     customer_email = models.EmailField()
     customer_name = models.CharField(max_length=100)
     selected_service = models.ForeignKey(

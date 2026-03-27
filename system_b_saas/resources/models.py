@@ -47,6 +47,7 @@ class ResourceProfile(models.Model):
     allow_120_min = models.BooleanField(default=False, verbose_name="Allow 120 min")
 
     metadata = models.JSONField(default=dict, blank=True)
+    platform_terms_agreed = models.BooleanField("プラットフォーム規約同意", default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

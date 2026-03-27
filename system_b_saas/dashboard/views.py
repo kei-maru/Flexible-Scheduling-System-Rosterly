@@ -1,7 +1,7 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from uuid import uuid4
 import secrets
 
@@ -24,7 +24,7 @@ from django import forms
 from django.views import View
 from django.views.generic import TemplateView
 from django.db import transaction
-from datetime import timedelta
+from django.db.models import Q
 
 from bookings.models import Booking
 from bookings.tasks import process_new_booking
@@ -32,6 +32,71 @@ from resources.models import Availability, EmailTemplate, Resource, ResourceProf
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
 from tenants.models import SaaSUser, StaffInvite, Tenant
+
+
+def _is_http_url(value):
+    text = (value or "").strip()
+    if not text:
+        return False
+    parsed = urlparse(text)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _normalize_agreement_modules(raw_json, legacy_label="", legacy_body=""):
+    modules = []
+    parsed_as_list = False
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+        except (TypeError, ValueError):
+            parsed = []
+        if isinstance(parsed, list):
+            parsed_as_list = True
+            for row in parsed:
+                if not isinstance(row, dict):
+                    continue
+                title = (row.get("title") or "").strip()
+                content = (row.get("content") or "").strip()
+                if title or content:
+                    modules.append({"title": title or "追加条項", "content": content})
+
+    if not modules and not parsed_as_list:
+        fallback_title = (legacy_label or "").strip()
+        fallback_body = (legacy_body or "").strip()
+        if fallback_title or fallback_body:
+            modules.append({"title": fallback_title or "追加条項", "content": fallback_body})
+
+    return modules[:20]
+
+
+def _normalize_required_customer_fields(values):
+    allowed = {"VRCID", "DISCORDID", "EMAIL"}
+    if isinstance(values, str):
+        raw = [part.strip().upper() for part in values.split(",") if part.strip()]
+    elif isinstance(values, (list, tuple, set)):
+        raw = [str(part).strip().upper() for part in values if str(part).strip()]
+    else:
+        raw = []
+
+    result = []
+    for item in raw:
+        if item in allowed and item not in result:
+            result.append(item)
+    return result
+
+
+def _agreement_modules_for_template(raw_json, legacy_label="", legacy_body=""):
+    items = []
+    for row in _normalize_agreement_modules(raw_json, legacy_label=legacy_label, legacy_body=legacy_body):
+        content = row.get("content") or ""
+        items.append(
+            {
+                "title": row.get("title") or "追加条項",
+                "content": content,
+                "is_url": _is_http_url(content),
+            }
+        )
+    return items
 
 
 class DashboardLoginView(TemplateView):
@@ -263,6 +328,14 @@ class DashboardTermsView(TemplateView):
 class DashboardPublicBookingView(TemplateView):
     template_name = "dashboard/public_booking.html"
 
+    def _booking_resource_queryset(self, tenant):
+        # Bookable resources must be active; linked staff must be active and agree to platform terms.
+        return (
+            Resource.objects.filter(tenant=tenant, is_active=True)
+            .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
+            .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tenant_slug = kwargs.get("tenant_slug")
@@ -272,7 +345,7 @@ class DashboardPublicBookingView(TemplateView):
             return context
 
         resources = (
-            Resource.objects.filter(tenant=tenant, is_active=True)
+            self._booking_resource_queryset(tenant)
             .select_related("profile")
             .order_by("name")
         )
@@ -284,12 +357,30 @@ class DashboardPublicBookingView(TemplateView):
                 "resources": resources,
                 "services": services,
                 "tenant_logo_url": tenant.logo.url if getattr(tenant, "logo", None) else "",
+                "booking_window_days": max(1, int(getattr(tenant, "booking_window_days", 14) or 14)),
+                "store_contract_label": (tenant.store_contract_label or "店舗利用規約").strip() or "店舗利用規約",
+                "store_contract_url": (tenant.store_contract_url or "").strip(),
+                "required_customer_fields": _normalize_required_customer_fields(
+                    getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
+                ),
+                "agreement_modules": _agreement_modules_for_template(
+                    tenant.custom_terms_body,
+                    legacy_label=tenant.custom_terms_label,
+                    legacy_body=tenant.custom_terms_body,
+                ),
             }
         )
         return context
 
 
 class DashboardPublicBookingAvailabilityApi(View):
+    def _booking_resource_queryset(self, tenant):
+        return (
+            Resource.objects.filter(tenant=tenant, is_active=True)
+            .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
+            .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
+        )
+
     def get(self, request, tenant_slug, *args, **kwargs):
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
         if not tenant:
@@ -300,12 +391,13 @@ class DashboardPublicBookingAvailabilityApi(View):
             return JsonResponse({"error": "resource_id is required"}, status=400)
 
         try:
-            resource = Resource.objects.get(tenant=tenant, id=resource_id, is_active=True)
+            resource = self._booking_resource_queryset(tenant).get(id=resource_id)
         except Resource.DoesNotExist:
             return JsonResponse({"error": "Resource not found"}, status=404)
 
         now = timezone.now()
-        horizon = now + timedelta(days=14)
+        booking_window_days = max(1, int(getattr(tenant, "booking_window_days", 14) or 14))
+        horizon = now + timedelta(days=booking_window_days)
         slots = (
             Availability.objects.filter(
                 resource=resource,
@@ -323,10 +415,17 @@ class DashboardPublicBookingAvailabilityApi(View):
             }
             for slot in slots
         ]
-        return JsonResponse({"slots": data})
+        return JsonResponse({"slots": data, "booking_window_days": booking_window_days})
 
 
 class DashboardPublicBookingCreateApi(View):
+    def _booking_resource_queryset(self, tenant):
+        return (
+            Resource.objects.filter(tenant=tenant, is_active=True)
+            .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
+            .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
+        )
+
     def post(self, request, tenant_slug, *args, **kwargs):
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
         if not tenant:
@@ -335,22 +434,39 @@ class DashboardPublicBookingCreateApi(View):
         resource_id = (request.POST.get("resource_id") or "").strip()
         customer_name = (request.POST.get("customer_name") or "").strip()
         customer_email = (request.POST.get("customer_email") or "").strip()
+        customer_vrcid = (request.POST.get("customer_vrcid") or "").strip()
+        customer_discord_id = (request.POST.get("customer_discord_id") or "").strip()
         start_raw = (request.POST.get("start_time") or "").strip()
         service_id = (request.POST.get("service_id") or "").strip()
 
-        if not all([resource_id, customer_name, customer_email, start_raw]):
+        required_fields = _normalize_required_customer_fields(
+            getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
+        )
+
+        if not all([resource_id, customer_name, start_raw]):
             return JsonResponse({"error": "Missing required fields"}, status=400)
+        if "VRCID" in required_fields and not customer_vrcid:
+            return JsonResponse({"error": "VRCID is required"}, status=400)
+        if "DISCORDID" in required_fields and not customer_discord_id:
+            return JsonResponse({"error": "DiscordID is required"}, status=400)
+        if "EMAIL" in required_fields and not customer_email:
+            return JsonResponse({"error": "Email is required"}, status=400)
 
         start_time = parse_datetime(start_raw)
+        if not start_time:
+            try:
+                start_time = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M")
+            except ValueError:
+                start_time = None
         if not start_time:
             return JsonResponse({"error": "Invalid start_time"}, status=400)
         if timezone.is_naive(start_time):
             start_time = timezone.make_aware(start_time, timezone.get_current_timezone())
 
         try:
-            resource = Resource.objects.get(tenant=tenant, id=resource_id, is_active=True)
+            resource = self._booking_resource_queryset(tenant).get(id=resource_id)
         except Resource.DoesNotExist:
-            return JsonResponse({"error": "Resource not found"}, status=404)
+            return JsonResponse({"error": "Resource is not bookable"}, status=404)
 
         selected_service = None
         duration_minutes = 60
@@ -365,6 +481,15 @@ class DashboardPublicBookingCreateApi(View):
         end_time = start_time + timedelta(minutes=max(1, duration_minutes))
         if start_time < timezone.now() + timedelta(hours=24):
             return JsonResponse({"error": "Must book 24h in advance"}, status=400)
+
+        in_slot = Availability.objects.filter(
+            resource=resource,
+            is_booked=False,
+            start_time__lte=start_time,
+            end_time__gte=end_time,
+        ).exists()
+        if not in_slot:
+            return JsonResponse({"error": "Selected start time is outside available slots"}, status=400)
 
         conflict = Booking.objects.filter(
             tenant=tenant,
@@ -381,7 +506,9 @@ class DashboardPublicBookingCreateApi(View):
             booking = Booking.objects.create(
                 tenant=tenant,
                 resource=resource,
+                customer_id=customer_vrcid or None,
                 customer_email=customer_email,
+                customer_discord_id=customer_discord_id or None,
                 customer_name=customer_name,
                 selected_service=selected_service,
                 selected_service_name=selected_service_name,
@@ -460,11 +587,27 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
     def _save_tenant_settings(self, request, tenant):
         name = (request.POST.get("tenant_name") or "").strip()
         contact_email = (request.POST.get("tenant_contact_email") or "").strip()
+        booking_window_days_raw = (request.POST.get("booking_window_days") or "14").strip()
+        store_contract_label = (request.POST.get("store_contract_label") or "").strip()
+        store_contract_url = (request.POST.get("store_contract_url") or "").strip() or None
+        required_customer_fields = _normalize_required_customer_fields(request.POST.getlist("required_customer_fields"))
+        custom_agreements_json = (request.POST.get("custom_agreements_json") or "").strip()
+        custom_agreements = _normalize_agreement_modules(custom_agreements_json)
+        custom_terms_label = custom_agreements[0]["title"] if custom_agreements else ""
+        custom_terms_body = json.dumps(custom_agreements, ensure_ascii=False)
 
         if not name:
             raise ValueError("店舗名は必須です")
         if not contact_email:
             raise ValueError("店舗メールは必須です")
+        if not store_contract_label:
+            raise ValueError("店舗契約は必須です")
+        try:
+            booking_window_days = max(1, int(booking_window_days_raw))
+        except ValueError:
+            raise ValueError("予約公開日数は1以上の整数で入力してください")
+        if store_contract_url and not _is_http_url(store_contract_url):
+            raise ValueError("店舗契約URLは http(s) 形式で入力してください")
 
         update_fields = []
         if tenant.name != name:
@@ -473,6 +616,24 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if (tenant.contact_email or "") != contact_email:
             tenant.contact_email = contact_email
             update_fields.append("contact_email")
+        if tenant.booking_window_days != booking_window_days:
+            tenant.booking_window_days = booking_window_days
+            update_fields.append("booking_window_days")
+        if (tenant.store_contract_label or "") != store_contract_label:
+            tenant.store_contract_label = store_contract_label
+            update_fields.append("store_contract_label")
+        if (tenant.store_contract_url or None) != store_contract_url:
+            tenant.store_contract_url = store_contract_url
+            update_fields.append("store_contract_url")
+        if _normalize_required_customer_fields(getattr(tenant, "required_customer_fields", [])) != required_customer_fields:
+            tenant.required_customer_fields = required_customer_fields
+            update_fields.append("required_customer_fields")
+        if (tenant.custom_terms_label or "") != custom_terms_label:
+            tenant.custom_terms_label = custom_terms_label
+            update_fields.append("custom_terms_label")
+        if (tenant.custom_terms_body or "") != custom_terms_body:
+            tenant.custom_terms_body = custom_terms_body
+            update_fields.append("custom_terms_body")
         if request.FILES.get("tenant_logo"):
             tenant.logo = request.FILES["tenant_logo"]
             update_fields.append("logo")
@@ -576,6 +737,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             raise ValueError("No user rows to update")
 
         updated_count = 0
+        blocked_count = 0
         for user_id in user_ids:
             user = SaaSUser.objects.filter(id=user_id).first()
             if not user:
@@ -589,7 +751,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             email = (request.POST.get(f"email__{user_id}") or "").strip()
             role_raw = request.POST.get(f"role__{user_id}")
             role = role_raw if role_raw in ["ADMIN", "STAFF"] else user.role
-            is_active = request.POST.get(f"is_active__{user_id}") == "on"
+            requested_active = request.POST.get(f"is_active__{user_id}") == "on"
+
+            if user.role in {"STAFF", "ADMIN"} or role in {"STAFF", "ADMIN"}:
+                linked = self._ensure_staff_resource_binding(user, tenant)
+            else:
+                linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
+
+            profile = getattr(linked, "profile", None) if linked else None
+            can_enable_booking = bool(profile and getattr(profile, "platform_terms_agreed", False))
+            is_active = requested_active and can_enable_booking
+            if requested_active and not can_enable_booking:
+                blocked_count += 1
 
             update_fields = []
             if user.tenant_id is None:
@@ -612,16 +785,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 user.save(update_fields=update_fields)
                 updated_count += 1
 
-            if user.role in {"STAFF", "ADMIN"}:
-                linked = self._ensure_staff_resource_binding(user, tenant)
-            else:
-                linked = Resource.objects.filter(tenant=tenant, linked_user=user).first()
-
             if linked and linked.is_active != user.is_active:
                 linked.is_active = user.is_active
                 linked.save(update_fields=["is_active"])
 
-        return updated_count
+        return updated_count, blocked_count
 
     def _save_service_preset(self, request, tenant):
         service_id = (request.POST.get("service_id") or "").strip()
@@ -681,8 +849,13 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 self._save_cast_profile(request, tenant)
                 messages.success(request, "Cast CMS を更新しました。")
             elif request.POST.get("save_staff_batch") == "true" or request.POST.get("save_staff") == "true":
-                updated_count = self._save_staff_profiles_batch(request, tenant)
+                updated_count, blocked_count = self._save_staff_profiles_batch(request, tenant)
                 messages.success(request, f"ユーザー情報を更新しました（{updated_count} 件）。")
+                if blocked_count:
+                    messages.warning(
+                        request,
+                        f"{blocked_count} 件は、プロフィール画面でプラットフォーム利用規約への同意が未完了のため、予約対象として有効化されませんでした。",
+                    )
             elif request.POST.get("save_service") == "true":
                 self._save_service_preset(request, tenant)
                 messages.success(request, "サービスプリセットを保存しました。")
@@ -753,10 +926,13 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
             for u in staff_users:
                 linked_resource = resource_by_user_id.get(u.id)
+                linked_profile = getattr(linked_resource, "profile", None) if linked_resource else None
+                platform_terms_agreed = bool(linked_profile and getattr(linked_profile, "platform_terms_agreed", False))
                 staff_rows.append(
                     {
                         "user": u,
                         "linked_resource_name": linked_resource.name if linked_resource else "未割当",
+                        "platform_terms_agreed": platform_terms_agreed,
                     }
                 )
             upcoming_shifts = Availability.objects.filter(
@@ -866,6 +1042,20 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "default_service_name_prefill": default_service_name_prefill,
                 "tenant_name": tenant.name if tenant else "未設定店舗",
                 "tenant_contact_email": tenant.contact_email if tenant else "",
+                "booking_window_days": tenant.booking_window_days if tenant else 14,
+                "store_contract_label": tenant.store_contract_label if tenant else "店舗利用規約",
+                "store_contract_url": tenant.store_contract_url if tenant else "",
+                "required_customer_fields": _normalize_required_customer_fields(
+                    getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
+                ) if tenant else ["VRCID", "DISCORDID", "EMAIL"],
+                "custom_agreements_json": json.dumps(
+                    _normalize_agreement_modules(
+                        tenant.custom_terms_body if tenant else "",
+                        legacy_label=tenant.custom_terms_label if tenant else "",
+                        legacy_body=tenant.custom_terms_body if tenant else "",
+                    ),
+                    ensure_ascii=False,
+                ),
                 "tenant_logo_url": tenant_logo_url,
                 "public_booking_url": self._public_booking_url(tenant),
                 "recent_invites": recent_invites,

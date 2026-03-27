@@ -12,6 +12,12 @@ class Tenant(models.Model):
     slug = models.SlugField(unique=True) 
     contact_email = models.EmailField(blank=True, null=True)
     logo = models.ImageField(upload_to='tenant_logos/', blank=True, null=True)
+    booking_window_days = models.PositiveIntegerField(default=14)
+    store_contract_label = models.CharField(max_length=120, default='店舗利用規約')
+    store_contract_url = models.URLField(blank=True, null=True)
+    required_customer_fields = models.JSONField(default=list, blank=True)
+    custom_terms_label = models.CharField(max_length=120, blank=True, default='')
+    custom_terms_body = models.TextField(blank=True, default='')
     webhook_url = models.URLField(blank=True, null=True, help_text="预定成功后，系统会向此地址发送 POST 请求")
     
     # API 模式认证 (Phase 1 核心)

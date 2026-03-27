@@ -9,6 +9,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
@@ -132,22 +133,35 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
                 "profile_tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
                 "profile_avatar_url": profile.avatar_url if profile else "",
                 "profile_youtube_url": profile.youtube_url if profile else "",
+                "profile_platform_terms_agreed": profile.platform_terms_agreed if profile else False,
                 "allow_30_min": profile.allow_30_min if profile else False,
                 "allow_60_min": profile.allow_60_min if profile else True,
                 "allow_120_min": profile.allow_120_min if profile else False,
                 "service_presets": service_presets,
                 "selected_service_ids": selected_service_ids,
+                "platform_terms_url": (
+                    (tenant.store_contract_url or "").strip()
+                    if tenant and getattr(tenant, "store_contract_url", None)
+                    else reverse("dashboard_terms")
+                ),
             }
         )
         return context
 
     def post(self, request, *args, **kwargs):
+        resource = self._profile_resource()
+        if resource:
+            tenant = self._tenant()
+            agreed = request.POST.get("platform_terms_agreed") == "on"
+            if not agreed:
+                messages.error(request, "プロフィールを保存するには、プラットフォーム利用規約への同意が必要です。")
+                return redirect("shared_profile")
+
         user = request.user
         user.username = (request.POST.get("username") or user.username).strip() or user.username
         user.email = (request.POST.get("email") or "").strip()
         user.save(update_fields=["username", "email"])
 
-        resource = self._profile_resource()
         if resource:
             tenant = self._tenant()
             profile, _ = ResourceProfile.objects.get_or_create(resource=resource)
@@ -167,6 +181,7 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
             profile.youtube_url = (request.POST.get("profile_youtube_url") or "").strip() or None
             profile.tags = parsed_tags
             profile.metadata = metadata
+            profile.platform_terms_agreed = True
             profile.allow_30_min = 30 in selected_durations
             profile.allow_60_min = 60 in selected_durations
             profile.allow_120_min = 120 in selected_durations

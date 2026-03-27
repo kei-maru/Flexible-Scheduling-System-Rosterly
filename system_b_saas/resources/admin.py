@@ -24,8 +24,8 @@ class ResourceAdmin(admin.ModelAdmin):
 
 @admin.register(ResourceProfile)
 class ResourceProfileAdmin(admin.ModelAdmin):
-    list_display = ('resource', 'display_order', 'allow_30_min', 'allow_60_min', 'allow_120_min')
-    list_filter = ('allow_30_min', 'allow_60_min', 'allow_120_min')
+    list_display = ('resource', 'platform_terms_agreed', 'display_order', 'allow_30_min', 'allow_60_min', 'allow_120_min')
+    list_filter = ('platform_terms_agreed', 'allow_30_min', 'allow_60_min', 'allow_120_min')
     search_fields = ('resource__name', 'resource__external_id')
 
 

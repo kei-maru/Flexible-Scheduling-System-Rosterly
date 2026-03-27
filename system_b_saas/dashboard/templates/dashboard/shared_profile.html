@@ -85,22 +85,29 @@
                 {% if profile_resource %}
                 <p class="mt-1 text-xs text-slate-500">紐付けリソース: {{ profile_resource.name }}</p>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
-                    <div class="md:col-span-2">
-                        <label class="mb-1 block text-xs text-slate-500">プロフィール画像</label>
+                    <div>
+                        <label class="mb-1 block text-xs text-slate-500">アイコン</label>
                         <div class="rounded-md border border-slate-200 bg-white p-3">
-                            <div class="mb-3 flex items-center gap-3">
+                            <div class="mb-2 flex items-center gap-3">
                                 {% if profile_avatar_url %}
-                                <img src="{{ profile_avatar_url }}" alt="current avatar" class="h-16 w-16 rounded-full border border-slate-200 object-cover">
+                                <img src="{{ profile_avatar_url }}" alt="current avatar" class="h-10 w-10 rounded-full border border-slate-200 object-cover">
                                 {% else %}
-                                <span class="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500">未設定</span>
+                                <span class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-[10px] text-slate-500">未設定</span>
                                 {% endif %}
-                                <p class="text-xs text-slate-500">予約時にお客様へ表示される画像です。</p>
+                                <p class="text-xs text-slate-500">予約画面に表示される画像です。</p>
                             </div>
                             <input type="file" name="profile_avatar_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-full file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-300">
                             <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-600">
                                 <input type="checkbox" name="profile_avatar_clear" class="accent-slate-700">
                                 画像を削除
                             </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-slate-500">タグ</label>
+                        <div class="rounded-md border border-slate-200 bg-white p-3">
+                            <input type="text" name="profile_tags" value="{{ profile_tags_text|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: 深夜対応, 英語OK, 初心者歓迎">
+                            <p class="mt-2 text-xs text-slate-500">カンマ区切りで入力してください。</p>
                         </div>
                     </div>
                     <div class="md:col-span-2">
@@ -110,10 +117,6 @@
                     <div>
                         <label class="mb-1 block text-xs text-slate-500">YouTube URL</label>
                         <input type="url" name="profile_youtube_url" value="{{ profile_youtube_url|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="mb-1 block text-xs text-slate-500">タグ（カンマ区切り）</label>
-                        <input type="text" name="profile_tags" value="{{ profile_tags_text|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: 深夜対応, 英語OK, 初心者歓迎">
                     </div>
                     <div class="md:col-span-2">
                         <label class="mb-2 block text-xs text-slate-500">対応サービス（予約可能）</label>
@@ -137,12 +140,34 @@
                 {% endif %}
             </div>
 
+            {% if profile_resource %}
+            <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <label class="inline-flex items-start gap-2 text-sm text-slate-700">
+                    <input type="checkbox" name="platform_terms_agreed" class="mt-1 h-4 w-4 accent-indigo-600" {% if profile_platform_terms_agreed %}checked{% endif %} required>
+                    <span>
+                        <button type="button" id="open-terms-modal" class="text-indigo-700 underline hover:text-indigo-900">利用規約</button>
+                        に同意します。<span class="ml-1 text-xs text-rose-600">※同意しない場合は保存できません</span>
+                    </span>
+                </label>
+            </div>
+            {% endif %}
+
             <div class="pt-2">
                 <button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">保存する</button>
             </div>
         </form>
     </section>
 </main>
+
+<div id="terms-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 px-4">
+    <div class="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+        <div class="mb-3 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-slate-900">利用規約</h3>
+            <button type="button" id="close-terms-modal" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">閉じる</button>
+        </div>
+        <iframe src="{{ platform_terms_url }}" class="h-[65vh] w-full rounded-md border border-slate-200"></iframe>
+    </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -179,6 +204,26 @@ document.addEventListener('DOMContentLoaded', function () {
             if (event.key === 'Escape') closeMenu();
         });
     });
+
+    const openBtn = document.getElementById('open-terms-modal');
+    const closeBtn = document.getElementById('close-terms-modal');
+    const modal = document.getElementById('terms-modal');
+    if (openBtn && closeBtn && modal) {
+        openBtn.addEventListener('click', function () {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        });
+        closeBtn.addEventListener('click', function () {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        });
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        });
+    }
 });
 </script>
 </body>

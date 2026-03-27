@@ -16,6 +16,10 @@ def allow_local_fallback():
     return bool(getattr(settings, "CAST_SOURCE_FALLBACK_LOCAL", True))
 
 
+def skip_local_link():
+    return bool(getattr(settings, "CAST_SOURCE_SKIP_LOCAL_LINK", False))
+
+
 def _safe_tags(tags):
     if isinstance(tags, list):
         return tags
@@ -118,23 +122,31 @@ def get_public_casts():
             client = SaaSClient()
             rows = client.get_resources(active_only=True)
             casts = [RemoteCastAdapter(row) for row in rows if row.get("id")]
-            local_profiles = list(CastProfile.objects.select_related("user").all())
-            local_by_saas_id = {
-                str(cp.saas_resource_id): cp
-                for cp in local_profiles
-                if cp.saas_resource_id
-            }
-            local_by_user_id = {
-                str(cp.user.id): cp
-                for cp in local_profiles
-            }
-            for cast in casts:
-                linked_profile = (
-                    local_by_saas_id.get(str(cast.saas_resource_id))
-                    or local_by_user_id.get(str(cast.external_id))
-                )
-                if linked_profile:
-                    cast.attach_local_profile(linked_profile)
+
+            # Emergency-safe behavior: if local profile tables are missing/broken,
+            # still return remote casts instead of failing the whole page.
+            if casts and not skip_local_link():
+                try:
+                    local_profiles = list(CastProfile.objects.select_related("user").all())
+                    local_by_saas_id = {
+                        str(cp.saas_resource_id): cp
+                        for cp in local_profiles
+                        if cp.saas_resource_id
+                    }
+                    local_by_user_id = {
+                        str(cp.user.id): cp
+                        for cp in local_profiles
+                    }
+                    for cast in casts:
+                        linked_profile = (
+                            local_by_saas_id.get(str(cast.saas_resource_id))
+                            or local_by_user_id.get(str(cast.external_id))
+                        )
+                        if linked_profile:
+                            cast.attach_local_profile(linked_profile)
+                except Exception as local_exc:
+                    print(f"[CastSource] Local link skipped due to error: {local_exc}")
+
             casts.sort(key=lambda c: (c.display_order, c.name.lower()))
             if casts:
                 return casts

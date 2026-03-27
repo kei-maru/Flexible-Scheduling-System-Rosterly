@@ -115,6 +115,9 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if user.is_staff != desired_is_staff:
             user.is_staff = desired_is_staff
             update_fields.append("is_staff")
+        if desired_is_staff and not user.is_active:
+            user.is_active = True
+            update_fields.append("is_active")
 
         if update_fields:
             user.save(update_fields=update_fields)
@@ -228,6 +231,9 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if user.is_staff != (desired_role in {"ADMIN", "STAFF"}):
             user.is_staff = desired_role in {"ADMIN", "STAFF"}
             update_fields.append("is_staff")
+        if desired_role in {"ADMIN", "STAFF"} and not user.is_active:
+            user.is_active = True
+            update_fields.append("is_active")
 
         if update_fields:
             user.save(update_fields=update_fields)

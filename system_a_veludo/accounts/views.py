@@ -100,7 +100,7 @@ def _upsert_shadow_user(identity_payload: dict):
     discord_uid = (identity_payload.get('discord_uid') or '').strip()
     username_from_b = (identity_payload.get('username') or '').strip()
     saas_tenant_id = identity_payload.get('tenant_id')
-    saas_role = identity_payload.get('role')
+    saas_role = (identity_payload.get('role') or '').strip().upper()
 
     if not saas_user_id:
         raise ValueError('Missing user_id from SSO payload')
@@ -129,8 +129,20 @@ def _upsert_shadow_user(identity_payload: dict):
 
     user.saas_user_id = saas_user_id
     user.saas_tenant_id = str(saas_tenant_id) if saas_tenant_id else None
-    user.saas_role = str(saas_role) if saas_role else None
-    user.is_staff = user.is_staff or (user.saas_role == 'ADMIN')
+    user.saas_role = saas_role if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'} else None
+
+    # Keep local admin flag aligned with remote SSO role to avoid sticky staff drift.
+    if user.saas_role == 'ADMIN':
+        user.is_staff = True
+    else:
+        user.is_staff = False
+
+    # A-side cast staff should align with SaaS STAFF role.
+    if user.saas_role == 'STAFF':
+        user.is_cast = True
+    elif user.saas_role in {'ADMIN', 'CONSUMER'}:
+        user.is_cast = False
+
     user.save()
     return user
 
@@ -164,7 +176,11 @@ def sso_login(request):
 
     role_hint = 'CONSUMER'
     if request.user.is_authenticated:
-        if request.user.is_superuser or (request.user.is_staff and not getattr(request.user, 'is_cast', False)):
+        # Prefer the last synchronized SaaS role when available to reduce local flag drift.
+        saas_role = (getattr(request.user, 'saas_role', '') or '').strip().upper()
+        if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'}:
+            role_hint = saas_role
+        elif request.user.is_superuser or (request.user.is_staff and not getattr(request.user, 'is_cast', False)):
             role_hint = 'ADMIN'
         elif getattr(request.user, 'is_cast', False):
             role_hint = 'STAFF'

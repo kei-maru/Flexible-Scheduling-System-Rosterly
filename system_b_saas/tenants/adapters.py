@@ -63,12 +63,26 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
     def _public_sso_tenant_slug(self) -> str:
         return str(getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_SLUG", "Veludo") or "Veludo").strip()
 
+    def _public_sso_tenant_name(self) -> str:
+        return str(
+            getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_NAME", "VR ASMR Salon Veludo")
+            or "VR ASMR Salon Veludo"
+        ).strip()
+
     def _resolve_public_sso_tenant(self):
         slug = self._public_sso_tenant_slug()
         tenant = Tenant.objects.filter(slug=slug).first()
         if tenant:
             return tenant
-        return Tenant.objects.filter(slug__iexact=slug).first()
+        tenant = Tenant.objects.filter(slug__iexact=slug).first()
+        if tenant:
+            return tenant
+
+        tenant_name = self._public_sso_tenant_name()
+        tenant = Tenant.objects.filter(name=tenant_name).first()
+        if tenant:
+            return tenant
+        return Tenant.objects.filter(name__iexact=tenant_name).first()
 
     def _sync_public_sso_role(self, user, role_hint: str):
         if user is None or user.is_superuser:
@@ -87,6 +101,13 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         elif not user.tenant_id and public_tenant:
             user.tenant = public_tenant
             update_fields.append("tenant")
+        elif not user.tenant_id and not public_tenant:
+            logger.warning(
+                "public sso role sync: desired role=%s but no public tenant resolved (slug=%s, name=%s)",
+                desired_role,
+                self._public_sso_tenant_slug(),
+                self._public_sso_tenant_name(),
+            )
 
         if user.role != desired_role:
             user.role = desired_role

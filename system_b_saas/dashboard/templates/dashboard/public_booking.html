@@ -253,6 +253,8 @@
   const confirmSubmitBtn = document.getElementById('confirm-submit');
   const slotLockHint = document.getElementById('slot-lock-hint');
   const slotsSection = document.getElementById('slots-section');
+  const defaultSlotsParent = slotsSection ? slotsSection.parentElement : null;
+  const resourceGrid = document.getElementById('resource-grid');
   let currentMode = 'cast';
 
   let currentSlots = [];
@@ -294,11 +296,21 @@
       .trim();
   }
 
+  function moveSlotsToDefault() {
+    if (!slotsSection || !defaultSlotsParent) return;
+    defaultSlotsParent.appendChild(slotsSection);
+  }
+
   function closeProfileSheet() {
     if (!profileSheet) return;
     profileSheet.classList.remove('open');
-    if (currentMode === 'time' && slotsSection) {
-      slotsSection.classList.add('hidden');
+    if (slotsSection) {
+      if (currentMode === 'time') {
+        slotsSection.classList.add('hidden');
+      } else {
+        moveSlotsToDefault();
+        slotsSection.classList.remove('hidden');
+      }
     }
     window.setTimeout(() => {
       if (!profileSheet.classList.contains('open')) {
@@ -340,7 +352,8 @@
     profileSheet.classList.remove('open');
     requestAnimationFrame(() => {
       profileSheet.classList.add('open');
-      if (currentMode === 'time' && slotsSection) {
+      if (slotsSection) {
+        profileSheet.insertAdjacentElement('afterend', slotsSection);
         slotsSection.classList.remove('hidden');
       }
     });
@@ -442,9 +455,6 @@
     if (profileSheet && button.parentNode) {
       button.insertAdjacentElement('afterend', profileSheet);
       profileSheet.style.gridColumn = '1 / -1';
-      if (currentMode === 'time' && slotsSection) {
-        profileSheet.insertAdjacentElement('afterend', slotsSection);
-      }
     }
     showProfile(resource);
     loadSlotsForResource(button.dataset.resourceId);
@@ -462,12 +472,21 @@
       castBtn.classList.remove('active');
       timeBtn.classList.add('active');
       currentMode = 'time';
+      if (slotsSection) slotsSection.classList.add('hidden');
     } else {
       timeMode.classList.add('hidden');
       castMode.classList.remove('hidden');
       timeBtn.classList.remove('active');
       castBtn.classList.add('active');
       currentMode = 'cast';
+      if (slotsSection) {
+        slotsSection.classList.remove('hidden');
+        if (profileSheet && profileSheet.classList.contains('open')) {
+          profileSheet.insertAdjacentElement('afterend', slotsSection);
+        } else {
+          moveSlotsToDefault();
+        }
+      }
     }
   };
 
@@ -541,7 +560,7 @@
       row.dataset.avatar = resource.avatar || '';
       row.innerHTML = `
         <div class="flex items-center gap-3">
-          ${resource.avatar ? `<img src="${resource.avatar}" alt="avatar" class="h-10 w-10 rounded-md bg-slate-100 object-contain">` : `<span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">${(resource.name || '-').slice(0, 1).toUpperCase()}</span>`}
+          ${resource.avatar ? `<img src="${resource.avatar}" alt="avatar" class="h-10 w-10 rounded-full object-cover">` : `<span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">${(resource.name || '-').slice(0, 1).toUpperCase()}</span>`}
           <span class="text-sm font-semibold text-slate-800">${resource.name || '-'}</span>
         </div>
       `;

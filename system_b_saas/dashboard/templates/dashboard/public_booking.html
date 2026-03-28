@@ -9,8 +9,8 @@
     <style>
         .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 14px 34px -26px rgba(15, 23, 42, .45); }
         .mode-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
-        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transition: max-height .35s ease, opacity .25s ease; }
-        .profile-sheet.open { max-height: 260px; opacity: 1; }
+      .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-6px); transition: max-height .45s ease, opacity .35s ease, transform .45s ease; }
+      .profile-sheet.open { max-height: 360px; opacity: 1; transform: translateY(0); }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
@@ -80,15 +80,18 @@
                     {% endfor %}
                 </div>
 
-                <div id="resource-profile-sheet" class="profile-sheet mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div class="flex gap-3">
-                    <div class="shrink-0">
-                      <img id="profile-avatar" src="" alt="avatar" class="hidden h-12 w-12 rounded-full object-cover">
-                      <span id="profile-avatar-fallback" class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">--</span>
+                <div id="resource-profile-sheet" class="profile-sheet mt-3 rounded-lg border border-slate-200 bg-white">
+                  <div class="grid grid-cols-1 gap-4 p-4 md:grid-cols-[180px,1fr]">
+                    <div>
+                      <img id="profile-poster" src="" alt="poster" class="hidden h-44 w-full rounded-md object-cover">
+                      <div id="profile-poster-fallback" class="flex h-44 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">NO IMAGE</div>
                     </div>
                     <div class="min-w-0">
-                      <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
-                      <p id="profile-intro" class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">プロフィールは未設定です。</p>
+                      <div class="flex items-center justify-between gap-2">
+                        <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
+                        <a id="profile-youtube" href="#" target="_blank" rel="noopener" class="hidden rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i class="fa-brands fa-youtube mr-1"></i> YouTube</a>
+                      </div>
+                      <p id="profile-intro" class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">プロフィールは未設定です。</p>
                     </div>
                   </div>
                 </div>
@@ -238,8 +241,9 @@
   const profileSheet = document.getElementById('resource-profile-sheet');
   const profileName = document.getElementById('profile-name');
   const profileIntro = document.getElementById('profile-intro');
-  const profileAvatar = document.getElementById('profile-avatar');
-  const profileAvatarFallback = document.getElementById('profile-avatar-fallback');
+  const profilePoster = document.getElementById('profile-poster');
+  const profilePosterFallback = document.getElementById('profile-poster-fallback');
+  const profileYoutube = document.getElementById('profile-youtube');
   const confirmModal = document.getElementById('confirm-modal');
   const confirmSubmitBtn = document.getElementById('confirm-submit');
   const slotLockHint = document.getElementById('slot-lock-hint');
@@ -269,6 +273,17 @@
     return local.toISOString().slice(0, 16);
   }
 
+  function normalizeIntro(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/\\u000[aA]/g, '\n')
+      .replace(/\\u000[dD]/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .trim();
+  }
+
   function showProfile(resource) {
     if (!profileSheet || !resource) return;
     const alreadyOpen = profileSheet.classList.contains('open');
@@ -278,17 +293,24 @@
     }
     activeResourceId = resource.id;
     profileName.textContent = resource.name || '--';
-    profileIntro.textContent = resource.intro || 'プロフィールは未設定です。';
-    if (profileAvatar && profileAvatarFallback) {
+    profileIntro.textContent = normalizeIntro(resource.intro) || 'プロフィールは未設定です。';
+    if (profilePoster && profilePosterFallback) {
       if (resource.avatar) {
-        profileAvatar.src = resource.avatar;
-        profileAvatar.classList.remove('hidden');
-        profileAvatarFallback.classList.add('hidden');
+        profilePoster.src = resource.avatar;
+        profilePoster.classList.remove('hidden');
+        profilePosterFallback.classList.add('hidden');
       } else {
-        profileAvatar.src = '';
-        profileAvatar.classList.add('hidden');
-        profileAvatarFallback.textContent = (resource.name || '--').slice(0, 1).toUpperCase();
-        profileAvatarFallback.classList.remove('hidden');
+        profilePoster.src = '';
+        profilePoster.classList.add('hidden');
+        profilePosterFallback.classList.remove('hidden');
+      }
+    }
+    if (profileYoutube) {
+      if (resource.youtube) {
+        profileYoutube.href = resource.youtube;
+        profileYoutube.classList.remove('hidden');
+      } else {
+        profileYoutube.classList.add('hidden');
       }
     }
     profileSheet.classList.add('open');
@@ -379,6 +401,7 @@
     const resource = resources.find((r) => r.id === button.dataset.resourceId);
     if (profileSheet && button.parentNode) {
       button.insertAdjacentElement('afterend', profileSheet);
+      profileSheet.style.gridColumn = '1 / -1';
     }
     showProfile(resource);
     loadSlotsForResource(button.dataset.resourceId);

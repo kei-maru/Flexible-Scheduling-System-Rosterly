@@ -1225,6 +1225,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "service_name_suggestions_json": json.dumps(service_name_suggestions, ensure_ascii=False),
                 "default_service_name_prefill": default_service_name_prefill,
                 "tenant_name": tenant.name if tenant else "未設定店舗",
+                "tenant_slug": tenant.slug if tenant else "",
                 "tenant_contact_email": tenant.contact_email if tenant else "",
                 "store_type": (tenant.store_type if tenant else "FLEX_SHIFT"),
                 "is_core_time_store": _is_core_time_store(tenant) if tenant else False,

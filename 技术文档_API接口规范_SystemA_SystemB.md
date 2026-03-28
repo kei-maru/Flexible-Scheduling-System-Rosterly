@@ -270,6 +270,16 @@
 - Query：
   - `active_only=true|false`（可选）
   - `external_id=<system_a_user_id>`（可选）
+- 公开预约页展示约定（2026-03-28 补充）：
+  - `profile.avatar_url`：作为 Cast 卡片头像与介绍卡 `poster` 图片来源。
+  - `profile.tags`：用于介绍卡标签区展示（位于展示名与介绍文之间）。
+  - 若 `avatar_url` 无效/加载失败，前端需回退到占位图（`NO IMAGE`）。
+
+#### 员工显示名同步规则（2026-03-28）
+
+- 认证用户名（`SaaSUser.username`）继续保留全局唯一约束。
+- 租户内展示名使用 `SaaSUser.first_name` 作为优先来源。
+- 资源绑定同步时，`Resource.name` 优先对齐显示名（`first_name`），无显示名时回退 `username`。
 
 #### `GET /api/v1/integration/resources/<resource_uuid>/`
 

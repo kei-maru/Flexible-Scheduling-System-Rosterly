@@ -62,6 +62,16 @@ def _discord_uid(user):
     return str(uid).strip() if uid else ""
 
 
+def _desired_resource_name(user):
+    if user is None:
+        return ""
+    # Use display name first so tenant-facing resource names can differ from auth username.
+    display_name = (getattr(user, "first_name", "") or "").strip()
+    if display_name:
+        return display_name
+    return (getattr(user, "username", "") or "").strip()
+
+
 def migrate_staff_schedule_data(tenant, user, target_resource, identity_keys=None):
     if not tenant or not user or not target_resource:
         return
@@ -130,7 +140,7 @@ def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
     linked = Resource.objects.filter(tenant=tenant_obj, linked_user=user).first()
     if linked:
         update_fields = []
-        desired_name = (user.username or "").strip()
+        desired_name = _desired_resource_name(user)
         if desired_name and linked.name != desired_name:
             linked.name = desired_name
             update_fields.append("name")
@@ -175,8 +185,9 @@ def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
     if reusable:
         reusable.linked_user = user
         update_fields = ["linked_user"]
-        if user.username and reusable.name != user.username:
-            reusable.name = user.username
+        desired_name = _desired_resource_name(user)
+        if desired_name and reusable.name != desired_name:
+            reusable.name = desired_name
             update_fields.append("name")
         if user.email and reusable.email != user.email:
             reusable.email = user.email
@@ -197,7 +208,7 @@ def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
     if not allow_create:
         return None
 
-    base_name = (user.username or "").strip() or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
+    base_name = _desired_resource_name(user) or (user.email or "").split("@")[0].strip() or f"staff-{user.id}"
     candidate = base_name[:90]
     suffix = 2
     while Resource.objects.filter(tenant=tenant_obj, name=candidate).exclude(linked_user=user).exists():

@@ -78,7 +78,8 @@
                       type="button"
                       data-resource-id="{{ r.id }}"
                       data-name="{{ r.name|escapejs }}"
-                      data-avatar="{% if r.profile and r.profile.avatar_url %}{{ r.profile.avatar_url|escapejs }}{% endif %}"
+                      data-avatar="{% if r.profile and r.profile.avatar_url %}{{ r.profile.avatar_url }}{% endif %}"
+                      data-tags="{% if r.profile and r.profile.tags %}{{ r.profile.tags|join:',' }}{% endif %}"
                       data-intro="{% if r.profile %}{{ r.profile.intro|default:''|escapejs }}{% endif %}"
                       data-youtube="{% if r.profile %}{{ r.profile.youtube_url|default:''|escapejs }}{% endif %}"
                       data-service-ids="{% if r.profile and r.profile.metadata and r.profile.metadata.service_preset_ids %}{{ r.profile.metadata.service_preset_ids|join:',' }}{% endif %}"
@@ -109,6 +110,7 @@
                       <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
                       <a id="profile-youtube" href="#" target="_blank" rel="noopener" class="hidden rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i class="fa-brands fa-youtube mr-1"></i> YouTube</a>
                       </div>
+                        <div id="profile-tags" class="mt-2 flex flex-wrap gap-2"></div>
                         <p id="profile-intro" class="profile-intro mt-2 whitespace-pre-line text-sm leading-6 text-slate-600"></p>
                     </div>
                     </div>
@@ -248,6 +250,7 @@
     id: el.dataset.resourceId,
     name: el.dataset.name || '',
     avatar: el.dataset.avatar || '',
+    tags: (el.dataset.tags || '').split(',').map((t) => t.trim()).filter(Boolean),
     intro: el.dataset.intro || '',
     youtube: el.dataset.youtube || '',
     serviceIds: (el.dataset.serviceIds || '').split(',').filter(Boolean),
@@ -264,6 +267,7 @@
   const result = document.getElementById('result');
   const profileSheet = document.getElementById('resource-profile-sheet');
   const profileName = document.getElementById('profile-name');
+  const profileTags = document.getElementById('profile-tags');
   const profileIntro = document.getElementById('profile-intro');
   const profilePoster = document.getElementById('profile-poster');
   const profilePosterFallback = document.getElementById('profile-poster-fallback');
@@ -421,12 +425,29 @@
     }
     activeResourceId = resource.id;
     profileName.textContent = normalizeName(resource.name) || '--';
+    if (profileTags) {
+      profileTags.innerHTML = '';
+      const tags = Array.isArray(resource.tags) ? resource.tags : [];
+      tags.forEach((tag) => {
+        const chip = document.createElement('span');
+        chip.className = 'inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700';
+        chip.textContent = tag;
+        profileTags.appendChild(chip);
+      });
+    }
     profileIntro.textContent = normalizeIntro(resource.intro) || 'プロフィールは未設定です。';
     if (profilePoster && profilePosterFallback) {
       if (resource.avatar) {
+        profilePoster.onload = function () {
+          profilePoster.classList.remove('hidden');
+          profilePosterFallback.classList.add('hidden');
+        };
+        profilePoster.onerror = function () {
+          profilePoster.src = '';
+          profilePoster.classList.add('hidden');
+          profilePosterFallback.classList.remove('hidden');
+        };
         profilePoster.src = resource.avatar;
-        profilePoster.classList.remove('hidden');
-        profilePosterFallback.classList.add('hidden');
       } else {
         profilePoster.src = '';
         profilePoster.classList.add('hidden');

@@ -9,8 +9,12 @@
     <style>
         .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 14px 34px -26px rgba(15, 23, 42, .45); }
         .mode-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
-      .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-6px); transition: max-height .45s ease, opacity .35s ease, transform .45s ease; }
-      .profile-sheet.open { max-height: 360px; opacity: 1; transform: translateY(0); }
+      .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-8px); transition: max-height .95s ease, opacity .7s ease, transform .95s ease; }
+      .profile-sheet.open { max-height: 900px; opacity: 1; transform: translateY(0); }
+      .profile-poster-wrap { opacity: 0; transform: translateY(-10px); transition: opacity .6s ease, transform .6s ease; }
+      .profile-intro { opacity: 0; transform: translateY(-12px); transition: opacity .7s ease, transform .7s ease; }
+      .profile-sheet.open .profile-poster-wrap { opacity: 1; transform: translateY(0); transition-delay: .12s; }
+      .profile-sheet.open .profile-intro { opacity: 1; transform: translateY(0); transition-delay: .32s; }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
@@ -68,7 +72,7 @@
                         onclick="pickResource(this)">
                         <div class="flex items-center gap-3">
                             {% if r.profile and r.profile.avatar_url %}
-                            <img src="{{ r.profile.avatar_url }}" alt="avatar" class="h-10 w-10 rounded-full object-cover">
+                            <img src="{{ r.profile.avatar_url }}" alt="avatar" class="h-10 w-10 rounded-md bg-slate-100 object-contain">
                             {% else %}
                             <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ r.name|slice:':1'|upper }}</span>
                             {% endif %}
@@ -81,22 +85,22 @@
                 </div>
 
                 <div id="resource-profile-sheet" class="profile-sheet mt-3 rounded-lg border border-slate-200 bg-white">
-                  <div class="grid grid-cols-1 gap-4 p-4 md:grid-cols-[180px,1fr]">
-                    <div>
-                      <img id="profile-poster" src="" alt="poster" class="hidden h-44 w-full rounded-md object-cover">
-                      <div id="profile-poster-fallback" class="flex h-44 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">NO IMAGE</div>
+                  <div class="grid grid-cols-1 gap-4 p-4 md:grid-cols-[220px,1fr]">
+                    <div class="profile-poster-wrap">
+                      <img id="profile-poster" src="" alt="poster" class="hidden h-52 w-full rounded-md bg-slate-100 object-contain">
+                      <div id="profile-poster-fallback" class="flex h-52 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">NO IMAGE</div>
                     </div>
                     <div class="min-w-0">
                       <div class="flex items-center justify-between gap-2">
                         <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
                         <a id="profile-youtube" href="#" target="_blank" rel="noopener" class="hidden rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i class="fa-brands fa-youtube mr-1"></i> YouTube</a>
                       </div>
-                      <p id="profile-intro" class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">プロフィールは未設定です。</p>
+                            <p id="profile-intro" class="profile-intro mt-2 whitespace-pre-line text-sm leading-6 text-slate-600"></p>
                     </div>
                   </div>
                 </div>
 
-                <div class="mt-6">
+                <div id="slots-section" class="mt-6">
                     <h2 class="mb-3 text-base font-semibold">空き枠（次の{{ booking_window_days|default:14 }}日）</h2>
                     <div id="slots" class="grid gap-2"></div>
                     <p id="slots-empty" class="hidden rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">空き枠がありません。</p>
@@ -229,6 +233,7 @@
     name: el.dataset.name || '',
     avatar: el.dataset.avatar || '',
     intro: el.dataset.intro || '',
+    youtube: el.dataset.youtube || '',
     el,
   }));
 
@@ -247,10 +252,13 @@
   const confirmModal = document.getElementById('confirm-modal');
   const confirmSubmitBtn = document.getElementById('confirm-submit');
   const slotLockHint = document.getElementById('slot-lock-hint');
+  const slotsSection = document.getElementById('slots-section');
+  let currentMode = 'cast';
 
   let currentSlots = [];
   let selectedSlot = null;
   let activeResourceId = '';
+  let preferredStartIso = '';
 
   function selectedDurationMinutes() {
     const selected = document.querySelector('#service_id option:checked');
@@ -279,8 +287,10 @@
       .replace(/\\u000[aA]/g, '\n')
       .replace(/\\u000[dD]/g, '\n')
       .replace(/\\n/g, '\n')
+      .replace(/\\u002D/g, '-')
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
 
@@ -313,7 +323,10 @@
         profileYoutube.classList.add('hidden');
       }
     }
-    profileSheet.classList.add('open');
+    profileSheet.classList.remove('open');
+    requestAnimationFrame(() => {
+      profileSheet.classList.add('open');
+    });
   }
 
   async function loadSlotsForResource(resourceId) {
@@ -348,6 +361,16 @@
         if (slotLockHint) slotLockHint.classList.remove('hidden');
         refreshStartOptions();
       });
+      if (preferredStartIso) {
+        const slotStart = new Date(slot.start);
+        const slotEnd = new Date(slot.end);
+        const preferred = new Date(preferredStartIso);
+        if (preferred.getTime() >= slotStart.getTime() && preferred.getTime() <= slotEnd.getTime()) {
+          selectedSlot = { start: slot.start, end: slot.end };
+          row.classList.add('border-indigo-400', 'bg-indigo-50');
+          if (slotLockHint) slotLockHint.classList.remove('hidden');
+        }
+      }
       slotsBox.appendChild(row);
     });
 
@@ -402,6 +425,9 @@
     if (profileSheet && button.parentNode) {
       button.insertAdjacentElement('afterend', profileSheet);
       profileSheet.style.gridColumn = '1 / -1';
+      if (currentMode === 'time' && slotsSection) {
+        profileSheet.insertAdjacentElement('afterend', slotsSection);
+      }
     }
     showProfile(resource);
     loadSlotsForResource(button.dataset.resourceId);
@@ -418,11 +444,13 @@
       timeMode.classList.remove('hidden');
       castBtn.classList.remove('active');
       timeBtn.classList.add('active');
+      currentMode = 'time';
     } else {
       timeMode.classList.add('hidden');
       castMode.classList.remove('hidden');
       timeBtn.classList.remove('active');
       castBtn.classList.add('active');
+      currentMode = 'cast';
     }
   };
 
@@ -488,20 +516,27 @@
     matched.forEach((resource) => {
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm hover:border-indigo-300 hover:bg-indigo-50';
-      row.textContent = resource.name;
+      row.className = 'resource-card w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50';
+      row.dataset.resourceId = resource.id;
+      row.dataset.name = resource.name || '';
+      row.dataset.intro = resource.intro || '';
+      row.dataset.youtube = resource.youtube || '';
+      row.dataset.avatar = resource.avatar || '';
+      row.innerHTML = `
+        <div class="flex items-center gap-3">
+          ${resource.avatar ? `<img src="${resource.avatar}" alt="avatar" class="h-10 w-10 rounded-md bg-slate-100 object-contain">` : `<span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">${(resource.name || '-').slice(0, 1).toUpperCase()}</span>`}
+          <span class="text-sm font-semibold text-slate-800">${resource.name || '-'}</span>
+        </div>
+      `;
       row.addEventListener('click', () => {
-        switchMode('cast');
-        const card = resources.find((r) => r.id === resource.id);
-        if (card) {
-          window.pickResource(card.el);
-          const selectedLocal = toLocalDatetimeValue(base);
-          setTimeout(() => {
-            syncSearchService();
-            const option = Array.from(startSelect.options).find((o) => o.value === selectedLocal);
-            if (option) startSelect.value = selectedLocal;
-          }, 120);
-        }
+        preferredStartIso = base.toISOString();
+        window.pickResource(row);
+        const selectedLocal = toLocalDatetimeValue(base);
+        setTimeout(() => {
+          syncSearchService();
+          const option = Array.from(startSelect.options).find((o) => o.value === selectedLocal);
+          if (option) startSelect.value = selectedLocal;
+        }, 200);
       });
       results.appendChild(row);
     });

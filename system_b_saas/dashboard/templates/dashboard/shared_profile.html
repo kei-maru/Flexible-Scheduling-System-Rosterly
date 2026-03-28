@@ -90,9 +90,9 @@
                         <div class="rounded-md border border-slate-200 bg-white p-3">
                             <div class="mb-2 flex items-center gap-3">
                                 {% if profile_avatar_url %}
-                                <img src="{{ profile_avatar_url }}" alt="current avatar" class="h-10 w-10 rounded-full border border-slate-200 object-cover">
+                                <img src="{{ profile_avatar_url }}" alt="current avatar" class="h-16 w-16 rounded-md border border-slate-200 bg-slate-100 object-contain">
                                 {% else %}
-                                <span class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-slate-300 text-[10px] text-slate-500">未設定</span>
+                                <span class="flex h-16 w-16 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-500">未設定</span>
                                 {% endif %}
                                 <p class="text-xs text-slate-500">予約画面に表示される画像です。</p>
                             </div>

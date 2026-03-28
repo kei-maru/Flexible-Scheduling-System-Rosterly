@@ -81,6 +81,7 @@
                       data-avatar="{% if r.profile and r.profile.avatar_url %}{{ r.profile.avatar_url|escapejs }}{% endif %}"
                       data-intro="{% if r.profile %}{{ r.profile.intro|default:''|escapejs }}{% endif %}"
                       data-youtube="{% if r.profile %}{{ r.profile.youtube_url|default:''|escapejs }}{% endif %}"
+                      data-service-ids="{% if r.profile and r.profile.metadata and r.profile.metadata.service_preset_ids %}{{ r.profile.metadata.service_preset_ids|join:',' }}{% endif %}"
                       class="resource-card rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
                       onclick="pickResource(this)">
                       <div class="flex items-center gap-3">
@@ -249,6 +250,7 @@
     avatar: el.dataset.avatar || '',
     intro: el.dataset.intro || '',
     youtube: el.dataset.youtube || '',
+    serviceIds: (el.dataset.serviceIds || '').split(',').filter(Boolean),
     el,
   }));
 
@@ -256,6 +258,8 @@
   const slotsBox = document.getElementById('slots');
   const slotsEmpty = document.getElementById('slots-empty');
   const startSelect = document.getElementById('start_time');
+  const serviceSelect = document.getElementById('service_id');
+  const searchServiceSelect = document.getElementById('search-service');
   const form = document.getElementById('booking-form');
   const result = document.getElementById('result');
   const profileSheet = document.getElementById('resource-profile-sheet');
@@ -273,6 +277,14 @@
   let currentMode = 'cast';
   let profileCloseHandler = null;
 
+  const serviceCatalog = Array.from((serviceSelect || {}).options || [])
+    .filter((opt) => opt.value)
+    .map((opt) => ({
+      id: opt.value,
+      minutes: opt.dataset.minutes || '60',
+      text: opt.textContent || '',
+    }));
+
   let currentSlots = [];
   let selectedSlot = null;
   let activeResourceId = '';
@@ -281,6 +293,34 @@
   function selectedDurationMinutes() {
     const selected = document.querySelector('#service_id option:checked');
     return Number((selected && selected.dataset.minutes) || 60);
+  }
+
+  function renderServiceOptions(targetSelect, allowedIds) {
+    if (!targetSelect) return;
+    targetSelect.innerHTML = '';
+    const allowedSet = new Set(allowedIds || []);
+    const available = allowedSet.size
+      ? serviceCatalog.filter((svc) => allowedSet.has(svc.id))
+      : [];
+
+    if (!available.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '対応サービスが未設定です';
+      targetSelect.appendChild(opt);
+      targetSelect.disabled = true;
+      return;
+    }
+
+    targetSelect.disabled = false;
+    available.forEach((svc) => {
+      const opt = document.createElement('option');
+      opt.value = svc.id;
+      opt.dataset.minutes = svc.minutes;
+      opt.textContent = svc.text;
+      targetSelect.appendChild(opt);
+    });
+    targetSelect.selectedIndex = 0;
   }
 
   function formatJst(iso) {
@@ -510,6 +550,9 @@
     resourceInput.value = button.dataset.resourceId;
 
     const resource = resources.find((r) => r.id === button.dataset.resourceId);
+    renderServiceOptions(serviceSelect, resource ? resource.serviceIds : []);
+    renderServiceOptions(searchServiceSelect, resource ? resource.serviceIds : []);
+    syncSearchService();
     if (profileSheet && button.parentNode) {
       button.insertAdjacentElement('afterend', profileSheet);
       profileSheet.style.gridColumn = '1 / -1';
@@ -651,6 +694,12 @@
     result.classList.add('hidden');
     if (!resourceInput.value) {
       result.textContent = '担当者を選択してください。';
+      result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
+      result.classList.remove('hidden');
+      return;
+    }
+    if (!serviceSelect || !serviceSelect.value) {
+      result.textContent = '対応サービスが未設定のため予約できません。';
       result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
       result.classList.remove('hidden');
       return;

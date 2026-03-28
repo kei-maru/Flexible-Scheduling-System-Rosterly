@@ -437,12 +437,20 @@
                                     <span class="drag-handle mt-0.5 text-slate-300 hover:text-slate-500" onclick="event.stopPropagation()">
                                         <i class="fa-solid fa-grip-vertical"></i>
                                     </span>
-                                    <div class="min-w-0 flex-1">
-                                        <div class="text-sm font-semibold text-slate-800">{{ cast.resource_name }}</div>
-                                        <div class="mt-1 text-xs text-slate-500">{{ cast.resource_email|default:'メール未設定' }}</div>
-                                        {% if cast.linked_username %}
-                                        <div class="mt-1 text-[11px] text-indigo-600">linked: {{ cast.linked_username }}</div>
-                                        {% endif %}
+                                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                                        <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+                                            <img src="{{ cast.avatar_url|default:'' }}" class="cast-avatar-img h-full w-full object-cover{% if not cast.avatar_url %} hidden{% endif %}" alt="avatar">
+                                            <span class="cast-avatar-fallback flex h-full w-full items-center justify-center text-[11px] text-slate-400{% if cast.avatar_url %} hidden{% endif %}">
+                                                <i class="fa-solid fa-user"></i>
+                                            </span>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="text-sm font-semibold text-slate-800">{{ cast.resource_name }}</div>
+                                            <div class="mt-1 text-xs text-slate-500">{{ cast.resource_email|default:'メール未設定' }}</div>
+                                            {% if cast.linked_username %}
+                                            <div class="mt-1 text-[11px] text-indigo-600">linked: {{ cast.linked_username }}</div>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -499,6 +507,7 @@
 
                             <div>
                                 <label class="mb-2 block text-xs text-slate-500">対応サービス</label>
+                                <p class="mb-2 text-[11px] text-slate-500">※ 予約可能なサービスは最低 1 つ選択してください。</p>
                                 {% if service_presets %}
                                 <div class="flex flex-wrap gap-2">
                                     {% for preset in service_presets %}
@@ -508,6 +517,7 @@
                                     </label>
                                     {% endfor %}
                                 </div>
+                                <p id="cms-service-error" class="mt-2 hidden text-xs text-rose-600">対応サービスを最低 1 つ選択してください。</p>
                                 {% else %}
                                 <p class="text-sm text-amber-700">先に Service Presets を作成してください。</p>
                                 {% endif %}
@@ -1194,6 +1204,36 @@
             }
         }
 
+        function updateCastListAvatar(url) {
+            const active = document.querySelector(".cast-item.active");
+            if (!active) return;
+            const img = active.querySelector(".cast-avatar-img");
+            const fallback = active.querySelector(".cast-avatar-fallback");
+            if (!img || !fallback) return;
+
+            if (url) {
+                img.src = url;
+                img.classList.remove("hidden");
+                fallback.classList.add("hidden");
+                active.dataset.avatarUrl = url;
+            } else {
+                img.src = "";
+                img.classList.add("hidden");
+                fallback.classList.remove("hidden");
+                active.dataset.avatarUrl = "";
+            }
+        }
+
+        function validateCmsServiceSelection() {
+            const checkboxes = Array.from(document.querySelectorAll(".cms-service-checkbox"));
+            const error = document.getElementById("cms-service-error");
+            const anyChecked = checkboxes.some((cb) => cb.checked);
+            if (error) {
+                error.classList.toggle("hidden", anyChecked);
+            }
+            return anyChecked;
+        }
+
         function normalizeEscapedMultiline(text) {
             if (!text) return "";
             return String(text)
@@ -1235,7 +1275,9 @@
             if (avatarClearEl) avatarClearEl.checked = false;
             if (avatarFileEl) avatarFileEl.value = "";
             renderCmsAvatarPreview(avatarUrl);
+            updateCastListAvatar(avatarUrl);
             setCmsServiceSelections(selectedServices);
+            validateCmsServiceSelection();
         }
 
         let currentScheduleCastId = "all";
@@ -1492,8 +1534,32 @@
                     const reader = new FileReader();
                     reader.onload = function (ev) {
                         renderCmsAvatarPreview(ev.target.result);
+                        updateCastListAvatar(ev.target.result);
                     };
                     reader.readAsDataURL(file);
+                });
+            }
+
+            const avatarClearInput = document.querySelector('input[name="profile_avatar_clear"]');
+            if (avatarClearInput) {
+                avatarClearInput.addEventListener("change", function () {
+                    if (avatarClearInput.checked) {
+                        renderCmsAvatarPreview("");
+                        updateCastListAvatar("");
+                    }
+                });
+            }
+
+            document.querySelectorAll(".cms-service-checkbox").forEach((cb) => {
+                cb.addEventListener("change", validateCmsServiceSelection);
+            });
+
+            const cmsForm = document.getElementById("cast-cms-form");
+            if (cmsForm) {
+                cmsForm.addEventListener("submit", function (event) {
+                    if (!validateCmsServiceSelection()) {
+                        event.preventDefault();
+                    }
                 });
             }
 

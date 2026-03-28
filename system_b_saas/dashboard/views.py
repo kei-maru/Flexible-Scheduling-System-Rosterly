@@ -848,6 +848,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             for item in ServicePreset.objects.filter(tenant=tenant).values_list("id", flat=True)
         }
         selected_service_ids = [sid for sid in request.POST.getlist("service_preset_ids") if sid in valid_service_ids]
+        if not selected_service_ids:
+            raise ValueError("対応サービスは最低 1 つ選択してください")
         selected_presets = list(ServicePreset.objects.filter(id__in=selected_service_ids, tenant=tenant))
         selected_durations = {preset.duration_minutes for preset in selected_presets}
 

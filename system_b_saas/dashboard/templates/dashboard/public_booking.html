@@ -9,12 +9,16 @@
     <style>
         .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 14px 34px -26px rgba(15, 23, 42, .45); }
         .mode-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
-      .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-8px); margin-top: 0; border-width: 0; padding: 0; transition: max-height .95s ease, opacity .7s ease, transform .95s ease, margin-top .6s ease, border-width .6s ease; }
-      .profile-sheet.open { max-height: 900px; opacity: 1; transform: translateY(0); margin-top: 12px; border-width: 1px; }
-      .profile-poster-wrap { opacity: 0; transform: translateY(-10px); transition: opacity .6s ease, transform .6s ease; }
-      .profile-intro { opacity: 0; transform: translateY(-12px); transition: opacity .7s ease, transform .7s ease; }
-      .profile-sheet.open .profile-poster-wrap { opacity: 1; transform: translateY(0); transition-delay: .12s; }
-      .profile-sheet.open .profile-intro { opacity: 1; transform: translateY(0); transition-delay: .32s; }
+        .mode-viewport { overflow: hidden; position: relative; }
+        .mode-track { display: flex; width: 200%; transition: transform .7s ease; }
+        .mode-track.show-time { transform: translateX(-50%); }
+        .mode-pane { flex: 0 0 50%; width: 50%; padding-right: 16px; }
+        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height .95s ease, opacity .7s ease, transform .95s ease, margin-top .6s ease, border-width .6s ease; }
+        .profile-sheet.open { max-height: 900px; opacity: 1; transform: translateX(0); margin-top: 12px; border-width: 1px; }
+        .profile-poster-wrap { opacity: 0; transform: translateX(-12px); transition: opacity .6s ease, transform .6s ease; }
+        .profile-intro { opacity: 0; transform: translateX(-14px); transition: opacity .7s ease, transform .7s ease; }
+        .profile-sheet.open .profile-poster-wrap { opacity: 1; transform: translateX(0); transition-delay: .12s; }
+        .profile-sheet.open .profile-intro { opacity: 1; transform: translateX(0); transition-delay: .32s; }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
@@ -40,7 +44,7 @@
     {% else %}
     <div class="mb-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-700">
         <i class="fa-solid fa-circle-info mr-1"></i>
-        予約は 24 時間以上先のみ受け付けます。空き枠表示は次の <span id="window-days">{{ booking_window_days|default:14 }}</span> 日です。
+        予約は 24 時間以上先のみ受け付けます。空きシフト表示は次の <span id="window-days">{{ booking_window_days|default:14 }}</span> 日です。
     </div>
 
     {% if not tenant_is_subscribed %}
@@ -51,88 +55,92 @@
     {% endif %}
 
     <div class="mb-5 flex flex-wrap gap-2">
-        <button id="mode-cast" type="button" class="mode-btn active rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('cast')">担当者から時間を探す</button>
-        <button id="mode-time" type="button" class="mode-btn rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('time')">時間から担当者を探す</button>
+        <button id="mode-cast" type="button" class="mode-btn active rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('cast')">指名予約</button>
+        <button id="mode-time" type="button" class="mode-btn rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('time')">時間予約</button>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="panel p-4 lg:col-span-2">
-            <div id="panel-cast-mode">
-                <h2 class="mb-3 text-base font-semibold">担当者を選択</h2>
-                <div id="resource-grid" class="grid gap-3 sm:grid-cols-2">
+            <div class="mode-viewport">
+              <div id="mode-track" class="mode-track">
+                <div id="panel-cast-mode" class="mode-pane">
+                  <h2 class="mb-3 text-base font-semibold">担当者を選択</h2>
+                  <div id="resource-grid" class="grid gap-3 sm:grid-cols-2">
                     {% for r in resources %}
                     <button
-                        type="button"
-                        data-resource-id="{{ r.id }}"
-                        data-name="{{ r.name|escapejs }}"
+                      type="button"
+                      data-resource-id="{{ r.id }}"
+                      data-name="{{ r.name|escapejs }}"
                       data-avatar="{% if r.profile and r.profile.avatar_url %}{{ r.profile.avatar_url|escapejs }}{% endif %}"
-                        data-intro="{% if r.profile %}{{ r.profile.intro|default:''|escapejs }}{% endif %}"
-                        data-youtube="{% if r.profile %}{{ r.profile.youtube_url|default:''|escapejs }}{% endif %}"
-                        class="resource-card rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
-                        onclick="pickResource(this)">
-                        <div class="flex items-center gap-3">
-                            {% if r.profile and r.profile.avatar_url %}
-                            <img src="{{ r.profile.avatar_url }}" alt="avatar" class="h-10 w-10 rounded-full object-cover">
-                            {% else %}
-                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ r.name|slice:':1'|upper }}</span>
-                            {% endif %}
-                            <span class="text-sm font-semibold text-slate-800">{{ r.name }}</span>
-                        </div>
+                      data-intro="{% if r.profile %}{{ r.profile.intro|default:''|escapejs }}{% endif %}"
+                      data-youtube="{% if r.profile %}{{ r.profile.youtube_url|default:''|escapejs }}{% endif %}"
+                      class="resource-card rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
+                      onclick="pickResource(this)">
+                      <div class="flex items-center gap-3">
+                        {% if r.profile and r.profile.avatar_url %}
+                        <img src="{{ r.profile.avatar_url }}" alt="avatar" class="h-10 w-10 rounded-full object-cover">
+                        {% else %}
+                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ r.name|slice:':1'|upper }}</span>
+                        {% endif %}
+                        <span class="text-sm font-semibold text-slate-800">{{ r.name }}</span>
+                      </div>
                     </button>
                     {% empty %}
                     <div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">予約可能な担当者がまだ登録されていません。</div>
                     {% endfor %}
-                </div>
+                  </div>
 
-                <div id="resource-profile-sheet" class="profile-sheet rounded-lg border border-slate-200 bg-white">
-                  <div class="grid grid-cols-1 gap-4 p-4 md:grid-cols-[220px,1fr]">
+                  <div id="resource-profile-sheet" class="profile-sheet rounded-lg border border-slate-200 bg-white">
+                    <div class="grid grid-cols-1 gap-4 p-4 md:grid-cols-[220px,1fr]">
                     <div class="profile-poster-wrap">
                       <img id="profile-poster" src="" alt="poster" class="hidden h-52 w-full rounded-md bg-slate-100 object-contain">
                       <div id="profile-poster-fallback" class="flex h-52 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">NO IMAGE</div>
                     </div>
                     <div class="min-w-0">
                       <div class="flex items-center justify-between gap-2">
-                        <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
-                        <a id="profile-youtube" href="#" target="_blank" rel="noopener" class="hidden rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i class="fa-brands fa-youtube mr-1"></i> YouTube</a>
+                      <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
+                      <a id="profile-youtube" href="#" target="_blank" rel="noopener" class="hidden rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i class="fa-brands fa-youtube mr-1"></i> YouTube</a>
                       </div>
-                            <p id="profile-intro" class="profile-intro mt-2 whitespace-pre-line text-sm leading-6 text-slate-600"></p>
+                        <p id="profile-intro" class="profile-intro mt-2 whitespace-pre-line text-sm leading-6 text-slate-600"></p>
+                    </div>
                     </div>
                   </div>
-                </div>
 
-                <div id="slots-section" class="mt-6">
+                  <div id="slots-section" class="mt-6">
                     <h2 class="mb-3 text-base font-semibold">空き枠（次の{{ booking_window_days|default:14 }}日）</h2>
                     <div id="slots" class="grid gap-2"></div>
                     <p id="slots-empty" class="hidden rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">空き枠がありません。</p>
+                  </div>
                 </div>
-            </div>
 
-            <div id="panel-time-mode" class="hidden">
-                <h2 class="mb-3 text-base font-semibold">時間から担当者を検索</h2>
-                <div class="grid gap-3 md:grid-cols-3">
+                <div id="panel-time-mode" class="mode-pane">
+                  <h2 class="mb-3 text-base font-semibold">時間から担当者を検索</h2>
+                  <div class="grid gap-3 md:grid-cols-3">
                     <div>
-                        <label class="mb-1 block text-xs text-slate-500">日付</label>
-                        <input id="search-date" type="date" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                      <label class="mb-1 block text-xs text-slate-500">日付</label>
+                      <input id="search-date" type="date" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="mb-1 block text-xs text-slate-500">開始時刻</label>
-                        <select id="search-time" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></select>
+                      <label class="mb-1 block text-xs text-slate-500">開始時刻</label>
+                      <select id="search-time" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></select>
                     </div>
                     <div>
-                        <label class="mb-1 block text-xs text-slate-500">サービス</label>
-                        <select id="search-service" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" onchange="syncSearchService()">
-                            {% for s in services %}
-                            <option value="{{ s.id }}" data-minutes="{{ s.duration_minutes }}">{{ s.name }}（{{ s.duration_minutes }}分）</option>
-                            {% empty %}
-                            <option value="" data-minutes="60">デフォルト 60分</option>
-                            {% endfor %}
-                        </select>
+                      <label class="mb-1 block text-xs text-slate-500">サービス</label>
+                      <select id="search-service" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" onchange="syncSearchService()">
+                        {% for s in services %}
+                        <option value="{{ s.id }}" data-minutes="{{ s.duration_minutes }}">{{ s.name }}（{{ s.duration_minutes }}分）</option>
+                        {% empty %}
+                        <option value="" data-minutes="60">デフォルト 60分</option>
+                        {% endfor %}
+                      </select>
                     </div>
-                </div>
-                <div class="mt-3 flex justify-end">
+                  </div>
+                  <div class="mt-3 flex justify-end">
                     <button type="button" onclick="searchByTime()" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">検索</button>
+                  </div>
+                  <div id="time-search-results" class="mt-4 grid gap-2"></div>
                 </div>
-                <div id="time-search-results" class="mt-4 grid gap-2"></div>
+              </div>
             </div>
         </section>
 
@@ -296,9 +304,26 @@
       .trim();
   }
 
+  function normalizeName(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/\\u002D/g, '-')
+      .replace(/\\u000[aA]/g, '\n')
+      .replace(/\\u000[dD]/g, '\n')
+      .replace(/\\n/g, '\n')
+      .trim();
+  }
+
+  document.querySelectorAll('.resource-card').forEach((card) => {
+    const label = card.querySelector('.text-sm.font-semibold');
+    const normalized = normalizeName(card.dataset.name || '');
+    if (label && normalized) label.textContent = normalized;
+  });
+
   function moveSlotsToDefault() {
     if (!slotsSection || !defaultSlotsParent) return;
     defaultSlotsParent.appendChild(slotsSection);
+    slotsSection.style.gridColumn = '';
   }
 
   function closeProfileSheet() {
@@ -327,7 +352,7 @@
       return;
     }
     activeResourceId = resource.id;
-    profileName.textContent = resource.name || '--';
+    profileName.textContent = normalizeName(resource.name) || '--';
     profileIntro.textContent = normalizeIntro(resource.intro) || 'プロフィールは未設定です。';
     if (profilePoster && profilePosterFallback) {
       if (resource.avatar) {
@@ -354,6 +379,7 @@
       profileSheet.classList.add('open');
       if (slotsSection) {
         profileSheet.insertAdjacentElement('afterend', slotsSection);
+        slotsSection.style.gridColumn = '1 / -1';
         slotsSection.classList.remove('hidden');
       }
     });
@@ -461,21 +487,18 @@
   };
 
   window.switchMode = function (mode) {
-    const castMode = document.getElementById('panel-cast-mode');
-    const timeMode = document.getElementById('panel-time-mode');
+    const modeTrack = document.getElementById('mode-track');
     const castBtn = document.getElementById('mode-cast');
     const timeBtn = document.getElementById('mode-time');
 
     if (mode === 'time') {
-      castMode.classList.add('hidden');
-      timeMode.classList.remove('hidden');
+      if (modeTrack) modeTrack.classList.add('show-time');
       castBtn.classList.remove('active');
       timeBtn.classList.add('active');
       currentMode = 'time';
       if (slotsSection) slotsSection.classList.add('hidden');
     } else {
-      timeMode.classList.add('hidden');
-      castMode.classList.remove('hidden');
+      if (modeTrack) modeTrack.classList.remove('show-time');
       timeBtn.classList.remove('active');
       castBtn.classList.add('active');
       currentMode = 'cast';
@@ -483,6 +506,7 @@
         slotsSection.classList.remove('hidden');
         if (profileSheet && profileSheet.classList.contains('open')) {
           profileSheet.insertAdjacentElement('afterend', slotsSection);
+          slotsSection.style.gridColumn = '1 / -1';
         } else {
           moveSlotsToDefault();
         }
@@ -554,14 +578,14 @@
       row.type = 'button';
       row.className = 'resource-card w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50';
       row.dataset.resourceId = resource.id;
-      row.dataset.name = resource.name || '';
+      row.dataset.name = normalizeName(resource.name) || '';
       row.dataset.intro = resource.intro || '';
       row.dataset.youtube = resource.youtube || '';
       row.dataset.avatar = resource.avatar || '';
       row.innerHTML = `
         <div class="flex items-center gap-3">
           ${resource.avatar ? `<img src="${resource.avatar}" alt="avatar" class="h-10 w-10 rounded-full object-cover">` : `<span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">${(resource.name || '-').slice(0, 1).toUpperCase()}</span>`}
-          <span class="text-sm font-semibold text-slate-800">${resource.name || '-'}</span>
+          <span class="text-sm font-semibold text-slate-800">${normalizeName(resource.name) || '-'}</span>
         </div>
       `;
       row.addEventListener('click', () => {

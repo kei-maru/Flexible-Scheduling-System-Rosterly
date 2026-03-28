@@ -13,11 +13,11 @@
         .mode-track { display: flex; width: 200%; transition: transform .7s ease; }
         .mode-track.show-time { transform: translateX(-50%); }
         .mode-pane { flex: 0 0 50%; width: 50%; padding-right: 16px; }
-        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height 1.6s ease, opacity 1.1s ease, transform 1.6s ease, margin-top 1.1s ease, border-width 1.1s ease; }
+        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height .8s ease, opacity .8s ease, transform .8s ease, margin-top .8s ease, border-width .8s ease; }
         .profile-sheet.open { max-height: 900px; opacity: 1; transform: translateX(0); margin-top: 12px; border-width: 1px; }
         .booking-panel { position: sticky; top: 24px; align-self: flex-start; max-height: calc(100vh - 140px); overflow: auto; }
-        .profile-poster-wrap { opacity: 0; transform: translateX(-12px); transition: opacity .6s ease, transform .6s ease; }
-        .profile-intro { opacity: 0; transform: translateX(-14px); transition: opacity .7s ease, transform .7s ease; }
+        .profile-poster-wrap { opacity: 0; transform: translateX(-12px); transition: opacity .45s ease, transform .45s ease; }
+        .profile-intro { opacity: 0; transform: translateX(-14px); transition: opacity .55s ease, transform .55s ease; }
         .profile-sheet.open .profile-poster-wrap { opacity: 1; transform: translateX(0); transition-delay: .12s; }
         .profile-sheet.open .profile-intro { opacity: 1; transform: translateX(0); transition-delay: .32s; }
     </style>
@@ -271,6 +271,7 @@
   const defaultSlotsParent = slotsSection ? slotsSection.parentElement : null;
   const resourceGrid = document.getElementById('resource-grid');
   let currentMode = 'cast';
+  let profileCloseHandler = null;
 
   let currentSlots = [];
   let selectedSlot = null;
@@ -335,20 +336,36 @@
 
   function closeProfileSheet() {
     if (!profileSheet) return;
-    profileSheet.classList.remove('open');
-    if (slotsSection) {
-      if (currentMode === 'time') {
-        slotsSection.classList.add('hidden');
-      } else {
-        moveSlotsToDefault();
-        slotsSection.classList.remove('hidden');
-      }
+    if (profileCloseHandler) {
+      profileSheet.removeEventListener('transitionend', profileCloseHandler);
+      profileCloseHandler = null;
     }
-    window.setTimeout(() => {
+
+    profileSheet.style.display = 'block';
+    profileSheet.style.maxHeight = `${profileSheet.scrollHeight}px`;
+    profileSheet.classList.remove('open');
+    requestAnimationFrame(() => {
+      profileSheet.style.maxHeight = '0px';
+    });
+
+    profileCloseHandler = (event) => {
+      if (event.propertyName !== 'max-height') return;
+      profileSheet.removeEventListener('transitionend', profileCloseHandler);
+      profileCloseHandler = null;
       if (!profileSheet.classList.contains('open')) {
         profileSheet.style.display = 'none';
+        profileSheet.style.maxHeight = '';
+        if (slotsSection) {
+          if (currentMode === 'time') {
+            slotsSection.classList.add('hidden');
+          } else {
+            moveSlotsToDefault();
+            slotsSection.classList.remove('hidden');
+          }
+        }
       }
-    }, 1600);
+    };
+    profileSheet.addEventListener('transitionend', profileCloseHandler);
   }
 
   function showProfile(resource) {
@@ -357,6 +374,10 @@
     if (alreadyOpen && activeResourceId === resource.id) {
       closeProfileSheet();
       return;
+    }
+    if (profileCloseHandler) {
+      profileSheet.removeEventListener('transitionend', profileCloseHandler);
+      profileCloseHandler = null;
     }
     activeResourceId = resource.id;
     profileName.textContent = normalizeName(resource.name) || '--';
@@ -381,9 +402,13 @@
       }
     }
     profileSheet.style.display = 'block';
-    profileSheet.classList.remove('open');
+    requestAnimationFrame(() => {
+      profileSheet.classList.remove('open');
+      profileSheet.style.maxHeight = '0px';
+    });
     requestAnimationFrame(() => {
       profileSheet.classList.add('open');
+      profileSheet.style.maxHeight = `${profileSheet.scrollHeight}px`;
       if (slotsSection) {
         profileSheet.insertAdjacentElement('afterend', slotsSection);
         slotsSection.style.gridColumn = '1 / -1';

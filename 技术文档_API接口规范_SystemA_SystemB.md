@@ -277,9 +277,9 @@
 
 #### 员工显示名同步规则（2026-03-28）
 
-- 认证用户名（`SaaSUser.username`）继续保留全局唯一约束。
-- 租户内展示名使用 `SaaSUser.first_name` 作为优先来源。
-- 资源绑定同步时，`Resource.name` 优先对齐显示名（`first_name`），无显示名时回退 `username`。
+- 统一规则：`SaaSUser.username` 为唯一显示名来源（仍保留全局唯一约束）。
+- 名称对齐：profile username / Cast CMS 显示名 / 预约页显示名 / `Resource.name` / 管理端 username 必须一致。
+- 资源绑定同步时，`Resource.name` 仅对齐 `username`，不再读取 `first_name`。
 
 #### `GET /api/v1/integration/resources/<resource_uuid>/`
 
@@ -581,6 +581,16 @@
   - 禁止在 public SSO 过程中自动创建新 `Resource`（避免垃圾可预约对象）。
 - A 端展示约束：
   - 远端 cast 列表仅展示 `external_id` 为数字的资源，过滤历史脏数据。
+
+### 4.8 Discord 回调 inactive 防护（2026-03-28）
+
+- 适用范围：`/accounts/discord/login/callback/` 社交登录回调。
+- 规则：
+  - 若回调匹配到既有用户且 `is_active=False`，B 侧先恢复 `is_active=True`，再继续 allauth 登录流程。
+  - 覆盖两条路径：
+    - 已绑定社交账号（`sociallogin.is_existing=True`）
+    - 通过 Discord `uid` 关联到既有账号（`authorized_user`）
+- 目的：避免被重定向到 `/accounts/inactive/` 造成外部登录不可用。
 
 ---
 

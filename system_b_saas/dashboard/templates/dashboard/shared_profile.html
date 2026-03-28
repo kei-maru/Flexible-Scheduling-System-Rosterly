@@ -68,7 +68,7 @@
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-xs text-slate-500">ユーザー名</label>
-                    <input type="text" name="username" value="{{ profile_display_name }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+                    <input type="text" name="username" value="{{ request.user.username|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 </div>
                 <div>
                     <label class="mb-1 block text-xs text-slate-500">メールアドレス</label>

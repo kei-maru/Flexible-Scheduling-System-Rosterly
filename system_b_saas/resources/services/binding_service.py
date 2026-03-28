@@ -65,10 +65,6 @@ def _discord_uid(user):
 def _desired_resource_name(user):
     if user is None:
         return ""
-    # Use display name first so tenant-facing resource names can differ from auth username.
-    display_name = (getattr(user, "first_name", "") or "").strip()
-    if display_name:
-        return display_name
     return (getattr(user, "username", "") or "").strip()
 
 

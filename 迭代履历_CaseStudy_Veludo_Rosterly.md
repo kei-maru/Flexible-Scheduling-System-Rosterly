@@ -332,6 +332,28 @@
 
 ---
 
+## 4.15 Phase 14：用户名单一口径与 Discord 登录恢复（2026-03-28）
+
+关键内容：
+- 名称口径最终收敛为单一来源：
+  - `SaaSUser.username` 作为唯一名称基准。
+  - 对齐关系：profile username = cast cms 显示名 = 预约页显示名 = `Resource.name` = 管理员面板 username。
+- 代码调整：
+  - `resources/services/binding_service.py` 中资源名同步改为仅使用 `username`。
+  - `dashboard/schedule_views.py` 与 `shared_profile.html` 改为直接读写 `username`，冲突时直接报错阻止保存。
+- 登录故障热修：
+  - 处理 Discord OAuth 回调后落到 `/accounts/inactive/` 的问题。
+  - 在 `tenants/adapters.py` 登录前置流程增加 active 兜底：匹配到用户时若 `is_active=False` 自动恢复为 `True`。
+- 运行验证：
+  - 服务重启后登录链路恢复；
+  - 现场核验 `inactive_users_total=0`，Discord 外部登录可正常完成。
+
+阶段结论：
+- 解决“名称多源导致回退/不一致”与“外部登录被 inactive 拦截”两类高频故障。
+- 用户身份展示与登录可用性进入稳定状态。
+
+---
+
 ## 5. 关键架构结论（供讲解）
 
 1. 主体系统定位清晰：`System B` 为核心能力沉淀层，`System A` 为定制前台。  

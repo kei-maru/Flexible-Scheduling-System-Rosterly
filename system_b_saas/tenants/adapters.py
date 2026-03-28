@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
+    def _ensure_active_user(self, user):
+        if user is None:
+            return
+        if not getattr(user, "is_active", True):
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+            logger.info("reactivated user during discord login: user id=%s", user.id)
+
     def _ensure_staff_resource_binding(self, user, allow_create=True):
         ensure_staff_resource_binding(user, allow_create=allow_create)
 
@@ -324,6 +332,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         logger.info("pre_social_login: existing=%s", sociallogin.is_existing)
         # Existing social account: standard allauth flow.
         if sociallogin.is_existing:
+            self._ensure_active_user(sociallogin.user)
             if invite and self._apply_staff_invite(request, sociallogin.user):
                 return
             if public_sso_flow:
@@ -340,6 +349,7 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
                 authorized_user = linked_social.user
         if authorized_user:
             logger.info("pre_social_login: matched authorized user id=%s", authorized_user.id)
+            self._ensure_active_user(authorized_user)
             if invite and self._apply_staff_invite(request, authorized_user):
                 sociallogin.connect(request, authorized_user)
                 return

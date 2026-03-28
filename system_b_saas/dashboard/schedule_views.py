@@ -134,7 +134,6 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
         context.update(self._base_nav_context())
         context.update(
             {
-                "profile_display_name": (self.request.user.first_name or self.request.user.username or "").strip(),
                 "profile_resource": resource,
                 "profile_intro": normalize_profile_text(profile.intro) if profile else "",
                 "profile_tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
@@ -172,15 +171,14 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
 
         UserModel = get_user_model()
         username_conflict = UserModel.objects.filter(username=requested_username).exclude(pk=user.pk).exists()
-        if not username_conflict:
-            user.username = requested_username
-        user.first_name = requested_username
+        if username_conflict:
+            messages.error(request, "このユーザー名は既に使用されています。別のユーザー名を入力してください。")
+            return redirect("shared_profile")
+
+        user.username = requested_username
         user.email = (request.POST.get("email") or "").strip()
         try:
-            update_fields = ["first_name", "email"]
-            if not username_conflict:
-                update_fields.insert(0, "username")
-            user.save(update_fields=update_fields)
+            user.save(update_fields=["username", "email"])
         except (IntegrityError, DataError) as exc:
             logger.warning("profile save failed for user id=%s due to user field constraint: %s", user.id, exc)
             messages.error(request, "プロフィールの保存に失敗しました。ユーザー名や入力値を確認してください。")
@@ -188,7 +186,6 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
 
         if resource:
             tenant = self._tenant()
-            # Keep display name tenant-friendly even when auth username must stay globally unique.
             if requested_username and resource.name != requested_username:
                 resource.name = requested_username
                 resource.save(update_fields=["name"])
@@ -226,11 +223,6 @@ class SharedProfileView(SharedBaseMixin, TemplateView):
                 logger.exception("profile extension save failed for user id=%s resource id=%s err=%s", user.id, resource.id, exc)
                 messages.error(request, "拡張プロフィールの保存に失敗しました。入力内容を確認して再試行してください。")
                 return redirect("shared_profile")
-            if username_conflict:
-                messages.warning(
-                    request,
-                    "表示名は更新しました（認証用ユーザー名は重複防止のため変更していません）。",
-                )
             messages.success(request, "プロフィール情報を保存しました。")
         else:
             messages.warning(

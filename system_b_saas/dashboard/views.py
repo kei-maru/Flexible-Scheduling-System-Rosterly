@@ -330,8 +330,9 @@ class DashboardInviteAcceptView(View):
             return redirect("dashboard_login")
 
         request.session["allow_staff_invite_token"] = invite.token
-        request.session["allow_public_sso_login"] = True
-        request.session["sso_role_hint"] = invite.role if invite.role in {"ADMIN", "STAFF"} else "STAFF"
+        # Keep invite onboarding independent from public SSO onboarding.
+        request.session.pop("allow_public_sso_login", None)
+        request.session.pop("sso_role_hint", None)
         return redirect(f"/accounts/discord/login/?process=login&next={quote('/dashboard/login/', safe='')}")
 
 
@@ -578,6 +579,12 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if not tenant:
             return ""
         return self.request.build_absolute_uri(reverse("dashboard_public_booking", kwargs={"tenant_slug": tenant.slug}))
+
+    def _absolute_public_url(self, path):
+        base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+        if base:
+            return f"{base}{path}"
+        return self.request.build_absolute_uri(path)
 
     def _save_template(self, request, tenant):
         event_type = request.POST.get("event_type")
@@ -1165,6 +1172,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 StaffInvite.objects.filter(tenant=tenant, is_active=True)
                 .order_by("-created_at")[:5]
             )
+            for invite in recent_invites:
+                invite.invite_url = self._absolute_public_url(
+                    reverse("dashboard_invite_accept", kwargs={"token": invite.token})
+                )
 
         default_service_name_prefill = service_name_suggestions[0] if service_name_suggestions else "{{ selected_service_name }}"
 

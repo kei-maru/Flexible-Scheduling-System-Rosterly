@@ -276,7 +276,7 @@
                             <div class="mb-2 font-semibold text-slate-900">ロール: {{ inv.role }} / 使用回数: {{ inv.used_count }} / {{ inv.max_uses }} / 有効期限: {{ inv.expires_at|date:"Y/m/d H:i" }}</div>
                             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                 <div class="break-all rounded border border-slate-200 bg-slate-50 px-2 py-2 text-[12px] md:flex-1">
-                                    {{ request.scheme }}://{{ request.get_host }}{% url 'dashboard_invite_accept' token=inv.token %}
+                                    {{ inv.invite_url }}
                                 </div>
                                 <form method="post" onsubmit="return confirm('この招待リンクを削除しますか？');">
                                     {% csrf_token %}

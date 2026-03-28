@@ -216,6 +216,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 SYSTEM_B_SSO_CODE_TTL_SECONDS = int(os.environ.get('SYSTEM_B_SSO_CODE_TTL_SECONDS', '60'))
 SYSTEM_B_SSO_CLIENTS = {}
+SYSTEM_B_PUBLIC_BASE_URL = os.environ.get('SYSTEM_B_PUBLIC_BASE_URL', '').strip()
 
 _sso_clients_raw = os.environ.get('SYSTEM_B_SSO_CLIENTS', '').strip()
 if _sso_clients_raw:

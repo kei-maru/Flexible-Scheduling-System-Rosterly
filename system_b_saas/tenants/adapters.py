@@ -5,8 +5,10 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.utils.text import slugify
+from django.db import transaction
 from allauth.socialaccount.models import SocialAccount
 import secrets
+import hashlib
 import logging
 
 from tenants.models import Tenant, StaffInvite
@@ -57,6 +59,10 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return None
         invite = StaffInvite.objects.filter(token=token).select_related("tenant").first()
         if not invite or not invite.is_available:
+            if request is not None:
+                request.session.pop("allow_staff_invite_token", None)
+                request.session.pop("allow_public_sso_login", None)
+                request.session.pop("sso_role_hint", None)
             return None
         return invite
 
@@ -134,7 +140,13 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         return bootstrap
 
     def _build_unique_tenant_slug(self, base_name: str) -> str:
-        candidate = slugify(base_name)[:45] or "tenant"
+        base_text = str(base_name or "").strip()
+        candidate = slugify(base_text)[:45]
+        if not candidate:
+            digest_seed = base_text or secrets.token_urlsafe(8)
+            digest = hashlib.sha1(digest_seed.encode("utf-8")).hexdigest()[:8]
+            candidate = f"tenant-{digest}"
+
         if not Tenant.objects.filter(slug=candidate).exists():
             return candidate
 
@@ -215,33 +227,42 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         if not invite or user is None:
             return False
 
-        if user.tenant_id and user.tenant_id != invite.tenant_id and getattr(user, "role", "") in {"ADMIN", "STAFF"}:
-            messages.error(request, "このアカウントは別店舗に所属しています。別アカウントで招待リンクをご利用ください。")
-            raise ImmediateHttpResponse(redirect("dashboard_login"))
+        with transaction.atomic():
+            locked_invite = StaffInvite.objects.select_for_update().select_related("tenant").filter(id=invite.id).first()
+            if not locked_invite or not locked_invite.is_available:
+                if request is not None:
+                    request.session.pop("allow_staff_invite_token", None)
+                    request.session.pop("allow_public_sso_login", None)
+                    request.session.pop("sso_role_hint", None)
+                return False
 
-        desired_role = invite.role if invite.role in {"ADMIN", "STAFF"} else "STAFF"
-        update_fields = []
+            if user.tenant_id and user.tenant_id != locked_invite.tenant_id and getattr(user, "role", "") in {"ADMIN", "STAFF"}:
+                messages.error(request, "このアカウントは別店舗に所属しています。別アカウントで招待リンクをご利用ください。")
+                raise ImmediateHttpResponse(redirect("dashboard_login"))
 
-        if user.tenant_id != invite.tenant_id:
-            user.tenant = invite.tenant
-            update_fields.append("tenant")
-        if user.role != desired_role:
-            user.role = desired_role
-            update_fields.append("role")
-        if user.is_staff != (desired_role in {"ADMIN", "STAFF"}):
-            user.is_staff = desired_role in {"ADMIN", "STAFF"}
-            update_fields.append("is_staff")
-        if desired_role in {"ADMIN", "STAFF"} and not user.is_active:
-            user.is_active = True
-            update_fields.append("is_active")
+            desired_role = locked_invite.role if locked_invite.role in {"ADMIN", "STAFF"} else "STAFF"
+            update_fields = []
 
-        if update_fields:
-            user.save(update_fields=update_fields)
+            if user.tenant_id != locked_invite.tenant_id:
+                user.tenant = locked_invite.tenant
+                update_fields.append("tenant")
+            if user.role != desired_role:
+                user.role = desired_role
+                update_fields.append("role")
+            if user.is_staff != (desired_role in {"ADMIN", "STAFF"}):
+                user.is_staff = desired_role in {"ADMIN", "STAFF"}
+                update_fields.append("is_staff")
+            if desired_role in {"ADMIN", "STAFF"} and not user.is_active:
+                user.is_active = True
+                update_fields.append("is_active")
 
-        invite.used_count += 1
-        if invite.used_count >= invite.max_uses:
-            invite.is_active = False
-        invite.save(update_fields=["used_count", "is_active"])
+            if update_fields:
+                user.save(update_fields=update_fields)
+
+            locked_invite.used_count += 1
+            if locked_invite.used_count >= locked_invite.max_uses:
+                locked_invite.is_active = False
+            locked_invite.save(update_fields=["used_count", "is_active"])
 
         if request is not None:
             request.session.pop("allow_staff_invite_token", None)

@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <style>
         body {
             font-family: "Noto Sans JP", sans-serif;
@@ -48,6 +49,16 @@
         .schedule-cast-item.active {
             border-color: #c7d2fe;
             background: #eef2ff;
+        }
+        .cast-ghost {
+            background: #eef2ff;
+            border-color: #a5b4fc;
+        }
+        .drag-handle {
+            cursor: grab;
+        }
+        .drag-handle:active {
+            cursor: grabbing;
         }
     </style>
 </head>
@@ -409,10 +420,9 @@
                             <h2 class="text-lg font-semibold text-slate-900">Cast List</h2>
                             <span class="text-[10px] uppercase tracking-widest text-slate-500">Select</span>
                         </div>
-                        <div class="space-y-2">
+                        <div id="cast-sortable-list" class="space-y-2">
                             {% for cast in cast_rows %}
-                            <button
-                                type="button"
+                            <div
                                 class="cast-item w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300"
                                 data-resource-id="{{ cast.resource_id }}"
                                 data-name="{{ cast.resource_name|escapejs }}"
@@ -423,12 +433,19 @@
                                 data-tags="{{ cast.tags_text|escapejs }}"
                                 data-selected-services="{{ cast.selected_service_ids|join:',' }}"
                                 onclick="selectCast(this)">
-                                <div class="text-sm font-semibold text-slate-800">{{ cast.resource_name }}</div>
-                                <div class="mt-1 text-xs text-slate-500">{{ cast.resource_email|default:'メール未設定' }}</div>
-                                {% if cast.linked_username %}
-                                <div class="mt-1 text-[11px] text-indigo-600">linked: {{ cast.linked_username }}</div>
-                                {% endif %}
-                            </button>
+                                <div class="flex items-start gap-2">
+                                    <span class="drag-handle mt-0.5 text-slate-300 hover:text-slate-500" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-grip-vertical"></i>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-sm font-semibold text-slate-800">{{ cast.resource_name }}</div>
+                                        <div class="mt-1 text-xs text-slate-500">{{ cast.resource_email|default:'メール未設定' }}</div>
+                                        {% if cast.linked_username %}
+                                        <div class="mt-1 text-[11px] text-indigo-600">linked: {{ cast.linked_username }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
                             {% empty %}
                             <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-xs text-slate-500">
                                 Resource がありません。
@@ -1442,6 +1459,30 @@
             if (rangeEnd) rangeEnd.addEventListener("change", applyScheduleFilters);
             if (nameSearch) nameSearch.addEventListener("input", applyScheduleFilters);
             bindCoreTimeOrderClicks();
+
+            const castList = document.getElementById("cast-sortable-list");
+            if (castList && typeof Sortable !== "undefined") {
+                Sortable.create(castList, {
+                    handle: ".drag-handle",
+                    animation: 150,
+                    ghostClass: "cast-ghost",
+                    onEnd: function () {
+                        const ids = Array.from(castList.querySelectorAll(".cast-item"))
+                            .map((item) => item.dataset.resourceId)
+                            .filter(Boolean);
+                        if (!ids.length) return;
+                        fetch("{% url 'tenant_dashboard' %}", {
+                            method: "POST",
+                            headers: {
+                                "X-CSRFToken": "{{ csrf_token }}",
+                                "Content-Type": "application/json",
+                                "X-Requested-With": "XMLHttpRequest",
+                            },
+                            body: JSON.stringify({ action: "update_cast_order", order: ids }),
+                        }).catch((error) => console.error("Cast order update failed", error));
+                    },
+                });
+            }
 
             const avatarFileInput = document.getElementById("cms-avatar-file");
             if (avatarFileInput) {

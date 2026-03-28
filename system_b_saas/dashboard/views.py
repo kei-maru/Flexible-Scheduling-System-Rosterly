@@ -361,7 +361,7 @@ class DashboardPublicBookingView(TemplateView):
         resources = (
             self._booking_resource_queryset(tenant)
             .select_related("profile")
-            .order_by("name")
+            .order_by("profile__display_order", "name")
         )
         services = ServicePreset.objects.filter(tenant=tenant, is_active=True).order_by("sort_order", "id")
 
@@ -980,6 +980,27 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         tenant = self._resolve_tenant()
         target_tab = "shop"
 
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            try:
+                payload = json.loads(request.body or "{}")
+            except (TypeError, ValueError):
+                return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
+
+            if payload.get("action") == "update_cast_order":
+                ordered_ids = payload.get("order", [])
+                if not isinstance(ordered_ids, list):
+                    return JsonResponse({"status": "error", "message": "Invalid order payload"}, status=400)
+                with transaction.atomic():
+                    for index, resource_id in enumerate(ordered_ids):
+                        resource = Resource.objects.filter(tenant=tenant, id=resource_id).first()
+                        if not resource:
+                            continue
+                        profile, _ = ResourceProfile.objects.get_or_create(resource=resource)
+                        if profile.display_order != index:
+                            profile.display_order = index
+                            profile.save(update_fields=["display_order"])
+                return JsonResponse({"status": "success"})
+
         try:
             if request.POST.get("save_template") == "true":
                 self._save_template(request, tenant)
@@ -1085,7 +1106,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             resources = list(
                 Resource.objects.filter(tenant=tenant)
                 .select_related("profile", "linked_user")
-                .order_by("name")
+                .order_by("profile__display_order", "name")
             )
             resource_by_user_id = {r.linked_user_id: r for r in resources if r.linked_user_id}
 
@@ -1119,11 +1140,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 if name and name not in service_name_suggestions:
                     service_name_suggestions.append(name)
 
-            # Cast CMS list follows Users & Roles ordering to keep both modules in sync.
-            for u in staff_users:
-                resource = resource_by_user_id.get(u.id)
-                if not resource:
-                    continue
+            for resource in resources:
                 profile = getattr(resource, "profile", None)
                 tags = profile.tags if profile and isinstance(profile.tags, list) else []
                 metadata = profile.metadata if profile and isinstance(profile.metadata, dict) else {}

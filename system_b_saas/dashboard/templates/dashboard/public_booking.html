@@ -13,8 +13,9 @@
         .mode-track { display: flex; width: 200%; transition: transform .7s ease; }
         .mode-track.show-time { transform: translateX(-50%); }
         .mode-pane { flex: 0 0 50%; width: 50%; padding-right: 16px; }
-        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height .95s ease, opacity .7s ease, transform .95s ease, margin-top .6s ease, border-width .6s ease; }
+        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height 1.6s ease, opacity 1.1s ease, transform 1.6s ease, margin-top 1.1s ease, border-width 1.1s ease; }
         .profile-sheet.open { max-height: 900px; opacity: 1; transform: translateX(0); margin-top: 12px; border-width: 1px; }
+        .booking-panel { position: sticky; top: 24px; align-self: flex-start; max-height: calc(100vh - 140px); overflow: auto; }
         .profile-poster-wrap { opacity: 0; transform: translateX(-12px); transition: opacity .6s ease, transform .6s ease; }
         .profile-intro { opacity: 0; transform: translateX(-14px); transition: opacity .7s ease, transform .7s ease; }
         .profile-sheet.open .profile-poster-wrap { opacity: 1; transform: translateX(0); transition-delay: .12s; }
@@ -44,7 +45,7 @@
     {% else %}
     <div class="mb-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-700">
         <i class="fa-solid fa-circle-info mr-1"></i>
-        予約は 24 時間以上先のみ受け付けます。空きシフト表示は次の <span id="window-days">{{ booking_window_days|default:14 }}</span> 日です。
+        予約は 24 時間以上先のみ受け付けます。空き枠表示は次の <span id="window-days">{{ booking_window_days|default:14 }}</span> 日です。
     </div>
 
     {% if not tenant_is_subscribed %}
@@ -55,8 +56,14 @@
     {% endif %}
 
     <div class="mb-5 flex flex-wrap gap-2">
-        <button id="mode-cast" type="button" class="mode-btn active rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('cast')">指名予約</button>
-        <button id="mode-time" type="button" class="mode-btn rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('time')">時間予約</button>
+      <button id="mode-cast" type="button" class="mode-btn active inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('cast')">
+        <i class="fa-solid fa-user-check text-slate-500"></i>
+        指名予約
+      </button>
+      <button id="mode-time" type="button" class="mode-btn inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" onclick="switchMode('time')">
+        <i class="fa-regular fa-clock text-slate-500"></i>
+        時間予約
+      </button>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">
@@ -144,7 +151,7 @@
             </div>
         </section>
 
-        <section class="panel p-4">
+        <section class="panel p-4 booking-panel">
             <h2 class="mb-3 text-base font-semibold">予約情報</h2>
             <form id="booking-form" method="post" action="{% url 'dashboard_public_booking_create' tenant_slug=tenant.slug %}" class="space-y-3">
                 {% csrf_token %}
@@ -341,7 +348,7 @@
       if (!profileSheet.classList.contains('open')) {
         profileSheet.style.display = 'none';
       }
-    }, 700);
+    }, 1600);
   }
 
   function showProfile(resource) {

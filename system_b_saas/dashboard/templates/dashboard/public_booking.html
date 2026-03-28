@@ -61,6 +61,7 @@
                         type="button"
                         data-resource-id="{{ r.id }}"
                         data-name="{{ r.name|escapejs }}"
+                      data-avatar="{% if r.profile and r.profile.avatar_url %}{{ r.profile.avatar_url|escapejs }}{% endif %}"
                         data-intro="{% if r.profile %}{{ r.profile.intro|default:''|escapejs }}{% endif %}"
                         data-youtube="{% if r.profile %}{{ r.profile.youtube_url|default:''|escapejs }}{% endif %}"
                         class="resource-card rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
@@ -80,11 +81,16 @@
                 </div>
 
                 <div id="resource-profile-sheet" class="profile-sheet mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <div class="mb-2 flex items-center justify-between">
-                        <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
-                        <a id="profile-youtube" href="#" target="_blank" rel="noopener" class="hidden rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i class="fa-brands fa-youtube mr-1"></i> YouTube</a>
+                  <div class="flex gap-3">
+                    <div class="shrink-0">
+                      <img id="profile-avatar" src="" alt="avatar" class="hidden h-12 w-12 rounded-full object-cover">
+                      <span id="profile-avatar-fallback" class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">--</span>
                     </div>
-                    <p id="profile-intro" class="whitespace-pre-line text-sm leading-6 text-slate-600">プロフィールは未設定です。</p>
+                    <div class="min-w-0">
+                      <h3 id="profile-name" class="text-sm font-semibold text-slate-900">--</h3>
+                      <p id="profile-intro" class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">プロフィールは未設定です。</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="mt-6">
@@ -128,23 +134,24 @@
             <form id="booking-form" method="post" action="{% url 'dashboard_public_booking_create' tenant_slug=tenant.slug %}" class="space-y-3">
                 {% csrf_token %}
                 <input type="hidden" id="resource_id" name="resource_id">
-
+                {% if 'VRCID' in required_customer_fields %}
                 <div>
-                    <label class="mb-1 block text-xs text-slate-500">お名前 <span class="text-rose-500">*</span></label>
-                    <input id="customer_name" name="customer_name" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                  <label class="mb-1 block text-xs text-slate-500">VRCID <span class="text-rose-500">*</span></label>
+                  <input id="customer_vrcid" name="customer_vrcid" placeholder="例: user_vrcid" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 </div>
+                {% endif %}
+                {% if 'DISCORDID' in required_customer_fields %}
                 <div>
-                  <label class="mb-1 block text-xs text-slate-500">VRCID {% if 'VRCID' in required_customer_fields %}<span class="text-rose-500">*</span>{% endif %}</label>
-                  <input id="customer_vrcid" name="customer_vrcid" placeholder="例: user_vrcid" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" {% if 'VRCID' in required_customer_fields %}required{% endif %}>
+                  <label class="mb-1 block text-xs text-slate-500">DiscordID <span class="text-rose-500">*</span></label>
+                  <input id="customer_discord_id" name="customer_discord_id" placeholder="例: username#1234" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 </div>
+                {% endif %}
+                {% if 'EMAIL' in required_customer_fields %}
                 <div>
-                  <label class="mb-1 block text-xs text-slate-500">DiscordID {% if 'DISCORDID' in required_customer_fields %}<span class="text-rose-500">*</span>{% endif %}</label>
-                  <input id="customer_discord_id" name="customer_discord_id" placeholder="例: username#1234" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" {% if 'DISCORDID' in required_customer_fields %}required{% endif %}>
+                  <label class="mb-1 block text-xs text-slate-500">メールアドレス <span class="text-rose-500">*</span></label>
+                  <input id="customer_email" type="email" name="customer_email" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 </div>
-                <div>
-                  <label class="mb-1 block text-xs text-slate-500">メールアドレス {% if 'EMAIL' in required_customer_fields %}<span class="text-rose-500">*</span>{% endif %}</label>
-                  <input id="customer_email" type="email" name="customer_email" {% if 'EMAIL' in required_customer_fields %}required{% endif %} class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                </div>
+                {% endif %}
                 <div>
                     <label class="mb-1 block text-xs text-slate-500">サービス</label>
                     <select id="service_id" name="service_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" onchange="refreshStartOptions()">
@@ -158,7 +165,8 @@
                 <div>
                     <label class="mb-1 block text-xs text-slate-500">開始日時</label>
                     <select id="start_time" name="start_time" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></select>
-                    <p class="mt-1 text-[11px] text-slate-500">10分単位。予約可能時間のみ表示されます。</p>
+                  <p class="mt-1 text-[11px] text-slate-500">10分単位。予約可能時間のみ表示されます。</p>
+                  <p id="slot-lock-hint" class="mt-1 hidden text-[11px] text-indigo-600">選択した空き枠の範囲で開始時間を絞り込みました。</p>
                 </div>
 
                 <button type="button" onclick="openConfirmModal()" class="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">予約する</button>
@@ -216,8 +224,8 @@
   const resources = Array.from(document.querySelectorAll('.resource-card')).map((el) => ({
     id: el.dataset.resourceId,
     name: el.dataset.name || '',
+    avatar: el.dataset.avatar || '',
     intro: el.dataset.intro || '',
-    youtube: el.dataset.youtube || '',
     el,
   }));
 
@@ -230,11 +238,15 @@
   const profileSheet = document.getElementById('resource-profile-sheet');
   const profileName = document.getElementById('profile-name');
   const profileIntro = document.getElementById('profile-intro');
-  const profileYoutube = document.getElementById('profile-youtube');
+  const profileAvatar = document.getElementById('profile-avatar');
+  const profileAvatarFallback = document.getElementById('profile-avatar-fallback');
   const confirmModal = document.getElementById('confirm-modal');
   const confirmSubmitBtn = document.getElementById('confirm-submit');
+  const slotLockHint = document.getElementById('slot-lock-hint');
 
   let currentSlots = [];
+  let selectedSlot = null;
+  let activeResourceId = '';
 
   function selectedDurationMinutes() {
     const selected = document.querySelector('#service_id option:checked');
@@ -259,13 +271,25 @@
 
   function showProfile(resource) {
     if (!profileSheet || !resource) return;
+    const alreadyOpen = profileSheet.classList.contains('open');
+    if (alreadyOpen && activeResourceId === resource.id) {
+      profileSheet.classList.remove('open');
+      return;
+    }
+    activeResourceId = resource.id;
     profileName.textContent = resource.name || '--';
     profileIntro.textContent = resource.intro || 'プロフィールは未設定です。';
-    if (resource.youtube) {
-      profileYoutube.href = resource.youtube;
-      profileYoutube.classList.remove('hidden');
-    } else {
-      profileYoutube.classList.add('hidden');
+    if (profileAvatar && profileAvatarFallback) {
+      if (resource.avatar) {
+        profileAvatar.src = resource.avatar;
+        profileAvatar.classList.remove('hidden');
+        profileAvatarFallback.classList.add('hidden');
+      } else {
+        profileAvatar.src = '';
+        profileAvatar.classList.add('hidden');
+        profileAvatarFallback.textContent = (resource.name || '--').slice(0, 1).toUpperCase();
+        profileAvatarFallback.classList.remove('hidden');
+      }
     }
     profileSheet.classList.add('open');
   }
@@ -275,6 +299,8 @@
     slotsBox.innerHTML = '';
     startSelect.innerHTML = '';
     slotsEmpty && slotsEmpty.classList.add('hidden');
+    selectedSlot = null;
+    if (slotLockHint) slotLockHint.classList.add('hidden');
 
     const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resourceId);
     const res = await fetch(url, { credentials: 'same-origin' });
@@ -287,9 +313,19 @@
     }
 
     currentSlots.forEach((slot) => {
-      const row = document.createElement('div');
-      row.className = 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700';
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'slot-row rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 text-left hover:border-indigo-200 hover:bg-indigo-50';
+      row.dataset.start = slot.start;
+      row.dataset.end = slot.end;
       row.textContent = formatJst(slot.start) + ' - ' + formatJst(slot.end);
+      row.addEventListener('click', () => {
+        document.querySelectorAll('.slot-row').forEach((el) => el.classList.remove('border-indigo-400', 'bg-indigo-50'));
+        row.classList.add('border-indigo-400', 'bg-indigo-50');
+        selectedSlot = { start: slot.start, end: slot.end };
+        if (slotLockHint) slotLockHint.classList.remove('hidden');
+        refreshStartOptions();
+      });
       slotsBox.appendChild(row);
     });
 
@@ -303,7 +339,8 @@
     const duration = selectedDurationMinutes();
     const optionMap = new Map();
 
-    currentSlots.forEach((slot) => {
+    const slotsToUse = selectedSlot ? [selectedSlot] : currentSlots;
+    slotsToUse.forEach((slot) => {
       const slotStart = new Date(slot.start);
       const slotEnd = new Date(slot.end);
       const iter = new Date(slotStart);
@@ -329,6 +366,8 @@
       opt.value = '';
       opt.textContent = '予約可能な開始時刻がありません';
       startSelect.appendChild(opt);
+    } else {
+      startSelect.selectedIndex = 0;
     }
   }
 
@@ -338,6 +377,9 @@
     resourceInput.value = button.dataset.resourceId;
 
     const resource = resources.find((r) => r.id === button.dataset.resourceId);
+    if (profileSheet && button.parentNode) {
+      button.insertAdjacentElement('afterend', profileSheet);
+    }
     showProfile(resource);
     loadSlotsForResource(button.dataset.resourceId);
   };
@@ -447,7 +489,6 @@
     const startOption = document.querySelector('#start_time option:checked');
     return [
       `担当者: ${(resources.find((r) => r.id === resourceInput.value) || {}).name || '-'}`,
-      `名前: ${(document.getElementById('customer_name') || {}).value || '-'}`,
       `VRCID: ${(document.getElementById('customer_vrcid') || {}).value || '-'}`,
       `DiscordID: ${(document.getElementById('customer_discord_id') || {}).value || '-'}`,
       `メール: ${(document.getElementById('customer_email') || {}).value || '-'}`,

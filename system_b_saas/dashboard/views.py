@@ -707,12 +707,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         booking_id = (request.POST.get("core_booking_id") or "").strip()
         resource_id = (request.POST.get("core_resource_id") or "").strip()
-        customer_name = (request.POST.get("core_customer_name") or "").strip()
         customer_vrcid = (request.POST.get("core_customer_vrcid") or "").strip()
         service_preset_id = (request.POST.get("core_service_preset_id") or "").strip()
         start_raw = (request.POST.get("core_start_time") or "").strip()
 
-        if not all([resource_id, customer_name, service_preset_id, start_raw]):
+        if not all([resource_id, customer_vrcid, service_preset_id, start_raw]):
             raise ValueError("必須項目を入力してください")
 
         start_time = parse_datetime(start_raw)
@@ -734,8 +733,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if not booking:
                 raise ValueError("編集対象のコアタイム注文が見つかりません")
             booking.resource = resource
-            booking.customer_name = customer_name
-            booking.customer_id = customer_vrcid or None
+            booking.customer_name = customer_vrcid
+            booking.customer_id = customer_vrcid
             booking.selected_service = service_preset
             booking.selected_service_name = service_preset.name
             booking.start_time = start_time
@@ -760,8 +759,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         Booking.objects.create(
             tenant=tenant,
             resource=resource,
-            customer_name=customer_name,
-            customer_id=customer_vrcid or None,
+            customer_name=customer_vrcid,
+            customer_id=customer_vrcid,
             selected_service=service_preset,
             selected_service_name=service_preset.name,
             start_time=start_time,

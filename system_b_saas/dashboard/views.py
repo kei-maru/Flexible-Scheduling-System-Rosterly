@@ -834,6 +834,24 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         stored_path = default_storage.save(rel_path, avatar_file)
         return default_storage.url(stored_path)
 
+    def _normalize_avatar_url(self, url):
+        text = (url or "").strip()
+        if not text:
+            return ""
+        # Keep dashboard avatars loadable under HTTPS by upgrading known local hosts.
+        if text.startswith("http://") and self.request.is_secure():
+            host = (urlparse(text).hostname or "").lower()
+            if host in {
+                "138.3.221.225",
+                "rosterlyreverse.com",
+                "www.rosterlyreverse.com",
+                "api.rosterlyreverse.com",
+                "vr-veludo.com",
+                "api.vr-veludo.com",
+            }:
+                return "https://" + text[len("http://"):]
+        return text
+
     def _ensure_staff_resource_binding(self, user, tenant):
         return ensure_staff_resource_binding(user, tenant=tenant)
 
@@ -885,6 +903,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         updated_count = 0
         blocked_count = 0
+        display_only_count = 0
         for user_id in user_ids:
             user = SaaSUser.objects.filter(id=user_id).first()
             if not user:
@@ -894,7 +913,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if user.tenant_id not in [tenant.id, None]:
                 continue
 
-            username = (request.POST.get(f"username__{user_id}") or user.username).strip() or user.username
+            display_name = (request.POST.get(f"username__{user_id}") or user.username).strip() or user.username
             email = (request.POST.get(f"email__{user_id}") or "").strip()
             role_raw = request.POST.get(f"role__{user_id}")
             role = role_raw if role_raw in ["ADMIN", "STAFF"] else user.role
@@ -915,9 +934,15 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if user.tenant_id is None:
                 user.tenant = tenant
                 update_fields.append("tenant")
-            if user.username != username:
-                user.username = username
+            username_conflict = SaaSUser.objects.filter(username=display_name).exclude(pk=user.pk).exists()
+            if not username_conflict and user.username != display_name:
+                user.username = display_name
                 update_fields.append("username")
+            if (user.first_name or "") != display_name:
+                user.first_name = display_name
+                update_fields.append("first_name")
+                if username_conflict:
+                    display_only_count += 1
             if (user.email or "") != email:
                 user.email = email
                 update_fields.append("email")
@@ -932,11 +957,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 user.save(update_fields=update_fields)
                 updated_count += 1
 
+            if linked and display_name and linked.name != display_name:
+                linked.name = display_name
+                linked.save(update_fields=["name"])
+
             if linked and linked.is_active != user.is_active:
                 linked.is_active = user.is_active
                 linked.save(update_fields=["is_active"])
 
-        return updated_count, blocked_count
+            if user.role in {"STAFF", "ADMIN"}:
+                self._ensure_staff_resource_binding(user, tenant)
+
+        return updated_count, blocked_count, display_only_count
 
     def _save_service_preset(self, request, tenant):
         service_id = (request.POST.get("service_id") or "").strip()
@@ -1020,12 +1052,17 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 messages.success(request, "Cast CMS を更新しました。")
                 target_tab = "content"
             elif request.POST.get("save_staff_batch") == "true" or request.POST.get("save_staff") == "true":
-                updated_count, blocked_count = self._save_staff_profiles_batch(request, tenant)
+                updated_count, blocked_count, display_only_count = self._save_staff_profiles_batch(request, tenant)
                 messages.success(request, f"ユーザー情報を更新しました（{updated_count} 件）。")
                 if blocked_count:
                     messages.warning(
                         request,
                         f"{blocked_count} 件は、プロフィール画面でプラットフォーム利用規約への同意が未完了のため、予約対象として有効化されませんでした。",
+                    )
+                if display_only_count:
+                    messages.warning(
+                        request,
+                        f"{display_only_count} 件は認証用ユーザー名の重複回避のため、表示名のみ更新しました。",
                     )
                 target_tab = "users"
             elif request.POST.get("save_service") == "true":
@@ -1161,7 +1198,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                         "resource_email": resource.email or "",
                         "linked_username": resource.linked_user.username if resource.linked_user else "",
                         "intro": normalize_profile_text(profile.intro) if profile else "",
-                        "avatar_url": profile.avatar_url if profile else "",
+                        "avatar_url": self._normalize_avatar_url(profile.avatar_url if profile else ""),
                         "youtube_url": profile.youtube_url if profile else "",
                         "tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
                         "selected_service_ids": [str(item) for item in selected_service_ids],

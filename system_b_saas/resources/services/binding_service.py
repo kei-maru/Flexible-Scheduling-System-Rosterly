@@ -65,6 +65,9 @@ def _discord_uid(user):
 def _desired_resource_name(user):
     if user is None:
         return ""
+    display_name = (getattr(user, "first_name", "") or "").strip()
+    if display_name:
+        return display_name
     return (getattr(user, "username", "") or "").strip()
 
 

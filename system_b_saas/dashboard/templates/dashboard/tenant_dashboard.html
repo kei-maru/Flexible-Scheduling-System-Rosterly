@@ -375,7 +375,7 @@
                                     <tr class="user-row user-edit-row" data-user-id="{{ row.user.id }}" data-role="{{ row.user.role|lower }}" data-name="{{ row.user.username|lower }} {{ row.user.email|default:''|lower }}" data-display-name="{{ row.user.username|default:'(no-name)'|escape }}">
                                         <td>
                                             <input type="hidden" name="user_ids" value="{{ row.user.id }}">
-                                            <input type="text" name="username__{{ row.user.id }}" value="{{ row.user.username }}" data-original="{{ row.user.username|default:''|escape }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                            <input type="text" name="username__{{ row.user.id }}" value="{{ row.user.first_name|default:row.user.username }}" data-original="{{ row.user.first_name|default:row.user.username|default:''|escape }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
                                         </td>
                                         <td>
                                             <input type="email" name="email__{{ row.user.id }}" value="{{ row.user.email|default:'' }}" data-original="{{ row.user.email|default:''|escape }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
@@ -442,7 +442,7 @@
                                     </span>
                                     <div class="flex items-center gap-3 min-w-0 flex-1">
                                         <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-                                            <img src="{{ cast.avatar_url|default:'' }}" class="cast-avatar-img h-full w-full object-cover{% if not cast.avatar_url %} hidden{% endif %}" alt="avatar">
+                                            <img src="{{ cast.avatar_url|default:'' }}" class="cast-avatar-img h-full w-full object-cover{% if not cast.avatar_url %} hidden{% endif %}" alt="avatar" onerror="this.classList.add('hidden'); const fb=this.parentElement.querySelector('.cast-avatar-fallback'); if (fb) fb.classList.remove('hidden');">
                                             <span class="cast-avatar-fallback flex h-full w-full items-center justify-center text-[11px] text-slate-400{% if cast.avatar_url %} hidden{% endif %}">
                                                 <i class="fa-solid fa-user"></i>
                                             </span>
@@ -481,7 +481,7 @@
                                     <label class="mb-1 block text-xs text-slate-500">プロフィール画像</label>
                                     <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
                                         <div class="mb-3 flex items-center gap-3">
-                                            <img id="cms-avatar-preview" src="" alt="avatar preview" class="hidden h-16 w-16 rounded-full border border-slate-200 object-cover">
+                                            <img id="cms-avatar-preview" src="" alt="avatar preview" class="hidden h-16 w-16 rounded-full border border-slate-200 object-cover" onerror="this.classList.add('hidden'); const empty=document.getElementById('cms-avatar-empty'); if (empty) empty.classList.remove('hidden');">
                                             <span id="cms-avatar-empty" class="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-500">未設定</span>
                                             <p class="text-xs text-slate-500">予約時にお客様へ表示される画像です。</p>
                                         </div>

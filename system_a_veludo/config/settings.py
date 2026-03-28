@@ -21,6 +21,9 @@ ALLOWED_HOSTS = [
     'vr-veludo.com',       # 你的域名 (预留)
     'www.vr-veludo.com',
     '138.3.221.225',
+    'rosterlyreverse.com',
+    'www.rosterlyreverse.com',
+    'api.rosterlyreverse.com',
     
     # --- Docker 内部 ---
     'system_a',            # Docker 服务名

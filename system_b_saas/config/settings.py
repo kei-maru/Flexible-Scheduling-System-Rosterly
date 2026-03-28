@@ -20,6 +20,9 @@ ALLOWED_HOSTS = [
     '138.3.221.225',
     'vr-veludo.com',
     'saas.vr-veludo.com',
+    'rosterlyreverse.com',
+    'www.rosterlyreverse.com',
+    'api.rosterlyreverse.com',
     
     # Docker 内部
     'system_b',             # docker-compose 服务名

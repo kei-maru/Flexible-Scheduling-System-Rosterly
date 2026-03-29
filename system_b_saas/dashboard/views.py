@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 from uuid import uuid4
 import secrets
 
@@ -119,9 +119,34 @@ DEFAULT_EMAIL_FOOTER_TEXT = "キャンセルは予定時刻の二十四時間前
 
 def _absolute_public_url(request, path):
     base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
-    if base:
+    if _is_http_url(base):
         return f"{base}{path}"
-    return request.build_absolute_uri(path)
+
+    try:
+        built = request.build_absolute_uri(path)
+        if _is_http_url(built):
+            return built
+    except Exception:
+        pass
+
+    host = (request.get_host() or "").strip()
+    if host:
+        scheme = "https" if request.is_secure() else "http"
+        return f"{scheme}://{host}{path}"
+    return path
+
+
+def _resolve_booking_redirect_url(tenant, token, fallback_url):
+    custom_url = (getattr(tenant, "booking_detail_redirect_url", "") or "").strip()
+    if not _is_http_url(custom_url):
+        return fallback_url
+
+    parsed = urlparse(custom_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault("booking_token", token)
+    if getattr(tenant, "slug", ""):
+        query.setdefault("tenant", tenant.slug)
+    return urlunparse(parsed._replace(query=urlencode(query)))
 
 
 def _ensure_booking_public_access(request, booking):
@@ -129,7 +154,8 @@ def _ensure_booking_public_access(request, booking):
     if not token:
         token = secrets.token_urlsafe(24)
     detail_path = reverse("dashboard_public_booking_detail", kwargs={"access_token": token})
-    detail_url = _absolute_public_url(request, detail_path)
+    canonical_detail_url = _absolute_public_url(request, detail_path)
+    detail_url = _resolve_booking_redirect_url(booking.tenant, token, canonical_detail_url)
 
     update_fields = []
     if booking.public_access_token != token:
@@ -404,6 +430,7 @@ class DashboardPublicBookingView(TemplateView):
                 "services": services,
                 "tenant_logo_url": tenant.logo.url if getattr(tenant, "logo", None) else "",
                 "booking_window_days": max(1, int(getattr(tenant, "booking_window_days", 14) or 14)),
+                "cancellation_window_hours": max(1, int(getattr(tenant, "cancellation_window_hours", 2) or 2)),
                 "store_contract_label": (tenant.store_contract_label or "店舗利用規約").strip() or "店舗利用規約",
                 "store_contract_url": (tenant.store_contract_url or "").strip(),
                 "tenant_is_subscribed": _tenant_is_subscribed(tenant),
@@ -495,7 +522,7 @@ class DashboardPublicBookingCreateApi(View):
             getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
         )
 
-        if not all([resource_id, customer_name, start_raw]):
+        if not all([resource_id, start_raw]):
             return JsonResponse({"error": "Missing required fields"}, status=400)
         if "VRCID" in required_fields and not customer_vrcid:
             return JsonResponse({"error": "VRCID is required"}, status=400)
@@ -503,6 +530,16 @@ class DashboardPublicBookingCreateApi(View):
             return JsonResponse({"error": "DiscordID is required"}, status=400)
         if "EMAIL" in required_fields and not customer_email:
             return JsonResponse({"error": "Email is required"}, status=400)
+
+        # 店舗の必須項目設定に合わせて customer_name を自動決定する。
+        if "VRCID" in required_fields and customer_vrcid:
+            customer_name = customer_vrcid
+        elif "DISCORDID" in required_fields and customer_discord_id:
+            customer_name = customer_discord_id
+        elif "EMAIL" in required_fields and customer_email:
+            customer_name = customer_email
+        elif not customer_name:
+            customer_name = customer_vrcid or customer_discord_id or customer_email or "Guest"
 
         start_time = parse_datetime(start_raw)
         if not start_time:
@@ -673,13 +710,25 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
     def _public_booking_url(self, tenant):
         if not tenant:
             return ""
-        return self.request.build_absolute_uri(reverse("dashboard_public_booking", kwargs={"tenant_slug": tenant.slug}))
+        return self._absolute_public_url(reverse("dashboard_public_booking", kwargs={"tenant_slug": tenant.slug}))
 
     def _absolute_public_url(self, path):
         base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
-        if base:
+        if _is_http_url(base):
             return f"{base}{path}"
-        return self.request.build_absolute_uri(path)
+
+        try:
+            built = self.request.build_absolute_uri(path)
+            if _is_http_url(built):
+                return built
+        except Exception:
+            pass
+
+        host = (self.request.get_host() or "").strip()
+        if host:
+            scheme = "https" if self.request.is_secure() else "http"
+            return f"{scheme}://{host}{path}"
+        return path
 
     def _resolve_cast_avatar_url(self, resource, profile):
         current = self._normalize_avatar_url(getattr(profile, "avatar_url", "") if profile else "")
@@ -731,6 +780,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         store_type = (request.POST.get("store_type") or "FLEX_SHIFT").strip().upper()
         booking_window_days_raw = (request.POST.get("booking_window_days") or "14").strip()
         cancellation_window_hours_raw = (request.POST.get("cancellation_window_hours") or "2").strip()
+        booking_detail_redirect_url = (request.POST.get("booking_detail_redirect_url") or "").strip() or None
         store_contract_label = (request.POST.get("store_contract_label") or "").strip()
         store_contract_url = (request.POST.get("store_contract_url") or "").strip() or None
         required_customer_fields = _normalize_required_customer_fields(request.POST.getlist("required_customer_fields"))
@@ -762,6 +812,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             cancellation_window_hours = max(1, int(cancellation_window_hours_raw))
         except ValueError:
             raise ValueError("キャンセル可能期限は1以上の整数で入力してください")
+        if booking_detail_redirect_url and not _is_http_url(booking_detail_redirect_url):
+            raise ValueError("予約詳細リダイレクトURLは http(s) 形式で入力してください")
         if store_contract_url and not _is_http_url(store_contract_url):
             raise ValueError("店舗契約URLは http(s) 形式で入力してください")
 
@@ -784,6 +836,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if (getattr(tenant, "cancellation_window_hours", 2) or 2) != cancellation_window_hours:
             tenant.cancellation_window_hours = cancellation_window_hours
             update_fields.append("cancellation_window_hours")
+        if (getattr(tenant, "booking_detail_redirect_url", None) or None) != booking_detail_redirect_url:
+            tenant.booking_detail_redirect_url = booking_detail_redirect_url
+            update_fields.append("booking_detail_redirect_url")
         if (tenant.store_contract_label or "") != store_contract_label:
             tenant.store_contract_label = store_contract_label
             update_fields.append("store_contract_label")
@@ -1419,6 +1474,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "subscription_ends_at": (tenant.subscription_ends_at if tenant else None),
                 "booking_window_days": tenant.booking_window_days if tenant else 14,
                 "cancellation_window_hours": tenant.cancellation_window_hours if tenant else 2,
+                "booking_detail_redirect_url": tenant.booking_detail_redirect_url if tenant else "",
                 "store_contract_label": tenant.store_contract_label if tenant else "店舗利用規約",
                 "store_contract_url": tenant.store_contract_url if tenant else "",
                 "required_customer_fields": _normalize_required_customer_fields(

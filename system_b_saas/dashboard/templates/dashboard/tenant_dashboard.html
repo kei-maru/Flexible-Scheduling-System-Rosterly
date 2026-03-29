@@ -196,6 +196,11 @@
                                     <input type="number" min="1" name="cancellation_window_hours" value="{{ cancellation_window_hours|default:2 }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                     <p class="mt-1 text-[11px] text-slate-500">予約開始の N 時間前まで、顧客は注文詳細リンクからキャンセルできます。</p>
                                 </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">予約詳細リダイレクトURL（任意）</label>
+                                    <input type="url" name="booking_detail_redirect_url" value="{{ booking_detail_redirect_url|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://veludo.example.com/booking/detail">
+                                    <p class="mt-1 text-[11px] text-slate-500">設定すると、メール内「詳細を見る」ボタンはこのURLに遷移します。booking_token パラメータが自動付与されます。</p>
+                                </div>
                             </div>
                         </div>
 
@@ -765,10 +770,10 @@
                             <table class="admin-table w-full table-fixed">
                                 <thead>
                                     <tr>
-                                        <th class="w-[34%]">名称</th>
+                                        <th class="w-[48%]">名称</th>
                                         <th class="w-[11%]">価格</th>
                                         <th class="w-[11%]">時間</th>
-                                        <th class="w-[22%]">説明</th>
+                                        <th class="w-[8%]">説明</th>
                                         <th class="w-[10%]">有効</th>
                                         <th class="w-[12%]">操作</th>
                                     </tr>

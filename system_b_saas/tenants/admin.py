@@ -13,7 +13,7 @@ class TenantAdmin(admin.ModelAdmin):
     fieldsets = (
         ("基本信息", {"fields": ("name", "slug", "contact_email", "logo", "webhook_url", "enable_saas_dashboard")}),
         ("订阅设置", {"fields": ("subscription_status", "subscription_plan_code", "subscription_started_at", "subscription_ends_at")}),
-        ("预约设置", {"fields": ("store_type", "booking_window_days", "cancellation_window_hours", "store_contract_label", "store_contract_url", "required_customer_fields", "custom_terms_label", "custom_terms_body")}),
+        ("预约设置", {"fields": ("store_type", "booking_window_days", "cancellation_window_hours", "booking_detail_redirect_url", "store_contract_label", "store_contract_url", "required_customer_fields", "custom_terms_label", "custom_terms_body")}),
         ("API 凭据", {"fields": ("api_key", "api_secret")}),
     )
 

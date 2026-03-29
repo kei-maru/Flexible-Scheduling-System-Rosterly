@@ -14,6 +14,7 @@ from django.db.models import Q
 from django.conf import settings
 from django.urls import reverse
 import secrets
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # 👇 导入我们刚才写好的 Tasks
 from bookings.tasks import process_new_booking, send_cancellation_email_task
@@ -27,17 +28,51 @@ from resources.services.service_mapping import (
 from bookings.models import Booking
 
 
+def _is_http_url(value):
+    text = (value or "").strip()
+    if not text:
+        return False
+    parsed = urlparse(text)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
 def _absolute_public_url(request, path):
     base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
-    if base:
+    if _is_http_url(base):
         return f"{base}{path}"
-    return request.build_absolute_uri(path)
+
+    try:
+        built = request.build_absolute_uri(path)
+        if _is_http_url(built):
+            return built
+    except Exception:
+        pass
+
+    host = (request.get_host() or "").strip()
+    if host:
+        scheme = "https" if request.is_secure() else "http"
+        return f"{scheme}://{host}{path}"
+    return path
+
+
+def _resolve_booking_redirect_url(tenant, token, fallback_url):
+    custom_url = (getattr(tenant, "booking_detail_redirect_url", "") or "").strip()
+    if not _is_http_url(custom_url):
+        return fallback_url
+
+    parsed = urlparse(custom_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault("booking_token", token)
+    if getattr(tenant, "slug", ""):
+        query.setdefault("tenant", tenant.slug)
+    return urlunparse(parsed._replace(query=urlencode(query)))
 
 
 def _ensure_booking_public_access(request, booking):
     token = (booking.public_access_token or "").strip() or secrets.token_urlsafe(24)
     detail_path = reverse("dashboard_public_booking_detail", kwargs={"access_token": token})
-    detail_url = _absolute_public_url(request, detail_path)
+    canonical_detail_url = _absolute_public_url(request, detail_path)
+    detail_url = _resolve_booking_redirect_url(booking.tenant, token, canonical_detail_url)
 
     update_fields = []
     if booking.public_access_token != token:

@@ -20,6 +20,92 @@
         .profile-intro { opacity: 0; transform: translateX(-14px); transition: opacity .55s ease, transform .55s ease; }
         .profile-sheet.open .profile-poster-wrap { opacity: 1; transform: translateX(0); transition-delay: .12s; }
         .profile-sheet.open .profile-intro { opacity: 1; transform: translateX(0); transition-delay: .32s; }
+        .confirm-shell {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 22px 58px -34px rgba(15, 23, 42, .42);
+        }
+        .confirm-summary-item {
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+          border-radius: 10px;
+          padding: 10px 12px;
+        }
+        .confirm-section {
+          margin-top: 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          background: #ffffff;
+          padding: 12px;
+        }
+        .confirm-section-title {
+          margin-bottom: 8px;
+          font-size: 11px;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          color: #64748b;
+          font-weight: 700;
+        }
+        .confirm-profile-row {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 10px;
+          align-items: center;
+        }
+        .confirm-profile-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 9999px;
+          object-fit: cover;
+          border: 1px solid #cbd5e1;
+        }
+        .confirm-profile-fallback {
+          width: 40px;
+          height: 40px;
+          border-radius: 9999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: #0f172a;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .confirm-profile-name {
+          font-size: 14px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .confirm-profile-sub {
+          margin-top: 2px;
+          color: #475569;
+          font-size: 12px;
+        }
+        .confirm-summary-key {
+          font-size: 11px;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          color: #94a3b8;
+        }
+        .confirm-summary-val {
+          margin-top: 4px;
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 600;
+          word-break: break-word;
+        }
+        .confirm-policy {
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          color: #334155;
+          transition: border-color .2s ease, background-color .2s ease;
+        }
+        .confirm-policy:hover { border-color: #c7d2fe; }
+        .confirm-policy.checked {
+          border-color: #a5b4fc;
+          background: #eef2ff;
+        }
+        .confirm-check { accent-color: #d4af37; }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
@@ -195,32 +281,42 @@
                 </div>
 
                 <button type="button" onclick="openConfirmModal()" class="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">予約する</button>
+                <p class="pt-1 text-center text-[11px] text-slate-500">キャンセル可能時間：予約時間の{{ cancellation_window_hours|default:2 }}時間前まで</p>
             </form>
             <div id="result" class="mt-3 hidden rounded-md border px-3 py-2 text-sm"></div>
         </section>
     </div>
 
-    <div id="confirm-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 px-4">
-        <div class="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <h3 class="text-lg font-semibold text-slate-900">予約内容の確認</h3>
-            <div id="confirm-summary" class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"></div>
-            <p class="mt-4 text-xs text-slate-500">下記の条項に同意すると予約を確定できます。</p>
+          <div id="confirm-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
+      <div class="confirm-shell w-full max-w-2xl rounded-2xl p-5 shadow-2xl md:p-6">
+              <div class="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+          <div>
+                  <p class="text-[11px] uppercase tracking-[0.2em] text-indigo-500">Booking Confirmation</p>
+                  <h3 class="mt-1 text-lg font-semibold text-slate-900">予約内容の確認</h3>
+          </div>
+                <i class="fa-regular fa-gem text-indigo-500"></i>
+        </div>
+        <div id="confirm-summary" class="mt-4"></div>
+              <p class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                キャンセル可能時間：予約時間の{{ cancellation_window_hours|default:2 }}時間前まで
+              </p>
+              <p class="mt-4 text-xs text-slate-500">下記の条項に同意すると予約を確定できます。</p>
             <div class="mt-3 space-y-2">
-                <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
                     <input class="confirm-check mt-1" type="checkbox">
-                    <span>VRC 契約に同意する（<a class="text-indigo-600 hover:underline" href="https://hello.vrchat.com/legal" target="_blank" rel="noopener">VRChat Terms</a>）</span>
+                  <span>VRC 契約に同意する（<a class="text-indigo-600 hover:underline" href="https://hello.vrchat.com/legal" target="_blank" rel="noopener">VRChat Terms</a>）</span>
                 </label>
-                <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
                     <input class="confirm-check mt-1" type="checkbox">
                     <span>
                         {{ store_contract_label|default:'店舗利用規約' }} に同意する
                         {% if store_contract_url %}
-                        （<a class="text-indigo-600 hover:underline" href="{{ store_contract_url }}" target="_blank" rel="noopener">詳細</a>）
+                    （<a class="text-indigo-600 hover:underline" href="{{ store_contract_url }}" target="_blank" rel="noopener">詳細</a>）
                         {% endif %}
                     </span>
                 </label>
                 {% for agreement in agreement_modules %}
-                <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
                     <input class="confirm-check mt-1" type="checkbox">
                     <span>
                     {{ agreement.title|default:'追加条項' }} に同意する
@@ -236,8 +332,8 @@
                 {% endfor %}
             </div>
             <div class="mt-5 flex justify-end gap-2">
-                <button type="button" onclick="closeConfirmModal()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">戻る</button>
-                <button id="confirm-submit" type="button" onclick="submitBooking()" class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700" disabled>同意して予約確定</button>
+                  <button type="button" onclick="closeConfirmModal()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">戻る</button>
+                  <button id="confirm-submit" type="button" onclick="submitBooking()" class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50" disabled>同意して予約確定</button>
             </div>
         </div>
     </div>
@@ -701,14 +797,89 @@
   function getSummaryText() {
     const serviceOption = document.querySelector('#service_id option:checked');
     const startOption = document.querySelector('#start_time option:checked');
-    return [
-      `担当者: ${(resources.find((r) => r.id === resourceInput.value) || {}).name || '-'}`,
-      `VRCID: ${(document.getElementById('customer_vrcid') || {}).value || '-'}`,
-      `DiscordID: ${(document.getElementById('customer_discord_id') || {}).value || '-'}`,
-      `メール: ${(document.getElementById('customer_email') || {}).value || '-'}`,
-      `サービス: ${serviceOption ? serviceOption.textContent : '-'}`,
-      `開始: ${startOption ? startOption.textContent : '-'}`,
-    ].join('<br>');
+    const selectedResource = resources.find((r) => r.id === resourceInput.value) || {};
+    const rows = [];
+
+    const escapeHtml = (value) => String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const vrcInput = document.getElementById('customer_vrcid');
+    if (vrcInput) rows.push(['VRCID', vrcInput.value || '-']);
+
+    const discordInput = document.getElementById('customer_discord_id');
+    if (discordInput) rows.push(['DiscordID', discordInput.value || '-']);
+
+    const emailInput = document.getElementById('customer_email');
+    if (emailInput) rows.push(['メール', emailInput.value || '-']);
+
+    const duration = selectedDurationMinutes();
+    let timeRangeText = startOption ? startOption.textContent : '-';
+    if (startSelect && startSelect.value) {
+      const startDate = new Date(startSelect.value);
+      if (!Number.isNaN(startDate.getTime())) {
+        const endDate = new Date(startDate.getTime() + duration * 60000);
+        const startLabel = startDate.toLocaleString('ja-JP', {
+          timeZone: 'Asia/Tokyo',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        const endLabel = endDate.toLocaleString('ja-JP', {
+          timeZone: 'Asia/Tokyo',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        timeRangeText = `${startLabel} - ${endLabel}（${duration}分）`;
+      }
+    }
+
+    const avatarUrl = (selectedResource.avatar || '').replace(/"/g, '&quot;');
+    const resourceName = selectedResource.name || '-';
+    const serviceName = serviceOption ? serviceOption.textContent : '-';
+    const identityRows = rows.length
+      ? rows
+          .map(([k, v]) => `<div class="confirm-summary-item"><div class="confirm-summary-key">${escapeHtml(k)}</div><div class="confirm-summary-val">${escapeHtml(v || '-')}</div></div>`)
+          .join('')
+      : '<div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">入力情報はありません。</div>';
+
+    return `
+      <div class="confirm-section">
+        <div class="confirm-section-title">担当者とサービス</div>
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div class="confirm-summary-item">
+            <div class="confirm-summary-key">担当者</div>
+            <div class="confirm-profile-row">
+              ${avatarUrl ? `<img src="${avatarUrl}" alt="avatar" class="confirm-profile-avatar">` : `<span class="confirm-profile-fallback">${escapeHtml(resourceName.slice(0, 1).toUpperCase() || '-')}</span>`}
+              <div>
+                <div class="confirm-profile-name">${escapeHtml(resourceName)}</div>
+              </div>
+            </div>
+          </div>
+          <div class="confirm-summary-item">
+            <div class="confirm-summary-key">予約サービス</div>
+            <div class="confirm-summary-val">${escapeHtml(serviceName)}</div>
+          </div>
+        </div>
+      </div>
+      <div class="confirm-section">
+        <div class="confirm-section-title">入力した予約情報</div>
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-2">${identityRows}</div>
+      </div>
+      <div class="confirm-section">
+        <div class="confirm-section-title">予約時間</div>
+        <div class="confirm-summary-item">
+          <div class="confirm-summary-key">開始 - 終了</div>
+          <div class="confirm-summary-val">${escapeHtml(timeRangeText)}</div>
+        </div>
+      </div>
+    `;
   }
 
   window.openConfirmModal = function () {
@@ -738,7 +909,11 @@
     confirmModal.classList.add('flex');
 
     const checks = document.querySelectorAll('.confirm-check');
-    checks.forEach((c) => c.checked = false);
+    checks.forEach((c) => {
+      c.checked = false;
+      const row = c.closest('.confirm-policy');
+      if (row) row.classList.remove('checked');
+    });
     confirmSubmitBtn.disabled = true;
   };
 
@@ -749,6 +924,8 @@
 
   document.addEventListener('change', (e) => {
     if (!e.target.classList.contains('confirm-check')) return;
+    const row = e.target.closest('.confirm-policy');
+    if (row) row.classList.toggle('checked', e.target.checked);
     const checks = Array.from(document.querySelectorAll('.confirm-check'));
     confirmSubmitBtn.disabled = checks.some((c) => !c.checked);
   });

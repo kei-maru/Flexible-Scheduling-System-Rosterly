@@ -7,6 +7,7 @@ from django.template import Template, Context
 from django.utils.html import strip_tags
 from django.utils import timezone
 from django.urls import reverse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import pytz
 import requests
 import os  
@@ -17,14 +18,42 @@ from resources.models import EmailTemplate
 from bookings.models import Booking
 
 
+def _is_http_url(value):
+    text = (value or "").strip()
+    if not text:
+        return False
+    parsed = urlparse(text)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _resolve_booking_redirect_url(tenant, token, fallback_url):
+    custom_url = (getattr(tenant, "booking_detail_redirect_url", "") or "").strip()
+    if not _is_http_url(custom_url):
+        return fallback_url
+
+    parsed = urlparse(custom_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault("booking_token", token)
+    if getattr(tenant, "slug", ""):
+        query.setdefault("tenant", tenant.slug)
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
 def _build_public_booking_detail_url(booking):
     token = (booking.public_access_token or "").strip() or secrets.token_urlsafe(24)
     path = reverse("dashboard_public_booking_detail", kwargs={"access_token": token})
-    base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
-    if base:
-        url = f"{base}{path}"
+
+    existing = (booking.public_detail_url or "").strip()
+    if _is_http_url(existing):
+        base_fallback = existing
     else:
-        url = path
+        base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+        if _is_http_url(base):
+            base_fallback = f"{base}{path}"
+        else:
+            base_fallback = path
+
+    url = _resolve_booking_redirect_url(booking.tenant, token, base_fallback)
 
     update_fields = []
     if booking.public_access_token != token:
@@ -105,24 +134,42 @@ def send_cancellation_email_task(resource_email, resource_name, customer_name, s
 
 def _send_booking_emails_logic(booking):
     """具体的邮件构建与发送逻辑 (CID 嵌入版)"""
+    booking_public_url = _build_public_booking_detail_url(booking)
+
+    # Default fallback values for tenants that have never configured Email Templates.
+    t_send_to_customer = True
+    t_send_to_cast = True
+    tpl_email_title = "予約が確定しました。"
+    tpl_email_greeting = "以下の内容で予約を承りました。"
+    tpl_service_name = "{{ selected_service_name }}"
+    t_btn_text = "予約詳細を見る"
+    t_btn_link = booking_public_url
+    t_footer_title = "キャンセルポリシー"
+    t_footer_text = "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡"
+    raw_subject = "【{{ tenant_name }}：ご予約日時のお知らせ】"
+
+    # Logo source priority: tenant logo > template logo
+    logo_fs_path = None
+    tenant_logo = getattr(booking.tenant, "logo", None)
+    if tenant_logo:
+        try:
+            logo_fs_path = tenant_logo.path
+        except Exception:
+            logo_fs_path = None
+
     try:
         tpl = EmailTemplate.objects.get(tenant=booking.tenant, event_type='BOOKING_CONFIRMED')
-        
+
+        t_send_to_customer = tpl.send_to_customer
+        t_send_to_cast = tpl.send_to_cast
+        tpl_email_title = tpl.email_title
+        tpl_email_greeting = tpl.email_greeting
+        tpl_service_name = tpl.service_name
         t_btn_text = tpl.button_text
-        booking_public_url = _build_public_booking_detail_url(booking)
         t_btn_link = (tpl.button_link or "").strip() or booking_public_url
         t_footer_title = tpl.footer_title
         t_footer_text = tpl.footer_text or "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡"
         raw_subject = tpl.subject_template
-
-        # Logo source priority: tenant logo > template logo
-        logo_fs_path = None
-        tenant_logo = getattr(booking.tenant, "logo", None)
-        if tenant_logo:
-            try:
-                logo_fs_path = tenant_logo.path
-            except Exception:
-                logo_fs_path = None
         if not logo_fs_path and tpl.logo:
             try:
                 logo_fs_path = tpl.logo.path
@@ -130,8 +177,7 @@ def _send_booking_emails_logic(booking):
                 logo_fs_path = None
 
     except EmailTemplate.DoesNotExist:
-        print("[Email Warning] No EmailTemplate found.")
-        return
+        print("[Email Warning] No EmailTemplate found. Using fallback template.")
 
     jst = pytz.timezone('Asia/Tokyo')
     start_jst = booking.start_time.astimezone(jst)
@@ -171,8 +217,8 @@ def _send_booking_emails_logic(booking):
     dynamic_service_name_default = f"{duration_minutes}分VRASMR施術コース (PCVR)"
     if booking_selected_service:
         service_name = booking_selected_service
-    elif tpl.service_name and tpl.service_name.strip():
-        rendered_service_name = _render_text_with_duration(tpl.service_name, base_ctx)
+    elif tpl_service_name and tpl_service_name.strip():
+        rendered_service_name = _render_text_with_duration(tpl_service_name, base_ctx)
         service_name = rendered_service_name or dynamic_service_name_default
     else:
         service_name = dynamic_service_name_default
@@ -295,10 +341,10 @@ def _send_booking_emails_logic(booking):
         msg.send()
         print(f"[Email] Sent to {recipient_name} ({recipient_email})")
 
-    if tpl.send_to_customer and booking.customer_email:
-        _send_single(booking.customer_email, booking.customer_name, tpl.email_title, tpl.email_greeting, is_cast=False)
-    
-    if tpl.send_to_cast and booking.resource.email:
+    if t_send_to_customer and booking.customer_email:
+        _send_single(booking.customer_email, booking.customer_name, tpl_email_title, tpl_email_greeting, is_cast=False)
+
+    if t_send_to_cast and booking.resource.email:
         cast_greeting = f"お客様（{booking.customer_name} 様）より新しい予約が入りました。"
         _send_single(booking.resource.email, booking.resource.name, "新着予約通知", cast_greeting, is_cast=True)
 

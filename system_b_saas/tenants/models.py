@@ -14,6 +14,7 @@ class Tenant(models.Model):
     logo = models.ImageField(upload_to='tenant_logos/', blank=True, null=True)
     store_type = models.CharField(max_length=20, default='FLEX_SHIFT')
     booking_window_days = models.PositiveIntegerField(default=14)
+    cancellation_window_hours = models.PositiveIntegerField(default=2)
     store_contract_label = models.CharField(max_length=120, default='店舗利用規約')
     store_contract_url = models.URLField(blank=True, null=True)
     required_customer_fields = models.JSONField(default=list, blank=True)

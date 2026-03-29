@@ -170,13 +170,31 @@
                                         </label>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="mb-1 block text-xs text-slate-500">店舗ロゴ</label>
-                                    <input type="file" name="tenant_logo" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-full file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
+                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <div>
+                                        <label class="mb-1 block text-xs text-slate-500">店舗アイコン</label>
+                                        <input type="file" name="tenant_logo" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-full file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
+                                        {% if tenant_logo_url %}
+                                        <div class="mt-2 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                                            <img src="{{ tenant_logo_url }}" alt="current tenant logo" class="h-10 w-10 rounded-full border border-slate-200 object-cover">
+                                            <span class="text-[11px] text-slate-500">現在の店舗アイコン</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <label class="mb-1 block text-xs text-slate-500">店舗 slug</label>
+                                        <input type="text" name="tenant_slug" required value="{{ tenant_slug|default:'' }}" pattern="[a-z0-9-]+" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: veludo-shop">
+                                        <p class="mt-1 text-[11px] text-slate-500">予約リンク生成に使用します。英数字とハイフン（a-z / 0-9 / -）のみ入力できます。</p>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs text-slate-500">予約公開日数（次の N 日）</label>
                                     <input type="number" min="1" name="booking_window_days" value="{{ booking_window_days|default:14 }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs text-slate-500">キャンセル可能期限（時間）</label>
+                                    <input type="number" min="1" name="cancellation_window_hours" value="{{ cancellation_window_hours|default:2 }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <p class="mt-1 text-[11px] text-slate-500">予約開始の N 時間前まで、顧客は注文詳細リンクからキャンセルできます。</p>
                                 </div>
                             </div>
                         </div>
@@ -397,6 +415,7 @@
                                                     {% if row.user.is_active and row.platform_terms_agreed %}checked{% endif %}
                                                     data-original="{% if row.user.is_active and row.platform_terms_agreed %}1{% else %}0{% endif %}"
                                                     class="h-4 w-4 accent-indigo-600 {% if not row.platform_terms_agreed %}cursor-not-allowed accent-slate-300{% endif %}"
+                                                    {% if not row.platform_terms_agreed %}title="スタッフはプロフィール編集画面でプラットフォーム利用規約に同意すると、予約対象として有効化できます。"{% endif %}
                                                     {% if not row.platform_terms_agreed %}disabled{% endif %}>
                                                 予約対象として有効
                                             </label>
@@ -535,8 +554,8 @@
             </section>
 
             <section id="section-shifts" class="hidden-section">
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                    <div class="panel p-4">
+                <div id="schedule-grid" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div id="schedule-cast-panel" class="panel p-4 lg:self-start">
                         <div class="mb-3 flex items-center justify-between">
                             <h2 class="text-lg font-semibold text-slate-900">Select Cast</h2>
                             <span class="text-[10px] uppercase tracking-widest text-slate-500">Filter</span>
@@ -555,7 +574,7 @@
                         </div>
                     </div>
 
-                    <div class="panel lg:col-span-2">
+                    <div id="schedule-main-panel" class="panel lg:col-span-2">
                         <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                             <div>
                                 <h2 id="schedule-view-title" class="text-lg font-semibold text-slate-900">Shifts & Orders</h2>
@@ -700,8 +719,8 @@
             </section>
 
             <section id="section-services" class="hidden-section">
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <div class="panel p-5">
+                <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
+                    <div class="panel p-5 xl:col-span-5">
                         <div class="mb-1 flex items-center justify-between">
                             <h2 id="service-form-title" class="text-lg font-semibold text-slate-900">サービスプリセット作成</h2>
                             <button type="button" id="service-form-cancel" onclick="resetServicePresetForm()" class="hidden rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">新規作成に戻す</button>
@@ -738,29 +757,29 @@
                         </form>
                     </div>
 
-                    <div class="panel overflow-hidden">
+                    <div class="panel overflow-hidden xl:col-span-7">
                         <div class="border-b border-slate-200 px-5 py-4">
                             <h2 class="text-lg font-semibold text-slate-900">プリセット一覧</h2>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="admin-table w-full">
+                        <div>
+                            <table class="admin-table w-full table-fixed">
                                 <thead>
                                     <tr>
-                                        <th>名称</th>
-                                        <th>価格</th>
-                                        <th>時間</th>
-                                        <th>説明</th>
-                                        <th>有効</th>
-                                        <th>操作</th>
+                                        <th class="w-[34%]">名称</th>
+                                        <th class="w-[11%]">価格</th>
+                                        <th class="w-[11%]">時間</th>
+                                        <th class="w-[22%]">説明</th>
+                                        <th class="w-[10%]">有効</th>
+                                        <th class="w-[12%]">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for svc in service_presets %}
                                     <tr>
-                                        <td class="font-medium text-slate-900">{{ svc.name }}</td>
+                                        <td class="max-w-[280px] truncate font-medium text-slate-900" title="{{ svc.name }}">{{ svc.name }}</td>
                                         <td class="text-slate-700">¥{{ svc.price|floatformat:0 }}</td>
                                         <td class="text-slate-700">{{ svc.duration_minutes }} 分</td>
-                                        <td class="max-w-xs truncate text-slate-600" title="{{ svc.description }}">...</td>
+                                        <td class="text-slate-600">...</td>
                                         <td>
                                             {% if svc.is_active %}
                                             <span class="rounded bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-700">有効</span>
@@ -835,7 +854,7 @@
 
                             <div>
                                 <label class="mb-1 block text-xs text-slate-500">件名</label>
-                                <input type="text" id="in-subject" name="subject" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <input type="text" id="in-subject" name="subject" placeholder="【店舗名：ご予約日時のお知らせ】" class="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm placeholder:text-slate-400">
                             </div>
 
                             <div>
@@ -857,12 +876,14 @@
 
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="mb-1 block text-xs text-slate-500">ボタン文言</label>
+                                    <label class="mb-1 block text-xs text-slate-500">ボタン文</label>
                                     <input type="text" id="in-btn-text" name="button_text" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs text-slate-500">ボタンリンク</label>
-                                    <input type="text" id="in-btn-link" name="button_link" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <input type="hidden" name="button_link" value="{% templatetag openvariable %} booking_public_url {% templatetag closevariable %}">
+                                    <input type="text" id="in-btn-link" value="自動生成（予約詳細リンク）" readonly class="w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">
+                                    <p class="mt-1 text-xs text-slate-500">予約ごとに顧客向けの注文詳細URLが自動生成されます。</p>
                                 </div>
                             </div>
 
@@ -872,7 +893,7 @@
                             </div>
                             <div>
                                 <label class="mb-1 block text-xs text-slate-500">フッター本文</label>
-                                <textarea id="in-footer-text" name="footer_text" rows="3" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                                <textarea id="in-footer-text" name="footer_text" rows="3" placeholder="キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400"></textarea>
                             </div>
 
                             <button type="submit" class="w-full rounded-md bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700">保存する</button>
@@ -961,6 +982,10 @@
             if (titleEl) titleEl.innerText = PAGE_TITLES[tabName] || "管理者ダッシュボード";
             const descEl = document.getElementById("page-description");
             if (descEl) descEl.innerText = MODULE_DESCRIPTIONS[tabName] || "";
+
+            if (tabName === "shifts") {
+                requestAnimationFrame(updateSchedulePanelFollowOffset);
+            }
         }
 
         function filterUsers() {
@@ -1191,13 +1216,52 @@
             }
         }
 
+        function decodeEscapedJsValue(value) {
+            return String(value || "")
+                .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+        }
+
+        function normalizeAvatarUrl(rawUrl) {
+            let url = decodeEscapedJsValue(rawUrl).trim();
+            if (!url) return "";
+            url = url.replace(/\\\//g, "/");
+            if (url.startsWith("media/")) {
+                url = "/" + url;
+            }
+            if (url.startsWith("/")) {
+                return `${window.location.origin}${url}`;
+            }
+            try {
+                const parsed = new URL(url, window.location.origin);
+                if (window.location.protocol === "https:" && parsed.protocol === "http:") {
+                    const trusted = [
+                        "138.3.221.225",
+                        "rosterlyreverse.com",
+                        "www.rosterlyreverse.com",
+                        "api.rosterlyreverse.com",
+                        "vr-veludo.com",
+                        "api.vr-veludo.com",
+                    ];
+                    if (trusted.includes(parsed.hostname)) {
+                        parsed.protocol = "https:";
+                    }
+                }
+                return parsed.toString();
+            } catch (_) {
+                return "";
+            }
+        }
+
         function renderCmsAvatarPreview(url) {
             const img = document.getElementById("cms-avatar-preview");
             const empty = document.getElementById("cms-avatar-empty");
             if (!img || !empty) return;
 
-            if (url) {
-                img.src = url;
+            const normalized = normalizeAvatarUrl(url);
+
+            if (normalized) {
+                img.src = normalized;
                 img.classList.remove("hidden");
                 empty.classList.add("hidden");
             } else {
@@ -1214,11 +1278,12 @@
             const fallback = active.querySelector(".cast-avatar-fallback");
             if (!img || !fallback) return;
 
-            if (url) {
-                img.src = url;
+            const normalized = normalizeAvatarUrl(url);
+            if (normalized) {
+                img.src = normalized;
                 img.classList.remove("hidden");
                 fallback.classList.add("hidden");
-                active.dataset.avatarUrl = url;
+                active.dataset.avatarUrl = normalized;
             } else {
                 img.src = "";
                 img.classList.add("hidden");
@@ -1239,7 +1304,7 @@
 
         function normalizeEscapedMultiline(text) {
             if (!text) return "";
-            return String(text)
+            return decodeEscapedJsValue(text)
                 .replace(/\\u000[dD]\\u000[aA]/g, "\n")
                 .replace(/\\u000[dD]/g, "\n")
                 .replace(/\\u000[aA]/g, "\n")
@@ -1255,11 +1320,11 @@
             button.classList.add("active");
 
             const resourceId = button.dataset.resourceId || "";
-            const resourceName = button.dataset.name || "--";
+            const resourceName = decodeEscapedJsValue(button.dataset.name || "--");
             const intro = normalizeEscapedMultiline(button.dataset.intro || "");
-            const avatarUrl = button.dataset.avatarUrl || "";
-            const youtubeUrl = button.dataset.youtubeUrl || "";
-            const tags = button.dataset.tags || "";
+            const avatarUrl = normalizeAvatarUrl(button.dataset.avatarUrl || "");
+            const youtubeUrl = decodeEscapedJsValue(button.dataset.youtubeUrl || "");
+            const tags = decodeEscapedJsValue(button.dataset.tags || "");
             const selectedServices = button.dataset.selectedServices || "";
 
             const target = document.getElementById("cast-editor-target");
@@ -1415,6 +1480,29 @@
             applyScheduleFilters();
         }
 
+        function updateSchedulePanelFollowOffset() {
+            const section = document.getElementById("section-shifts");
+            const grid = document.getElementById("schedule-grid");
+            const leftPanel = document.getElementById("schedule-cast-panel");
+            const rightPanel = document.getElementById("schedule-main-panel");
+            if (!section || !grid || !leftPanel || !rightPanel) return;
+
+            const sectionVisible = !section.classList.contains("hidden-section");
+            if (!sectionVisible || window.innerWidth < 1024) {
+                rightPanel.style.transform = "translateY(0px)";
+                return;
+            }
+
+            const header = document.querySelector("header.sticky");
+            const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+            const gridTop = grid.getBoundingClientRect().top + window.scrollY;
+            const desired = Math.max(0, window.scrollY + headerBottom + 16 - gridTop);
+
+            const maxOffset = Math.max(0, leftPanel.offsetHeight - 72);
+            const offset = Math.min(desired, maxOffset);
+            rightPanel.style.transform = `translateY(${Math.round(offset)}px)`;
+        }
+
         let allTemplates = {};
         try {
             allTemplates = JSON.parse('{{ templates_json|escapejs }}');
@@ -1441,6 +1529,7 @@
 
             const data = allTemplates[type] || {};
             const autoServiceName = "ユーザー予約サービス（自動生成）";
+            const defaultFooterText = "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡";
 
             document.getElementById("in-event-type").value = type;
             document.getElementById("in-send-customer").checked = data.send_to_customer !== false;
@@ -1450,9 +1539,9 @@
             document.getElementById("in-greeting").value = data.email_greeting || "";
             document.getElementById("in-service-name").value = autoServiceName;
             document.getElementById("in-btn-text").value = data.button_text || "";
-            document.getElementById("in-btn-link").value = data.button_link || "";
+            document.getElementById("in-btn-link").value = "自動生成（予約詳細リンク）";
             document.getElementById("in-footer-title").value = data.footer_title || "";
-            document.getElementById("in-footer-text").value = data.footer_text || "";
+            document.getElementById("in-footer-text").value = data.footer_text || defaultFooterText;
 
             const prevLogo = document.getElementById("prev-logo");
             if (prevLogo) {
@@ -1582,6 +1671,14 @@
             bindPreview("in-footer-title", "prev-footer-title");
             bindPreview("in-footer-text", "prev-footer-text");
 
+            const prevBtn = document.getElementById("prev-btn");
+            if (prevBtn) {
+                prevBtn.setAttribute("href", "#");
+            }
+
+            window.addEventListener("scroll", updateSchedulePanelFollowOffset, { passive: true });
+            window.addEventListener("resize", updateSchedulePanelFollowOffset);
+
             const logoInput = document.getElementById("in-logo");
             if (logoInput) {
                 logoInput.addEventListener("change", function (event) {
@@ -1599,6 +1696,7 @@
             switchTemplateType("BOOKING_CONFIRMED");
             resetServicePresetForm();
             initializeAgreementEditor();
+            updateSchedulePanelFollowOffset();
         });
     </script>
 </body>

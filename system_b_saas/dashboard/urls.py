@@ -9,6 +9,8 @@ from .views import (
     DashboardPublicBookingView,
     DashboardPublicBookingAvailabilityApi,
     DashboardPublicBookingCreateApi,
+    DashboardPublicBookingDetailView,
+    DashboardPublicBookingCancelApi,
     dashboard_logout,
 )
 from .schedule_views import (
@@ -28,6 +30,8 @@ urlpatterns = [
     path('book/<slug:tenant_slug>/', DashboardPublicBookingView.as_view(), name='dashboard_public_booking'),
     path('book/<slug:tenant_slug>/api/availability/', DashboardPublicBookingAvailabilityApi.as_view(), name='dashboard_public_booking_availability'),
     path('book/<slug:tenant_slug>/api/create/', DashboardPublicBookingCreateApi.as_view(), name='dashboard_public_booking_create'),
+    path('book/detail/<str:access_token>/', DashboardPublicBookingDetailView.as_view(), name='dashboard_public_booking_detail'),
+    path('book/detail/<str:access_token>/cancel/', DashboardPublicBookingCancelApi.as_view(), name='dashboard_public_booking_cancel'),
 
     # 2. 登出
     path('logout/', dashboard_logout, name='logout'),

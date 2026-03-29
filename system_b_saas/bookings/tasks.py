@@ -6,13 +6,36 @@ from django.conf import settings
 from django.template import Template, Context
 from django.utils.html import strip_tags
 from django.utils import timezone
+from django.urls import reverse
 import pytz
 import requests
 import os  
+import secrets
 from email.mime.image import MIMEImage 
 
 from resources.models import EmailTemplate
 from bookings.models import Booking
+
+
+def _build_public_booking_detail_url(booking):
+    token = (booking.public_access_token or "").strip() or secrets.token_urlsafe(24)
+    path = reverse("dashboard_public_booking_detail", kwargs={"access_token": token})
+    base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+    if base:
+        url = f"{base}{path}"
+    else:
+        url = path
+
+    update_fields = []
+    if booking.public_access_token != token:
+        booking.public_access_token = token
+        update_fields.append("public_access_token")
+    if booking.public_detail_url != url:
+        booking.public_detail_url = url
+        update_fields.append("public_detail_url")
+    if update_fields:
+        booking.save(update_fields=update_fields)
+    return url
 
 # =========================================================
 # 1. 发送预约确认邮件 (核心逻辑)
@@ -86,9 +109,10 @@ def _send_booking_emails_logic(booking):
         tpl = EmailTemplate.objects.get(tenant=booking.tenant, event_type='BOOKING_CONFIRMED')
         
         t_btn_text = tpl.button_text
-        t_btn_link = tpl.button_link
+        booking_public_url = _build_public_booking_detail_url(booking)
+        t_btn_link = (tpl.button_link or "").strip() or booking_public_url
         t_footer_title = tpl.footer_title
-        t_footer_text = tpl.footer_text
+        t_footer_text = tpl.footer_text or "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡"
         raw_subject = tpl.subject_template
 
         # Logo source priority: tenant logo > template logo
@@ -171,15 +195,18 @@ def _send_booking_emails_logic(booking):
             'email_greeting': email_greeting,
             'button_text': t_btn_text,
             'button_link': t_btn_link,
+            'booking_public_url': booking_public_url,
             'footer_title': t_footer_title,
             'footer_text': t_footer_text,
             'logo_url': logo_src, # ✅ 关键：这里传的是 CID 字符串
         }
-        resolved_subject = _render_text_with_duration(raw_subject, ctx)
+        raw_subject_or_default = raw_subject or "【{{ tenant_name }}：ご予約日時のお知らせ】"
+        resolved_subject = _render_text_with_duration(raw_subject_or_default, ctx)
         resolved_email_title = _render_text_with_duration(email_title, ctx)
         resolved_email_greeting = _render_text_with_duration(email_greeting, ctx)
         ctx['email_title'] = resolved_email_title
         ctx['email_greeting'] = resolved_email_greeting
+        ctx['button_link'] = _render_text_with_duration(t_btn_link, ctx)
         
         # HTML 模板保持原样，不用动
         html_template = """

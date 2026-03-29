@@ -11,6 +11,9 @@ from uuid import UUID
 from datetime import timedelta
 import zoneinfo
 from django.db.models import Q
+from django.conf import settings
+from django.urls import reverse
+import secrets
 
 # 👇 导入我们刚才写好的 Tasks
 from bookings.tasks import process_new_booking, send_cancellation_email_task
@@ -22,6 +25,31 @@ from resources.services.service_mapping import (
     resolve_service_by_duration,
 )
 from bookings.models import Booking
+
+
+def _absolute_public_url(request, path):
+    base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+    if base:
+        return f"{base}{path}"
+    return request.build_absolute_uri(path)
+
+
+def _ensure_booking_public_access(request, booking):
+    token = (booking.public_access_token or "").strip() or secrets.token_urlsafe(24)
+    detail_path = reverse("dashboard_public_booking_detail", kwargs={"access_token": token})
+    detail_url = _absolute_public_url(request, detail_path)
+
+    update_fields = []
+    if booking.public_access_token != token:
+        booking.public_access_token = token
+        update_fields.append("public_access_token")
+    if booking.public_detail_url != detail_url:
+        booking.public_detail_url = detail_url
+        update_fields.append("public_detail_url")
+    if update_fields:
+        booking.save(update_fields=update_fields)
+
+    return detail_url
 
 
 class IntegrationBookingView(APIView):
@@ -122,6 +150,7 @@ class IntegrationBookingView(APIView):
                     end_time=end_time,
                     status='CONFIRMED'
                 )
+                _ensure_booking_public_access(request, booking)
 
                 # ✅【关键修改】不再使用 threading，而是调用 Celery Task
                 # on_commit 确保事务提交后，Worker 才能从数据库里查到这个 booking
@@ -135,6 +164,7 @@ class IntegrationBookingView(APIView):
         return Response({
             'booking_id': str(booking.id),
             'status': booking.status,
+            'public_detail_url': booking.public_detail_url,
             'service_name': resolve_booking_service_name(booking, request.tenant)
         }, status=201)
 
@@ -234,8 +264,9 @@ class IntegrationBookingView(APIView):
         # 格式化时间字符串，因为 Celery 最好传基本数据类型
         s_time_str = booking.start_time.astimezone(tokyo_tz).strftime('%Y-%m-%d %H:%M')
 
-        if (booking.start_time - timezone.now()) < timedelta(hours=2):
-            return Response({'error': 'Cancellation allows only 2 hours in advance.'}, status=400)
+        cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
+        if (booking.start_time - timezone.now()) < timedelta(hours=cancellation_window_hours):
+            return Response({'error': f'Cancellation allows only {cancellation_window_hours} hours in advance.'}, status=400)
         
         booking.delete() 
         

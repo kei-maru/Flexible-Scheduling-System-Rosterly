@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote, urlparse
@@ -27,7 +28,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from bookings.models import Booking
-from bookings.tasks import process_new_booking
+from bookings.tasks import process_new_booking, send_cancellation_email_task
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
@@ -111,6 +112,36 @@ def _agreement_modules_for_template(raw_json, legacy_label="", legacy_body=""):
             }
         )
     return items
+
+
+DEFAULT_EMAIL_FOOTER_TEXT = "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡"
+
+
+def _absolute_public_url(request, path):
+    base = (getattr(settings, "SYSTEM_B_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+    if base:
+        return f"{base}{path}"
+    return request.build_absolute_uri(path)
+
+
+def _ensure_booking_public_access(request, booking):
+    token = (booking.public_access_token or "").strip()
+    if not token:
+        token = secrets.token_urlsafe(24)
+    detail_path = reverse("dashboard_public_booking_detail", kwargs={"access_token": token})
+    detail_url = _absolute_public_url(request, detail_path)
+
+    update_fields = []
+    if booking.public_access_token != token:
+        booking.public_access_token = token
+        update_fields.append("public_access_token")
+    if booking.public_detail_url != detail_url:
+        booking.public_detail_url = detail_url
+        update_fields.append("public_detail_url")
+    if update_fields:
+        booking.save(update_fields=update_fields)
+
+    return detail_url
 
 
 class DashboardLoginView(TemplateView):
@@ -538,9 +569,73 @@ class DashboardPublicBookingCreateApi(View):
                 booking_type="PUBLIC",
                 status="CONFIRMED",
             )
+            _ensure_booking_public_access(request, booking)
             transaction.on_commit(lambda: process_new_booking.delay(booking.id))
 
-        return JsonResponse({"ok": True, "booking_id": str(booking.id)})
+        return JsonResponse({"ok": True, "booking_id": str(booking.id), "public_detail_url": booking.public_detail_url})
+
+
+class DashboardPublicBookingDetailView(TemplateView):
+    template_name = "dashboard/public_booking_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        access_token = kwargs.get("access_token")
+        booking = (
+            Booking.objects.filter(public_access_token=access_token)
+            .select_related("tenant", "resource", "selected_service")
+            .first()
+        )
+        can_cancel = False
+        cancellation_window_hours = 2
+        too_late_message = "店舗規定により、キャンセル可能期限を過ぎたためキャンセルできません。ご不明点は店舗までお問い合わせください。"
+        if booking and booking.status == "CONFIRMED":
+            cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
+            can_cancel = (booking.start_time - timezone.now()) >= timedelta(hours=cancellation_window_hours)
+
+        context.update(
+            {
+                "booking": booking,
+                "can_cancel": can_cancel,
+                "too_late_to_cancel": bool(booking and booking.status == "CONFIRMED" and not can_cancel),
+                "cancellation_window_hours": cancellation_window_hours,
+                "too_late_message": too_late_message,
+            }
+        )
+        return context
+
+
+class DashboardPublicBookingCancelApi(View):
+    def post(self, request, access_token, *args, **kwargs):
+        booking = (
+            Booking.objects.filter(public_access_token=access_token)
+            .select_related("resource")
+            .first()
+        )
+        if not booking:
+            return JsonResponse({"ok": False, "error": "予約が見つかりません。"}, status=404)
+        if booking.status != "CONFIRMED":
+            return JsonResponse({"ok": False, "error": "この予約は既にキャンセル済みです。"}, status=400)
+        cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
+        if (booking.start_time - timezone.now()) < timedelta(hours=cancellation_window_hours):
+            return JsonResponse({"ok": False, "error": "店舗規定により、キャンセル可能期限を過ぎたためキャンセルできません。ご不明点は店舗までお問い合わせください。"}, status=400)
+
+        booking.status = "CANCELLED"
+        booking.save(update_fields=["status"])
+
+        if booking.resource and booking.resource.email:
+            tokyo = timezone.get_current_timezone()
+            start_label = timezone.localtime(booking.start_time, tokyo).strftime("%Y-%m-%d %H:%M")
+            transaction.on_commit(
+                lambda: send_cancellation_email_task.delay(
+                    booking.resource.email,
+                    booking.resource.name,
+                    booking.customer_name,
+                    start_label,
+                )
+            )
+
+        return JsonResponse({"ok": True})
 
 
 def dashboard_logout(request):
@@ -586,6 +681,23 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             return f"{base}{path}"
         return self.request.build_absolute_uri(path)
 
+    def _resolve_cast_avatar_url(self, resource, profile):
+        current = self._normalize_avatar_url(getattr(profile, "avatar_url", "") if profile else "")
+        if current:
+            return current
+        linked_user = getattr(resource, "linked_user", None)
+        if not linked_user:
+            return ""
+        alt = (
+            ResourceProfile.objects.filter(resource__tenant=resource.tenant, resource__linked_user=linked_user)
+            .exclude(avatar_url__isnull=True)
+            .exclude(avatar_url="")
+            .order_by("-updated_at", "-id")
+            .values_list("avatar_url", flat=True)
+            .first()
+        )
+        return self._normalize_avatar_url(alt)
+
     def _save_template(self, request, tenant):
         event_type = request.POST.get("event_type")
         send_to_customer = request.POST.get("send_to_customer") == "on"
@@ -598,7 +710,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             "email_greeting": request.POST.get("email_greeting"),
             "service_name": service_name,
             "button_text": request.POST.get("button_text"),
-            "button_link": request.POST.get("button_link"),
+            "button_link": "{{ booking_public_url }}",
             "footer_title": request.POST.get("footer_title"),
             "footer_text": request.POST.get("footer_text"),
             "send_to_customer": send_to_customer,
@@ -615,8 +727,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
     def _save_tenant_settings(self, request, tenant):
         name = (request.POST.get("tenant_name") or "").strip()
         contact_email = (request.POST.get("tenant_contact_email") or "").strip()
+        tenant_slug = (request.POST.get("tenant_slug") or tenant.slug or "").strip().lower()
         store_type = (request.POST.get("store_type") or "FLEX_SHIFT").strip().upper()
         booking_window_days_raw = (request.POST.get("booking_window_days") or "14").strip()
+        cancellation_window_hours_raw = (request.POST.get("cancellation_window_hours") or "2").strip()
         store_contract_label = (request.POST.get("store_contract_label") or "").strip()
         store_contract_url = (request.POST.get("store_contract_url") or "").strip() or None
         required_customer_fields = _normalize_required_customer_fields(request.POST.getlist("required_customer_fields"))
@@ -629,6 +743,13 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             raise ValueError("店舗名は必須です")
         if not contact_email:
             raise ValueError("店舗メールは必須です")
+        if not tenant_slug:
+            raise ValueError("slug は必須です")
+        if not re.fullmatch(r"[a-z0-9-]+", tenant_slug):
+            raise ValueError("slug は英字・数字・ハイフンのみ入力できます")
+        slug_conflict = Tenant.objects.filter(slug=tenant_slug).exclude(id=tenant.id).exists()
+        if slug_conflict:
+            raise ValueError("この slug は既に使用されています")
         if store_type not in {"CORE_TIME", "FLEX_SHIFT"}:
             raise ValueError("店舗タイプが不正です")
         if not store_contract_label:
@@ -637,6 +758,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             booking_window_days = max(1, int(booking_window_days_raw))
         except ValueError:
             raise ValueError("予約公開日数は1以上の整数で入力してください")
+        try:
+            cancellation_window_hours = max(1, int(cancellation_window_hours_raw))
+        except ValueError:
+            raise ValueError("キャンセル可能期限は1以上の整数で入力してください")
         if store_contract_url and not _is_http_url(store_contract_url):
             raise ValueError("店舗契約URLは http(s) 形式で入力してください")
 
@@ -647,12 +772,18 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if (tenant.contact_email or "") != contact_email:
             tenant.contact_email = contact_email
             update_fields.append("contact_email")
+        if (tenant.slug or "") != tenant_slug:
+            tenant.slug = tenant_slug
+            update_fields.append("slug")
         if (tenant.store_type or "FLEX_SHIFT") != store_type:
             tenant.store_type = store_type
             update_fields.append("store_type")
         if tenant.booking_window_days != booking_window_days:
             tenant.booking_window_days = booking_window_days
             update_fields.append("booking_window_days")
+        if (getattr(tenant, "cancellation_window_hours", 2) or 2) != cancellation_window_hours:
+            tenant.cancellation_window_hours = cancellation_window_hours
+            update_fields.append("cancellation_window_hours")
         if (tenant.store_contract_label or "") != store_contract_label:
             tenant.store_contract_label = store_contract_label
             update_fields.append("store_contract_label")
@@ -838,6 +969,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         text = (url or "").strip()
         if not text:
             return ""
+        text = text.replace("\\/", "/")
+        if text.startswith("media/"):
+            text = "/" + text
+        if text.startswith("/"):
+            return text
         # Keep dashboard avatars loadable under HTTPS by upgrading known local hosts.
         if text.startswith("http://") and self.request.is_secure():
             host = (urlparse(text).hostname or "").lower()
@@ -1198,7 +1334,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                         "resource_email": resource.email or "",
                         "linked_username": resource.linked_user.username if resource.linked_user else "",
                         "intro": normalize_profile_text(profile.intro) if profile else "",
-                        "avatar_url": self._normalize_avatar_url(profile.avatar_url if profile else ""),
+                        "avatar_url": self._resolve_cast_avatar_url(resource, profile),
                         "youtube_url": profile.youtube_url if profile else "",
                         "tags_text": ", ".join(str(tag).strip() for tag in tags if str(tag).strip()),
                         "selected_service_ids": [str(item) for item in selected_service_ids],
@@ -1237,14 +1373,14 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             except EmailTemplate.DoesNotExist:
                 is_cancel = event_type == "BOOKING_CANCELLED"
                 templates_data[event_type] = {
-                    "subject": "【予約キャンセル】" if is_cancel else "【予約確定】",
+                    "subject": "",
                     "email_title": "予約キャンセルのお知らせ" if is_cancel else "予約が確定しました。",
                     "email_greeting": "予約がキャンセルされました。" if is_cancel else "以下の内容で予約を承りました。",
                     "service_name": "{{ selected_service_name }}",
                     "button_text": "トップページへ" if is_cancel else "詳細を見る",
-                    "button_link": "#",
+                    "button_link": "{{ booking_public_url }}",
                     "footer_title": "当社のキャンセルポリシー",
-                    "footer_text": "...",
+                    "footer_text": DEFAULT_EMAIL_FOOTER_TEXT,
                     "logo_url": tenant.logo.url if tenant and tenant.logo else "",
                     "send_to_customer": True,
                     "send_to_cast": True,
@@ -1282,6 +1418,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "subscription_started_at": (tenant.subscription_started_at if tenant else None),
                 "subscription_ends_at": (tenant.subscription_ends_at if tenant else None),
                 "booking_window_days": tenant.booking_window_days if tenant else 14,
+                "cancellation_window_hours": tenant.cancellation_window_hours if tenant else 2,
                 "store_contract_label": tenant.store_contract_label if tenant else "店舗利用規約",
                 "store_contract_url": tenant.store_contract_url if tenant else "",
                 "required_customer_fields": _normalize_required_customer_fields(

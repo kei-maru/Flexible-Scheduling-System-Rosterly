@@ -29,6 +29,8 @@ class Booking(models.Model):
     booking_type = models.CharField(max_length=20, default='PUBLIC')
     
     status = models.CharField(choices=STATUS_CHOICES, default='CONFIRMED', max_length=20)
+    public_access_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+    public_detail_url = models.URLField(max_length=500, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

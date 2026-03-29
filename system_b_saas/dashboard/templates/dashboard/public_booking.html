@@ -245,6 +245,7 @@
             <form id="booking-form" method="post" action="{% url 'dashboard_public_booking_create' tenant_slug=tenant.slug %}" class="space-y-3">
                 {% csrf_token %}
                 <input type="hidden" id="resource_id" name="resource_id">
+              <input type="text" name="website" value="" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
                 {% if 'VRCID' in required_customer_fields %}
                 <div>
                   <label class="mb-1 block text-xs text-slate-500">VRCID <span class="text-rose-500">*</span></label>

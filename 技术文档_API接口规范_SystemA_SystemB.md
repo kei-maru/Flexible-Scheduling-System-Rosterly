@@ -613,17 +613,31 @@
   - 功能：店铺公开预约页面（System B 原生页面，Rosterly 设计语言）。
   - 说明：Store Settings 中“预约链接（自动生成）”已切换为该路由，不再依赖 `localhost:8000` 的 System A 页面。
   - 数据隔离：仅展示当前 `tenant_slug` 对应店铺的 Resource 与 ServicePreset。
+  - 反刷保护：页面包含 honeypot 字段 `website`（正常用户不可见）。
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
   - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
 
 - `POST /dashboard/book/<tenant_slug>/api/create/`
   - 功能：提交公开预约。
-  - 必填：`resource_id`、`customer_name`、`customer_email`、`start_time`
+  - 必填：`resource_id`、`start_time`
+  - 条件必填：`customer_vrcid` / `customer_discord_id` / `customer_email` 由店铺 `required_customer_fields` 决定。
   - 可选：`service_id`
   - 校验：
     - 预约开始时间需大于当前时间 24 小时
     - 保持前后 30 分钟冲突检测规则
+    - 反刷限流：同店铺同 IP 有 10 分钟与 1 小时窗口限制；同指纹短时重复提交会被限制
+    - 蜜罐拦截：若 `website` 有值则判定为机器人请求并拒绝
+  - 失败码补充：`429`（访问频率过高）
+
+- `GET /dashboard/book/detail/<access_token>/`
+  - 功能：顾客订单详情页（邮件“详细を見る”按钮目标）。
+  - 展示：预约明细 + 日语取消期限（例：`2026年03月31日 20:00 まで`）。
+
+- Tenant 店铺设置字段补充（Store Settings）
+  - `booking_detail_redirect_url`（可选）：
+    - 配置后，邮件按钮优先跳转该 URL；
+    - 系统自动追加 `booking_token` 与 `tenant` 查询参数，便于 Veludo 首页承接并自行路由。
 
 邀请模型：`tenants.StaffInvite`
 - 字段：`token`、`tenant`、`role`、`expires_at`、`max_uses`、`used_count`、`is_active`。

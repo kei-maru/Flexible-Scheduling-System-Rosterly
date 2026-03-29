@@ -8,6 +8,7 @@ from django.utils.html import strip_tags
 from django.utils import timezone
 from django.urls import reverse
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from datetime import timedelta
 import pytz
 import requests
 import os  
@@ -188,6 +189,9 @@ def _send_booking_emails_logic(booking):
     duration_hours = round(duration_minutes / 60, 2)
     date_str = start_jst.strftime('%Y年%m月%d日')
     time_range_str = f"{start_jst.strftime('%H:%M')} - {end_jst.strftime('%H:%M')}"
+    cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
+    cancel_deadline_jst = (booking.start_time - timedelta(hours=cancellation_window_hours)).astimezone(jst)
+    cancel_deadline_label = cancel_deadline_jst.strftime('%Y年%m月%d日 %H:%M')
 
     # Baseline context from booking DB values.
     base_ctx = {
@@ -197,6 +201,8 @@ def _send_booking_emails_logic(booking):
         'time_range': time_range_str,
         'duration_minutes': duration_minutes,
         'duration_hours': duration_hours,
+        'cancellation_window_hours': cancellation_window_hours,
+        'cancellation_deadline': cancel_deadline_label,
         'selected_service_name': (booking.selected_service_name or '').strip(),
     }
 
@@ -237,6 +243,8 @@ def _send_booking_emails_logic(booking):
             'time_range': time_range_str,
             'duration_minutes': duration_minutes,
             'duration_hours': duration_hours,
+            'cancellation_window_hours': cancellation_window_hours,
+            'cancellation_deadline': cancel_deadline_label,
             'email_title': email_title,
             'email_greeting': email_greeting,
             'button_text': t_btn_text,
@@ -297,6 +305,7 @@ def _send_booking_emails_logic(booking):
             </div>
 
             <a href="{{ button_link }}" class="btn">{{ button_text }}</a>
+            <p style="margin-top: 14px; font-size: 12px; color: #7c6f53;">キャンセル期限：{{ cancellation_deadline }} まで</p>
             
             <div style="margin-top: 15px;"></div>
             </div>

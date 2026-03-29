@@ -30,6 +30,10 @@
                     <span class="text-slate-500">予約日時</span>
                     <div class="font-semibold text-slate-900">{{ booking.start_time|date:"Y/m/d H:i" }} - {{ booking.end_time|date:"H:i" }}</div>
                 </div>
+                <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                    <span class="text-amber-700">キャンセル期限</span>
+                    <div class="font-semibold text-amber-800">{{ cancellation_deadline_label }} まで</div>
+                </div>
                 <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
                     <span class="text-slate-500">サービス</span>
                     <div class="font-semibold text-slate-900">{{ booking.selected_service_name|default:"-" }}</div>

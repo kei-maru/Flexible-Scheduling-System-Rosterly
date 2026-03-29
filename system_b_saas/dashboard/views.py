@@ -1,5 +1,6 @@
 import json
 import re
+import hashlib
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
@@ -14,6 +15,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
 from django.core.files.storage import default_storage
+from django.core.cache import cache
 from django.db.models import Max
 from django.shortcuts import redirect
 from django.http import JsonResponse
@@ -115,6 +117,9 @@ def _agreement_modules_for_template(raw_json, legacy_label="", legacy_body=""):
 
 
 DEFAULT_EMAIL_FOOTER_TEXT = "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡"
+PUBLIC_BOOKING_IP_LIMIT_10MIN = 8
+PUBLIC_BOOKING_IP_LIMIT_1H = 24
+PUBLIC_BOOKING_FINGERPRINT_LIMIT_10MIN = 3
 
 
 def _absolute_public_url(request, path):
@@ -168,6 +173,39 @@ def _ensure_booking_public_access(request, booking):
         booking.save(update_fields=update_fields)
 
     return detail_url
+
+
+def _client_ip(request):
+    forwarded = (request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return (request.META.get("REMOTE_ADDR") or "").strip() or "unknown"
+
+
+def _cache_bump(key, ttl_seconds):
+    current = int(cache.get(key) or 0) + 1
+    cache.set(key, current, ttl_seconds)
+    return current
+
+
+def _public_booking_is_rate_limited(request, tenant_slug, fingerprint=""):
+    ip = _client_ip(request)
+    key_10m = f"pb:ip10m:{tenant_slug}:{ip}"
+    key_1h = f"pb:ip1h:{tenant_slug}:{ip}"
+
+    ip_count_10m = _cache_bump(key_10m, 600)
+    ip_count_1h = _cache_bump(key_1h, 3600)
+    if ip_count_10m > PUBLIC_BOOKING_IP_LIMIT_10MIN or ip_count_1h > PUBLIC_BOOKING_IP_LIMIT_1H:
+        return True
+
+    if fingerprint:
+        fp_hash = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:24]
+        fp_key = f"pb:fp10m:{tenant_slug}:{fp_hash}"
+        fp_count = _cache_bump(fp_key, 600)
+        if fp_count > PUBLIC_BOOKING_FINGERPRINT_LIMIT_10MIN:
+            return True
+
+    return False
 
 
 class DashboardLoginView(TemplateView):
@@ -505,6 +543,9 @@ class DashboardPublicBookingCreateApi(View):
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
         if not tenant:
             return JsonResponse({"error": "Tenant not found"}, status=404)
+        # Honeypot trap: bots often fill hidden fields.
+        if (request.POST.get("website") or "").strip():
+            return JsonResponse({"error": "不正なリクエストです。"}, status=400)
         if not _tenant_is_subscribed(tenant):
             return JsonResponse({"error": "この店舗は未契約のため、現在予約を受け付けていません。"}, status=403)
         if _is_core_time_store(tenant):
@@ -530,6 +571,18 @@ class DashboardPublicBookingCreateApi(View):
             return JsonResponse({"error": "DiscordID is required"}, status=400)
         if "EMAIL" in required_fields and not customer_email:
             return JsonResponse({"error": "Email is required"}, status=400)
+
+        anti_abuse_fingerprint = "|".join(
+            [
+                customer_email.lower(),
+                customer_vrcid.lower(),
+                customer_discord_id.lower(),
+                resource_id,
+                start_raw,
+            ]
+        )
+        if _public_booking_is_rate_limited(request, tenant_slug, anti_abuse_fingerprint):
+            return JsonResponse({"error": "アクセスが集中しています。少し時間を空けてから再度お試しください。"}, status=429)
 
         # 店舗の必須項目設定に合わせて customer_name を自動決定する。
         if "VRCID" in required_fields and customer_vrcid:
@@ -625,9 +678,13 @@ class DashboardPublicBookingDetailView(TemplateView):
         )
         can_cancel = False
         cancellation_window_hours = 2
+        cancellation_deadline_label = "-"
         too_late_message = "店舗規定により、キャンセル可能期限を過ぎたためキャンセルできません。ご不明点は店舗までお問い合わせください。"
-        if booking and booking.status == "CONFIRMED":
+        if booking:
             cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
+            cancellation_deadline = booking.start_time - timedelta(hours=cancellation_window_hours)
+            cancellation_deadline_label = timezone.localtime(cancellation_deadline).strftime("%Y年%m月%d日 %H:%M")
+        if booking and booking.status == "CONFIRMED":
             can_cancel = (booking.start_time - timezone.now()) >= timedelta(hours=cancellation_window_hours)
 
         context.update(
@@ -636,6 +693,7 @@ class DashboardPublicBookingDetailView(TemplateView):
                 "can_cancel": can_cancel,
                 "too_late_to_cancel": bool(booking and booking.status == "CONFIRMED" and not can_cancel),
                 "cancellation_window_hours": cancellation_window_hours,
+                "cancellation_deadline_label": cancellation_deadline_label,
                 "too_late_message": too_late_message,
             }
         )

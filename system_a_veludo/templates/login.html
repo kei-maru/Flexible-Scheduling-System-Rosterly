@@ -82,22 +82,17 @@
         {% endif %}
 
         {% if sso_enabled %}
-        <form action="{% url 'sso_login' %}" method="get" class="mb-4">
-            <label class="flex items-start gap-3 text-[10px] text-gray-400 mb-4">
-                <input id="agree-terms" type="checkbox" class="mt-1 accent-veludo-accent-gold" required>
-                <span>
-                    サイト利用規約に同意します（
-                    <a href="{% url 'terms' %}" target="_blank" rel="noopener" class="text-veludo-accent-gold hover:underline">利用規約</a>
-                    ）
-                </span>
-            </label>
-            <button id="discord-btn" type="submit" class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer">
+        <div class="mb-4">
+            <a id="discord-btn" href="{% url 'sso_terms_consent' %}" class="w-full flex items-center justify-center gap-3 py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all duration-300 shadow-lg group relative overflow-hidden rounded-sm cursor-pointer">
                 <i class="fa-brands fa-discord text-xl"></i>
                 <span class="text-sm font-bold tracking-widest uppercase font-english">Login with Discord</span>
 
                 <div class="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out skew-x-12"></div>
-            </button>
-        </form>
+            </a>
+            <p class="mt-3 text-[10px] text-gray-500 leading-relaxed">
+                次の画面で利用規約に同意した後、Discord認証へ進みます。
+            </p>
+        </div>
         {% else %}
         <form action="{% provider_login_url 'discord' %}" method="post">
             {% csrf_token %}

@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-03-26  
+**最后更新**: 2026-04-01  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -452,6 +452,34 @@
 
 - 限制：仅 `CONFIRMED` 可变更为 `COMPLETED`
 
+### 3.5 身份同步（A/B Role Sync）
+
+#### `GET /api/v1/integration/identity`
+
+- 功能：按 `user_id` 或 `discord_uid` 查询 B 端身份快照（用于 A 端回拉同步）。
+- Query：
+  - `user_id`（可选）
+  - `discord_uid`（可选）
+  - 至少传一个
+- 返回字段：
+  - `user_id`, `username`, `discord_id`, `discord_uid`
+  - `tenant_id`, `role`, `is_staff`, `is_superuser`
+- 关键规则（2026-04-01）：
+  - 当 `user_id` 与 `discord_uid` 同时传入且不一致时，优先按 `discord_uid` 解析，返回真实账号。
+  - 用途：修复 A 端历史 `saas_user_id` 漂移造成的错人同步。
+
+#### `PATCH /api/v1/integration/identity`
+
+- 功能：A 发起修改 B 端角色（B 仍为 source of truth）。
+- 请求体：
+  - `role`（必填）：`ADMIN|STAFF|CONSUMER`
+  - `user_id`（可选）
+  - `discord_uid`（可选）
+  - 至少传一个身份键
+- 关键规则：
+  - `ADMIN/STAFF`：确保 `tenant` 归属为请求租户，`is_staff=True`，`is_active=True`
+  - `CONSUMER`：强制 `tenant=null`，`is_staff=False`，并清理 `is_superuser`
+
 ---
 
 ## 4. SSO 接口（System B 作为 IdP）
@@ -466,6 +494,7 @@
   - `nonce`（必填）
   - `a_role`（可选，System A 透传角色提示，`ADMIN|STAFF|CONSUMER`，默认 `CONSUMER`）
 - 行为：
+  - System A 现行入口：`/accounts/sso/consent/`（先同意协议）-> `/accounts/sso/login` -> 本接口。
   - 未登录：跳转到 B 的 Discord 登录。
   - 已登录：签发一次性 `code` 并 302 到 `redirect_uri?code=...&state=...`。
   - 角色同步：若为 A 发起的 public SSO，B 会按 `a_role` 同步当前用户 `role/is_staff`（并在缺失时绑定 public tenant）。
@@ -591,6 +620,16 @@
     - 已绑定社交账号（`sociallogin.is_existing=True`）
     - 通过 Discord `uid` 关联到既有账号（`authorized_user`）
 - 目的：避免被重定向到 `/accounts/inactive/` 造成外部登录不可用。
+
+### 4.9 Public SSO 角色保留与新用户防误判（2026-04-01）
+
+- 目标：
+  - 解决“员工重新登录被降级为普通用户”。
+  - 同时避免“新用户首次登录被误判为员工”。
+- 规则：
+  - `a_role=CONSUMER` 时，仅当存在“真实特权证据”才保留 `STAFF/ADMIN`：
+    - `is_staff=True` 或 `tenant_id` 非空。
+  - 无证据的新用户按 `CONSUMER` 落库。
 
 ---
 

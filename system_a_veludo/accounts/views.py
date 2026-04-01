@@ -65,6 +65,8 @@ SYSTEM_B_IDENTITY_URL = getattr(settings, "SYSTEM_B_IDENTITY_URL", f"{SYSTEM_B_R
 SYSTEM_B_SSO_CLIENT_ID = getattr(settings, "SYSTEM_B_SSO_CLIENT_ID", "")
 SYSTEM_B_SSO_CLIENT_SECRET = getattr(settings, "SYSTEM_B_SSO_CLIENT_SECRET", "")
 SYSTEM_A_BASE_URL = getattr(settings, "SYSTEM_A_BASE_URL", "")
+SSO_TERMS_ACK_SESSION_KEY = "a_sso_terms_ack_at"
+SSO_TERMS_ACK_TTL_SECONDS = 600
 
 
 def _current_login_mode() -> str:
@@ -85,6 +87,22 @@ def _build_sso_callback_url(request) -> str:
     if SYSTEM_A_BASE_URL:
         return f"{SYSTEM_A_BASE_URL}{callback_path}"
     return request.build_absolute_uri(callback_path)
+
+
+def _has_fresh_sso_terms_ack(request) -> bool:
+    ack_value = request.session.get(SSO_TERMS_ACK_SESSION_KEY)
+    if not ack_value:
+        return False
+    ack_dt = parse_datetime(str(ack_value))
+    if ack_dt is None:
+        request.session.pop(SSO_TERMS_ACK_SESSION_KEY, None)
+        return False
+    if timezone.is_naive(ack_dt):
+        ack_dt = timezone.make_aware(ack_dt, timezone.get_current_timezone())
+    if timezone.now() - ack_dt > timedelta(seconds=SSO_TERMS_ACK_TTL_SECONDS):
+        request.session.pop(SSO_TERMS_ACK_SESSION_KEY, None)
+        return False
+    return True
 
 
 def _build_unique_username(seed_name: str) -> str:
@@ -423,11 +441,30 @@ class CustomLoginView(LoginView):
         return reverse_lazy('index')
 
 
+def sso_terms_consent(request):
+    if not _is_sso_ready():
+        messages.error(request, 'SSO is not configured. Please contact administrator.')
+        return redirect('login')
+
+    if request.method == 'POST':
+        if request.POST.get('agree_terms') != '1':
+            messages.error(request, '利用規約への同意が必要です。')
+            return redirect('sso_terms_consent')
+        request.session[SSO_TERMS_ACK_SESSION_KEY] = timezone.now().isoformat()
+        return redirect('sso_login')
+
+    return render(request, 'sso_terms_consent.html')
+
+
 @require_GET
 def sso_login(request):
     if not _is_sso_ready():
         messages.error(request, 'SSO is not configured. Please contact administrator.')
         return redirect('login')
+
+    if not _has_fresh_sso_terms_ack(request):
+        return redirect('sso_terms_consent')
+    request.session.pop(SSO_TERMS_ACK_SESSION_KEY, None)
 
     role_hint = _derive_sso_role_hint(request.user)
 

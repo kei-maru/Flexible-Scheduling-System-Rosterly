@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 from allauth.socialaccount.models import SocialAccount
 
-from .models import SSOAuthCode
+from .models import SSOAuthCode, Tenant
 import logging
 
 
@@ -57,7 +57,31 @@ def _should_preserve_staff_or_admin(user, role_hint: str) -> bool:
     if getattr(user, 'is_superuser', False):
         return True
     current_role = (getattr(user, 'role', '') or '').strip().upper()
-    return current_role in {'ADMIN', 'STAFF'} and bool(getattr(user, 'tenant_id', None))
+    return current_role in {'ADMIN', 'STAFF'}
+
+
+def _public_sso_tenant_slug() -> str:
+    return str(getattr(settings, 'SYSTEM_B_PUBLIC_SSO_TENANT_SLUG', 'Veludo') or 'Veludo').strip()
+
+
+def _public_sso_tenant_name() -> str:
+    return str(
+        getattr(settings, 'SYSTEM_B_PUBLIC_SSO_TENANT_NAME', 'VR ASMR Salon Veludo')
+        or 'VR ASMR Salon Veludo'
+    ).strip()
+
+
+def _resolve_public_sso_tenant():
+    slug = _public_sso_tenant_slug()
+    tenant = Tenant.objects.filter(slug=slug).first() or Tenant.objects.filter(slug__iexact=slug).first()
+    if tenant:
+        return tenant
+
+    tenant_name = _public_sso_tenant_name()
+    return (
+        Tenant.objects.filter(name=tenant_name).first()
+        or Tenant.objects.filter(name__iexact=tenant_name).first()
+    )
 
 
 @require_GET
@@ -110,6 +134,24 @@ def sso_authorize(request):
         if update_fields:
             request.user.save(update_fields=update_fields)
     elif role_hint == 'CONSUMER':
+        current_role = (getattr(request.user, 'role', '') or '').strip().upper()
+        if current_role in {'ADMIN', 'STAFF'} and not getattr(request.user, 'tenant_id', None):
+            public_tenant = _resolve_public_sso_tenant()
+            if public_tenant:
+                request.user.tenant = public_tenant
+                request.user.save(update_fields=['tenant'])
+                logger.info(
+                    'SSO authorize: repaired missing tenant for privileged user id=%s role=%s tenant_id=%s',
+                    request.user.id,
+                    current_role,
+                    public_tenant.id,
+                )
+            else:
+                logger.warning(
+                    'SSO authorize: privileged user id=%s role=%s has no tenant and public tenant not found',
+                    request.user.id,
+                    current_role,
+                )
         logger.info(
             'SSO authorize: preserving privileged role for user id=%s role=%s tenant_id=%s',
             request.user.id,

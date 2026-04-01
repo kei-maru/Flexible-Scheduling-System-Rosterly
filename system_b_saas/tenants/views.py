@@ -12,8 +12,12 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 from allauth.socialaccount.models import SocialAccount
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 
-from .models import SSOAuthCode, Tenant
+from .models import SSOAuthCode, Tenant, SaaSUser
+from .permissions import IsTenantAuthorized
 import logging
 
 
@@ -249,3 +253,85 @@ def sso_exchange(request):
         'exp': int(auth_code.expires_at.timestamp()),
     }
     return JsonResponse(response_data)
+
+
+class IntegrationIdentityView(APIView):
+    permission_classes = [IsTenantAuthorized]
+
+    def _resolve_target_user(self, request, user_id: str):
+        user = request.tenant.users.filter(id=user_id).first()
+        if user is None:
+            # Allow A-side CONSUMER users that may be tenant-less.
+            user = SaaSUser.objects.filter(id=user_id, tenant__isnull=True).first()
+        return user
+
+    def _serialize_user(self, user):
+        discord_social = SocialAccount.objects.filter(user=user, provider='discord').only('uid').first()
+        return {
+            'user_id': str(user.id),
+            'username': user.username,
+            'discord_id': user.discord_id,
+            'discord_uid': str(discord_social.uid) if discord_social and discord_social.uid else None,
+            'tenant_id': str(user.tenant_id) if user.tenant_id else None,
+            'role': user.role,
+            'is_staff': bool(user.is_staff),
+            'is_superuser': bool(user.is_superuser),
+        }
+
+    def get(self, request):
+        user_id = str(request.query_params.get('user_id') or '').strip()
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = self._resolve_target_user(request, user_id)
+        if user is None:
+            return Response({'error': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(self._serialize_user(user), status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        user_id = str(request.data.get('user_id') or '').strip()
+        desired_role = str(request.data.get('role') or '').strip().upper()
+        if not user_id or desired_role not in {'ADMIN', 'STAFF', 'CONSUMER'}:
+            return Response({'error': 'invalid_request'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = self._resolve_target_user(request, user_id)
+        if user is None:
+            return Response({'error': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.tenant_id and user.tenant_id != request.tenant.id:
+            return Response({'error': 'cross_tenant_forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        update_fields = []
+        if user.role != desired_role:
+            user.role = desired_role
+            update_fields.append('role')
+
+        if desired_role in {'ADMIN', 'STAFF'}:
+            if user.tenant_id != request.tenant.id:
+                user.tenant = request.tenant
+                update_fields.append('tenant')
+            if not user.is_staff:
+                user.is_staff = True
+                update_fields.append('is_staff')
+            if not user.is_active:
+                user.is_active = True
+                update_fields.append('is_active')
+            if desired_role == 'STAFF' and user.is_superuser:
+                user.is_superuser = False
+                update_fields.append('is_superuser')
+        else:
+            if user.tenant_id is not None:
+                user.tenant = None
+                update_fields.append('tenant')
+            if user.is_staff:
+                user.is_staff = False
+                update_fields.append('is_staff')
+            if user.is_superuser:
+                user.is_superuser = False
+                update_fields.append('is_superuser')
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        return Response(self._serialize_user(user), status=status.HTTP_200_OK)

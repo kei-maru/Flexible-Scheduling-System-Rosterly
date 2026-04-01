@@ -6,7 +6,7 @@ from django.views.static import serve
 from django.views.generic import RedirectView
 from dashboard.schedule_views import SharedBookingListView, SharedHomeView, SharedProfileView, SharedScheduleView
 from dashboard.views import LocalPasswordLoginView
-from tenants.views import sso_authorize, sso_exchange
+from tenants.views import sso_authorize, sso_exchange, IntegrationIdentityView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -14,6 +14,7 @@ urlpatterns = [
     path('sso/authorize', sso_authorize, name='sso_authorize'),
     path('api/v1/auth/sso/exchange', sso_exchange, name='sso_exchange'),
     path('sso/exchange', sso_exchange, name='sso_exchange_legacy'),
+    path('api/v1/integration/identity', IntegrationIdentityView.as_view(), name='integration_identity'),
     
     # 架构文档 Source 169: Base URL: /api/v1/integration
     # 我们将 include 指向 resources.urls

@@ -102,8 +102,10 @@ def _derive_sso_role_hint(user) -> str:
     if user is None or not getattr(user, 'is_authenticated', False):
         return 'CONSUMER'
 
+    is_staff = bool(getattr(user, 'is_staff', False))
     is_cast = bool(getattr(user, 'is_cast', False))
-    if getattr(user, 'is_superuser', False) or (getattr(user, 'is_staff', False) and not is_cast):
+    # Local rule: admin also carries staff(cast) capability.
+    if getattr(user, 'is_superuser', False) or is_staff:
         return 'ADMIN'
     if is_cast:
         return 'STAFF'
@@ -151,16 +153,16 @@ def _upsert_shadow_user(identity_payload: dict):
     user.saas_tenant_id = str(saas_tenant_id) if saas_tenant_id else None
     user.saas_role = saas_role if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'} else None
 
-    # Keep local admin flag aligned with remote SSO role to avoid sticky staff drift.
+    # Keep local role flags aligned with SaaS role.
+    # Local rule: admin implies cast/staff capability as well.
     if user.saas_role == 'ADMIN':
         user.is_staff = True
-    else:
-        user.is_staff = False
-
-    # A-side cast staff should align with SaaS STAFF role.
-    if user.saas_role == 'STAFF':
         user.is_cast = True
-    elif user.saas_role in {'ADMIN', 'CONSUMER'}:
+    elif user.saas_role == 'STAFF':
+        user.is_staff = False
+        user.is_cast = True
+    elif user.saas_role == 'CONSUMER':
+        user.is_staff = False
         user.is_cast = False
 
     user.save()
@@ -1328,6 +1330,9 @@ def admin_dashboard(request):
                 
                 is_cast = form.cleaned_data['is_cast']
                 is_staff = form.cleaned_data['is_staff']
+                # Local rule: admin always includes cast/staff role.
+                if is_staff:
+                    is_cast = True
                 
                 target_user.is_staff = is_staff
                 target_user.is_cast = is_cast

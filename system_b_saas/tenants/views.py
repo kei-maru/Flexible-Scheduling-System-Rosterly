@@ -61,9 +61,11 @@ def _should_preserve_staff_or_admin(user, role_hint: str) -> bool:
     if getattr(user, 'is_superuser', False):
         return True
     current_role = (getattr(user, 'role', '') or '').strip().upper()
-    # Public SSO from a logged-out A-side session often carries only CONSUMER hint.
-    # In that case B must remain source-of-truth and keep existing privileged roles.
-    if current_role in {'ADMIN', 'STAFF'}:
+    # Preserve only when there is real privileged evidence, otherwise avoid
+    # treating default role artifacts from brand-new users as staff/admin.
+    if current_role in {'ADMIN', 'STAFF'} and (
+        bool(getattr(user, 'is_staff', False)) or bool(getattr(user, 'tenant_id', None))
+    ):
         return True
     return False
 

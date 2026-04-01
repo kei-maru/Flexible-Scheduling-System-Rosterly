@@ -104,16 +104,43 @@ def _derive_sso_role_hint(user) -> str:
 
     is_staff = bool(getattr(user, 'is_staff', False))
     is_cast = bool(getattr(user, 'is_cast', False))
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+
+    # Prefer explicit SaaS admin role when present.
+    if saas_role == 'ADMIN':
+        return 'ADMIN'
+
     # Local rule: admin also carries staff(cast) capability.
-    if getattr(user, 'is_superuser', False) or is_staff:
+    if getattr(user, 'is_superuser', False):
+        return 'ADMIN'
+
+    # Legacy local-admin fallback: old records may not have saas_role populated.
+    if is_staff and not is_cast and not saas_role:
         return 'ADMIN'
     if is_cast:
         return 'STAFF'
 
-    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
     if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'}:
         return saas_role
     return 'CONSUMER'
+
+
+def _is_local_admin_user(user) -> bool:
+    """
+    Strict admin gate for System A admin dashboard.
+    - Primary: superuser or saas_role=ADMIN
+    - Fallback: legacy local admin (is_staff=True, is_cast=False, saas_role empty)
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True
+
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+    if saas_role:
+        return saas_role == 'ADMIN'
+
+    return bool(getattr(user, 'is_staff', False) and not getattr(user, 'is_cast', False))
 
 
 def _upsert_shadow_user(identity_payload: dict):
@@ -317,7 +344,7 @@ class ProfileView(LoginRequiredMixin, UpdateView):
              messages.warning(self.request, "登録を完了するために、VRCHAT IDを入力してください。")
 
         context['is_cast'] = getattr(user, 'is_cast', False) 
-        context['is_admin'] = user.is_staff or user.is_superuser
+        context['is_admin'] = _is_local_admin_user(user)
         
         if context['is_cast']:
             try:
@@ -967,7 +994,7 @@ class BookingCompleteAPI(APIView):
 # ==========================================
 
 @login_required
-@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+@user_passes_test(_is_local_admin_user)
 def admin_dashboard(request):
     # --------------------------------------------------------
     # 1. 处理 AJAX 拖拽排序请求 (CMS)
@@ -1333,6 +1360,13 @@ def admin_dashboard(request):
                 # Local rule: admin always includes cast/staff role.
                 if is_staff:
                     is_cast = True
+
+                if is_staff:
+                    target_user.saas_role = 'ADMIN'
+                elif is_cast:
+                    target_user.saas_role = 'STAFF'
+                else:
+                    target_user.saas_role = 'CONSUMER'
                 
                 target_user.is_staff = is_staff
                 target_user.is_cast = is_cast

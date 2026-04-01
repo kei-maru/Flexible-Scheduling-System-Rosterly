@@ -218,10 +218,6 @@ class DashboardLoginView(TemplateView):
                 logout(request)
                 messages.warning(request, "このアカウントにはスタッフシステム権限がありません。管理者にお問い合わせください。")
                 return redirect("dashboard_login")
-
-            role = getattr(request.user, "role", "STAFF")
-            if request.user.is_superuser or role == "ADMIN":
-                return redirect("tenant_dashboard")
             return redirect("shared_schedule")
         return super().dispatch(request, *args, **kwargs)
 

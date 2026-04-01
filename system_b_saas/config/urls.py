@@ -9,6 +9,7 @@ from dashboard.views import LocalPasswordLoginView
 from tenants.views import sso_authorize, sso_exchange, IntegrationIdentityView
 
 urlpatterns = [
+    path('', RedirectView.as_view(pattern_name='dashboard_login', permanent=False), name='root_redirect'),
     path('admin/', admin.site.urls),
     path('login/', RedirectView.as_view(pattern_name='dashboard_login', permanent=False), name='login_alias'),
     path('sso/authorize', sso_authorize, name='sso_authorize'),

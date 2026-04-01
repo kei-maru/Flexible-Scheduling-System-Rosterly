@@ -23,14 +23,21 @@ class SaaSClient:
     # Identity (A/B user role sync)
     # ========================================================
 
-    def get_identity(self, user_id):
+    def get_identity(self, user_id=None, discord_uid=None):
         """
         Read user identity/role from System B.
-        API: GET /identity?user_id=<id>
+        API: GET /identity?user_id=<id>&discord_uid=<uid>
         """
         url = f"{self.api_base_url}/identity"
+        params = {}
+        if user_id is not None and str(user_id).strip():
+            params['user_id'] = str(user_id).strip()
+        if discord_uid is not None and str(discord_uid).strip():
+            params['discord_uid'] = str(discord_uid).strip()
+        if not params:
+            return None
         try:
-            response = requests.get(url, headers=self.headers, params={'user_id': str(user_id)}, timeout=5)
+            response = requests.get(url, headers=self.headers, params=params, timeout=5)
             if response.status_code == 404:
                 return None
             response.raise_for_status()
@@ -41,13 +48,21 @@ class SaaSClient:
                 print(f"Detail: {e.response.text}")
             return None
 
-    def update_identity_role(self, user_id, role):
+    def update_identity_role(self, user_id=None, role=None, discord_uid=None):
         """
         Update user role in System B.
         API: PATCH /identity
         """
         url = f"{self.api_base_url}/identity"
-        payload = {'user_id': str(user_id), 'role': str(role or '').upper()}
+        payload = {'role': str(role or '').upper()}
+        if user_id is not None and str(user_id).strip():
+            payload['user_id'] = str(user_id).strip()
+        if discord_uid is not None and str(discord_uid).strip():
+            payload['discord_uid'] = str(discord_uid).strip()
+        if payload['role'] not in {'ADMIN', 'STAFF', 'CONSUMER'}:
+            return None
+        if 'user_id' not in payload and 'discord_uid' not in payload:
+            return None
         try:
             response = requests.patch(url, headers=self.headers, json=payload, timeout=5)
             response.raise_for_status()

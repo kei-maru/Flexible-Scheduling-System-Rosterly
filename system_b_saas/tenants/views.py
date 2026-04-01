@@ -269,12 +269,41 @@ def sso_exchange(request):
 class IntegrationIdentityView(APIView):
     permission_classes = [IsTenantAuthorized]
 
-    def _resolve_target_user(self, request, user_id: str):
-        user = request.tenant.users.filter(id=user_id).first()
-        if user is None:
+    def _resolve_target_user(self, request, user_id: str = "", discord_uid: str = ""):
+        user_by_id = None
+        if user_id:
+            user_by_id = request.tenant.users.filter(id=user_id).first()
+        if user_by_id is None and user_id:
             # Allow A-side CONSUMER users that may be tenant-less.
-            user = SaaSUser.objects.filter(id=user_id, tenant__isnull=True).first()
-        return user
+            user_by_id = SaaSUser.objects.filter(id=user_id, tenant__isnull=True).first()
+
+        user_by_discord = None
+        if discord_uid:
+            social = (
+                SocialAccount.objects.filter(provider='discord', uid=str(discord_uid))
+                .select_related('user')
+                .first()
+            )
+            if social and social.user:
+                candidate = social.user
+                if candidate.tenant_id is None or candidate.tenant_id == request.tenant.id:
+                    user_by_discord = candidate
+
+        # When both are provided and disagree, prefer discord_uid.
+        # This lets System A self-heal stale saas_user_id mappings safely.
+        if user_by_discord is not None:
+            if user_by_id is not None and user_by_id.id != user_by_discord.id:
+                logger.info(
+                    "identity resolve mismatch: prefer discord_uid user_id=%s resolved_id=%s discord_uid=%s resolved_discord_id=%s tenant_id=%s",
+                    user_id,
+                    user_by_id.id,
+                    discord_uid,
+                    user_by_discord.id,
+                    request.tenant.id,
+                )
+            return user_by_discord
+
+        return user_by_id
 
     def _serialize_user(self, user):
         discord_social = SocialAccount.objects.filter(user=user, provider='discord').only('uid').first()
@@ -291,10 +320,11 @@ class IntegrationIdentityView(APIView):
 
     def get(self, request):
         user_id = str(request.query_params.get('user_id') or '').strip()
-        if not user_id:
-            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        discord_uid = str(request.query_params.get('discord_uid') or '').strip()
+        if not user_id and not discord_uid:
+            return Response({'error': 'user_id or discord_uid is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = self._resolve_target_user(request, user_id)
+        user = self._resolve_target_user(request, user_id=user_id, discord_uid=discord_uid)
         if user is None:
             return Response({'error': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -302,11 +332,12 @@ class IntegrationIdentityView(APIView):
 
     def patch(self, request):
         user_id = str(request.data.get('user_id') or '').strip()
+        discord_uid = str(request.data.get('discord_uid') or '').strip()
         desired_role = str(request.data.get('role') or '').strip().upper()
-        if not user_id or desired_role not in {'ADMIN', 'STAFF', 'CONSUMER'}:
+        if (not user_id and not discord_uid) or desired_role not in {'ADMIN', 'STAFF', 'CONSUMER'}:
             return Response({'error': 'invalid_request'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = self._resolve_target_user(request, user_id)
+        user = self._resolve_target_user(request, user_id=user_id, discord_uid=discord_uid)
         if user is None:
             return Response({'error': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 

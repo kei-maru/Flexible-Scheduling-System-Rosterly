@@ -240,7 +240,21 @@ def _upsert_shadow_user(identity_payload: dict):
     if user is None and discord_uid:
         user = User.objects.filter(discord_uid=discord_uid).first()
     if user is None and discord_id:
-        user = User.objects.filter(discord_id=discord_id).first()
+        discord_candidates = list(User.objects.filter(discord_id=discord_id)[:2])
+        if len(discord_candidates) == 1:
+            candidate = discord_candidates[0]
+            existing_saas_id = (candidate.saas_user_id or '').strip()
+            if not existing_saas_id or existing_saas_id == saas_user_id:
+                user = candidate
+            else:
+                logger.warning(
+                    "skip discord_id fallback due saas_user_id mismatch local=%s incoming=%s discord_id=%s",
+                    existing_saas_id,
+                    saas_user_id,
+                    discord_id,
+                )
+        elif len(discord_candidates) > 1:
+            logger.warning("skip discord_id fallback due non-unique match discord_id=%s", discord_id)
 
     if user is None:
         base_name = username_from_b or (discord_id.split('#')[0] if discord_id else 'user')

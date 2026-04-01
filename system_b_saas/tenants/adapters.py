@@ -19,6 +19,18 @@ logger = logging.getLogger(__name__)
 
 
 class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
+    def _has_staff_evidence(self, user) -> bool:
+        if user is None or not getattr(user, "tenant_id", None):
+            return False
+        try:
+            from resources.models import Resource
+        except Exception:
+            return False
+        return (
+            Resource.objects.filter(tenant_id=user.tenant_id, linked_user=user).exists()
+            or Resource.objects.filter(tenant_id=user.tenant_id, external_id=str(user.id)).exists()
+        )
+
     def _ensure_active_user(self, user):
         if user is None:
             return
@@ -106,15 +118,13 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         current_role = str(getattr(user, "role", "") or "").strip().upper()
 
         # Public SSO may be initiated from a logged-out A-side session where role context is unknown.
-        # In that case, a default CONSUMER hint must not accidentally demote existing staff/admin accounts.
-        if role_hint == "CONSUMER" and current_role in {"ADMIN", "STAFF"}:
-            desired_role = current_role
-            logger.info(
-                "public sso role sync: preserving privileged role for user id=%s role=%s tenant_id=%s",
-                user.id,
-                current_role,
-                user.tenant_id,
-            )
+        # In that case, preserve ADMIN directly; preserve STAFF only when there is concrete staff evidence.
+        if role_hint == "CONSUMER" and current_role == "ADMIN":
+            desired_role = "ADMIN"
+            logger.info("public sso role sync: preserving ADMIN for user id=%s tenant_id=%s", user.id, user.tenant_id)
+        elif role_hint == "CONSUMER" and current_role == "STAFF" and self._has_staff_evidence(user):
+            desired_role = "STAFF"
+            logger.info("public sso role sync: preserving STAFF for user id=%s tenant_id=%s (evidence=true)", user.id, user.tenant_id)
         else:
             desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
 

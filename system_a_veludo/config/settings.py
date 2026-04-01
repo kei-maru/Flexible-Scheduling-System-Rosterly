@@ -163,6 +163,7 @@ SYSTEM_B_SSO_CLIENT_SECRET = os.environ.get('SYSTEM_B_SSO_CLIENT_SECRET', '').st
 SYSTEM_A_BASE_URL = os.environ.get('SYSTEM_A_BASE_URL', '').strip().rstrip('/')
 SYSTEM_B_SSO_AUTHORIZE_URL = os.environ.get('SYSTEM_B_SSO_AUTHORIZE_URL', f'{SYSTEM_B_ROOT}/sso/authorize').strip()
 SYSTEM_B_SSO_EXCHANGE_URL = os.environ.get('SYSTEM_B_SSO_EXCHANGE_URL', f'{SYSTEM_B_ROOT}/api/v1/auth/sso/exchange').strip()
+SYSTEM_B_IDENTITY_URL = os.environ.get('SYSTEM_B_IDENTITY_URL', f'{SYSTEM_B_ROOT}/api/v1/integration/identity').strip()
 
 SESSION_COOKIE_NAME = 'veludo_sessionid'
 CSRF_COOKIE_NAME = 'veludo_csrftoken'

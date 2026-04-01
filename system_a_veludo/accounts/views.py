@@ -27,6 +27,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required, user_passes_test
 from datetime import datetime, timedelta
 from django.utils import timezone
+from django.core.cache import cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
 
@@ -59,6 +60,7 @@ SYSTEM_B_ROOT = getattr(settings, "SYSTEM_B_ROOT", "http://system-b:8001")
 SYSTEM_B_API_KEY = getattr(settings, "SAAS_API_KEY", "veludo_secret_key_123")
 SYSTEM_B_SSO_AUTHORIZE_URL = getattr(settings, "SYSTEM_B_SSO_AUTHORIZE_URL", f"{SYSTEM_B_ROOT}/sso/authorize")
 SYSTEM_B_SSO_EXCHANGE_URL = getattr(settings, "SYSTEM_B_SSO_EXCHANGE_URL", f"{SYSTEM_B_ROOT}/api/v1/auth/sso/exchange")
+SYSTEM_B_IDENTITY_URL = getattr(settings, "SYSTEM_B_IDENTITY_URL", f"{SYSTEM_B_ROOT}/api/v1/integration/identity")
 SYSTEM_B_SSO_CLIENT_ID = getattr(settings, "SYSTEM_B_SSO_CLIENT_ID", "")
 SYSTEM_B_SSO_CLIENT_SECRET = getattr(settings, "SYSTEM_B_SSO_CLIENT_SECRET", "")
 SYSTEM_A_BASE_URL = getattr(settings, "SYSTEM_A_BASE_URL", "")
@@ -102,16 +104,125 @@ def _derive_sso_role_hint(user) -> str:
     if user is None or not getattr(user, 'is_authenticated', False):
         return 'CONSUMER'
 
+    is_staff = bool(getattr(user, 'is_staff', False))
     is_cast = bool(getattr(user, 'is_cast', False))
-    if getattr(user, 'is_superuser', False) or (getattr(user, 'is_staff', False) and not is_cast):
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+
+    # Prefer explicit SaaS admin role when present.
+    if saas_role == 'ADMIN':
+        return 'ADMIN'
+
+    # Local rule: admin also carries staff(cast) capability.
+    # Keep local superuser fallback narrow to avoid promoting cast users by stale flags.
+    if getattr(user, 'is_superuser', False) and not is_cast:
+        return 'ADMIN'
+
+    # Legacy local-admin fallback: old records may not have saas_role populated.
+    if is_staff and not is_cast and not saas_role:
         return 'ADMIN'
     if is_cast:
         return 'STAFF'
 
-    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
     if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'}:
         return saas_role
     return 'CONSUMER'
+
+
+def _refresh_shadow_role_from_system_b(user):
+    """
+    Treat System B as source of truth for SSO-linked accounts.
+    Uses short cache to avoid fetching identity on every request.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return user
+    if not getattr(user, 'saas_user_id', None):
+        return user
+    if not SYSTEM_B_IDENTITY_URL or not SYSTEM_B_API_KEY:
+        return user
+
+    cache_key = f"a_shadow_identity_{user.saas_user_id}"
+    identity_payload = cache.get(cache_key)
+    if identity_payload is None:
+        try:
+            resp = requests.get(
+                SYSTEM_B_IDENTITY_URL,
+                headers={SYSTEM_B_API_KEY_HEADER: SYSTEM_B_API_KEY},
+                params={'user_id': user.saas_user_id},
+                timeout=3,
+            )
+            if resp.status_code != 200:
+                return user
+            identity_payload = resp.json()
+            cache.set(cache_key, identity_payload, 20)
+        except Exception as exc:
+            logger.warning("identity refresh failed user_id=%s err=%s", user.id, exc)
+            return user
+
+    remote_role = str(identity_payload.get('role') or '').strip().upper()
+    if remote_role not in {'ADMIN', 'STAFF', 'CONSUMER'}:
+        return user
+
+    update_fields = []
+    remote_tenant_id = identity_payload.get('tenant_id')
+    remote_tenant_id = str(remote_tenant_id) if remote_tenant_id else None
+    if user.saas_tenant_id != remote_tenant_id:
+        user.saas_tenant_id = remote_tenant_id
+        update_fields.append('saas_tenant_id')
+
+    if user.saas_role != remote_role:
+        user.saas_role = remote_role
+        update_fields.append('saas_role')
+
+    if remote_role == 'ADMIN':
+        desired_is_staff = True
+        desired_is_cast = True
+    elif remote_role == 'STAFF':
+        desired_is_staff = False
+        desired_is_cast = True
+    else:
+        desired_is_staff = False
+        desired_is_cast = False
+
+    if user.is_staff != desired_is_staff:
+        user.is_staff = desired_is_staff
+        update_fields.append('is_staff')
+    if getattr(user, 'is_cast', False) != desired_is_cast:
+        user.is_cast = desired_is_cast
+        update_fields.append('is_cast')
+
+    if remote_role in {'STAFF', 'CONSUMER'} and user.is_superuser:
+        user.is_superuser = False
+        update_fields.append('is_superuser')
+
+    if update_fields:
+        user.save(update_fields=update_fields)
+
+    return user
+
+
+def _is_local_admin_user(user) -> bool:
+    """
+    Strict admin gate for System A admin dashboard.
+    - Primary: superuser or saas_role=ADMIN
+    - Fallback: legacy local admin (is_staff=True, is_cast=False, saas_role empty)
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+
+    user = _refresh_shadow_role_from_system_b(user)
+
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+    if saas_role:
+        return saas_role == 'ADMIN'
+
+    # SSO-linked user with missing saas_role should never be treated as admin.
+    if getattr(user, 'saas_user_id', None):
+        return False
+
+    is_cast = bool(getattr(user, 'is_cast', False))
+    if getattr(user, 'is_superuser', False) and not is_cast:
+        return True
+    return bool(getattr(user, 'is_staff', False) and not is_cast)
 
 
 def _upsert_shadow_user(identity_payload: dict):
@@ -151,17 +262,21 @@ def _upsert_shadow_user(identity_payload: dict):
     user.saas_tenant_id = str(saas_tenant_id) if saas_tenant_id else None
     user.saas_role = saas_role if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'} else None
 
-    # Keep local admin flag aligned with remote SSO role to avoid sticky staff drift.
+    # Keep local role flags aligned with SaaS role.
+    # Local rule: admin implies cast/staff capability as well.
     if user.saas_role == 'ADMIN':
         user.is_staff = True
-    else:
-        user.is_staff = False
-
-    # A-side cast staff should align with SaaS STAFF role.
-    if user.saas_role == 'STAFF':
         user.is_cast = True
-    elif user.saas_role in {'ADMIN', 'CONSUMER'}:
+    elif user.saas_role == 'STAFF':
+        user.is_staff = False
+        user.is_cast = True
+    elif user.saas_role == 'CONSUMER':
+        user.is_staff = False
         user.is_cast = False
+
+    # Prevent stale local superuser privilege from bypassing role sync.
+    if user.saas_role in {'STAFF', 'CONSUMER'} and user.is_superuser:
+        user.is_superuser = False
 
     user.save()
     return user
@@ -315,7 +430,7 @@ class ProfileView(LoginRequiredMixin, UpdateView):
              messages.warning(self.request, "登録を完了するために、VRCHAT IDを入力してください。")
 
         context['is_cast'] = getattr(user, 'is_cast', False) 
-        context['is_admin'] = user.is_staff or user.is_superuser
+        context['is_admin'] = _is_local_admin_user(user)
         
         if context['is_cast']:
             try:
@@ -965,7 +1080,7 @@ class BookingCompleteAPI(APIView):
 # ==========================================
 
 @login_required
-@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+@user_passes_test(_is_local_admin_user)
 def admin_dashboard(request):
     # --------------------------------------------------------
     # 1. 处理 AJAX 拖拽排序请求 (CMS)
@@ -1328,6 +1443,37 @@ def admin_dashboard(request):
                 
                 is_cast = form.cleaned_data['is_cast']
                 is_staff = form.cleaned_data['is_staff']
+                # Local rule: admin always includes cast/staff role.
+                if is_staff:
+                    is_cast = True
+
+                desired_role = 'CONSUMER'
+                if is_staff:
+                    desired_role = 'ADMIN'
+                elif is_cast:
+                    desired_role = 'STAFF'
+
+                # SSO-linked users: A can initiate changes, but source-of-truth write happens in B.
+                if target_user.saas_user_id:
+                    identity = client.update_identity_role(target_user.saas_user_id, desired_role)
+                    if identity is None:
+                        messages.error(request, "System B の権限更新に失敗しました。しばらくして再試行してください。")
+                        return redirect('admin_dashboard')
+                    try:
+                        _upsert_shadow_user(identity)
+                        # Drop short-lived identity cache to reflect latest value immediately.
+                        cache.delete(f"a_shadow_identity_{target_user.saas_user_id}")
+                    except Exception as exc:
+                        logger.warning("post role sync shadow upsert failed user_id=%s err=%s", target_user.id, exc)
+                    messages.success(request, f"権限を更新しました（B -> A 同期済み）: {desired_role}")
+                    return redirect('admin_dashboard')
+
+                if is_staff:
+                    target_user.saas_role = 'ADMIN'
+                elif is_cast:
+                    target_user.saas_role = 'STAFF'
+                else:
+                    target_user.saas_role = 'CONSUMER'
                 
                 target_user.is_staff = is_staff
                 target_user.is_cast = is_cast

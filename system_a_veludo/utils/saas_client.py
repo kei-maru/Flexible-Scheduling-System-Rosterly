@@ -20,6 +20,45 @@ class SaaSClient:
         }
 
     # ========================================================
+    # Identity (A/B user role sync)
+    # ========================================================
+
+    def get_identity(self, user_id):
+        """
+        Read user identity/role from System B.
+        API: GET /identity?user_id=<id>
+        """
+        url = f"{self.api_base_url}/identity"
+        try:
+            response = requests.get(url, headers=self.headers, params={'user_id': str(user_id)}, timeout=5)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Get Identity Error: {e}")
+            if getattr(e, 'response', None) is not None:
+                print(f"Detail: {e.response.text}")
+            return None
+
+    def update_identity_role(self, user_id, role):
+        """
+        Update user role in System B.
+        API: PATCH /identity
+        """
+        url = f"{self.api_base_url}/identity"
+        payload = {'user_id': str(user_id), 'role': str(role or '').upper()}
+        try:
+            response = requests.patch(url, headers=self.headers, json=payload, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Update Identity Role Error: {e}")
+            if getattr(e, 'response', None) is not None:
+                print(f"Detail: {e.response.text}")
+            return None
+
+    # ========================================================
     # Availability (排班管理)
     # ========================================================
 

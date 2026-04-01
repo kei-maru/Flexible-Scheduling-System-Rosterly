@@ -532,3 +532,22 @@ git log --reverse --pretty=format:'%ad|%h|%s' --date=short --all
 
 阶段结论：
 - 管理后台从“功能可用”进入“流程可运营”状态，编辑路径与模块职责边界显著清晰。
+
+---
+
+## 16. Phase 16：权限同步加固与 A 端协议闸门（2026-04-01）
+
+关键内容：
+- 修复 A/B 身份同步错位：
+  - B 端 `identity` 查询与改权支持 `discord_uid`，并在 `user_id` 漂移时优先按 `discord_uid` 纠偏。
+  - A 端回拉身份时自动修正本地 `saas_user_id`、`saas_role`、`saas_tenant_id` 与 cast 判定。
+- 修复“重新登录后角色被置为普通用户”：
+  - Public SSO 在 `a_role=CONSUMER` 时，仅对具备特权证据（`is_staff=True` 或 `tenant_id` 非空）的账号保留 `STAFF/ADMIN`。
+  - 新用户不再因默认字段被误判为员工。
+- A 端登录流程新增协议同意闸门：
+  - `点击登录 -> /accounts/sso/consent/ -> 同意协议 -> /accounts/sso/login -> B 授权`
+  - 避免跳过协议直接进入外部授权。
+
+阶段结论：
+- 角色同步链路从“能同步”升级为“可纠偏、可防回退、可防误判”。
+- 登录体验满足合规要求：外部授权前先完成本地协议确认。

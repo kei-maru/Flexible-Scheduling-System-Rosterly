@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>利用規約同意 | ASMR Salon Veludo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/png" href="/media/tenant_logos/veludo_logo.png">
+    <link rel="apple-touch-icon" href="/media/tenant_logos/veludo_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Noto+Serif+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: "Noto Serif JP", serif;
+            background: #121212;
+            color: #f5f5f5;
+        }
+        .bg-layer {
+            background-image: url("{% static 'images/Home/s-1920x1080_v-frms_webp_0aa86051-f7b0-47bf-add6-ce8082a39e47.jpg' %}");
+            background-size: cover;
+            background-position: center;
+            filter: blur(8px) brightness(0.35);
+            transform: scale(1.08);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center relative overflow-hidden">
+    <div class="absolute inset-0 bg-layer"></div>
+    <div class="absolute inset-0 bg-black/65"></div>
+
+    <div class="relative z-10 w-full max-w-lg mx-4 rounded-md border border-white/10 bg-[#1f1f1f]/90 backdrop-blur-xl p-8">
+        <h1 class="text-xl tracking-widest text-[#d4af37] mb-3">TERMS CONSENT</h1>
+        <p class="text-sm text-gray-300 leading-relaxed mb-5">
+            Discordログインに進む前に、利用規約への同意が必要です。
+            内容を確認のうえ、同意して続行してください。
+        </p>
+
+        {% if messages %}
+        <div class="mb-4 space-y-2">
+            {% for message in messages %}
+            <div class="rounded-sm border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="mb-5 text-xs">
+            <a href="{% url 'terms' %}" target="_blank" rel="noopener" class="text-[#d4af37] hover:underline">
+                利用規約を開く（新しいタブ）
+            </a>
+        </div>
+
+        <form method="post" action="{% url 'sso_terms_consent' %}">
+            {% csrf_token %}
+            <label class="flex items-start gap-3 text-xs text-gray-300 mb-6">
+                <input type="checkbox" name="agree_terms" value="1" class="mt-1 accent-[#d4af37]" required>
+                <span>利用規約に同意します。</span>
+            </label>
+            <button type="submit" class="w-full py-3 rounded-sm bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm tracking-widest font-semibold transition-colors">
+                同意してDiscordログインへ進む
+            </button>
+        </form>
+
+        <a href="{% url 'login' %}" class="mt-5 inline-block text-[11px] text-gray-400 hover:text-white tracking-widest">
+            BACK TO LOGIN
+        </a>
+    </div>
+</body>
+</html>

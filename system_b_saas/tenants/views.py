@@ -61,18 +61,11 @@ def _should_preserve_staff_or_admin(user, role_hint: str) -> bool:
     if getattr(user, 'is_superuser', False):
         return True
     current_role = (getattr(user, 'role', '') or '').strip().upper()
-    if current_role == 'ADMIN':
+    # Public SSO from a logged-out A-side session often carries only CONSUMER hint.
+    # In that case B must remain source-of-truth and keep existing privileged roles.
+    if current_role in {'ADMIN', 'STAFF'}:
         return True
-    if current_role != 'STAFF' or not getattr(user, 'tenant_id', None):
-        return False
-    try:
-        from resources.models import Resource
-    except Exception:
-        return False
-    return (
-        Resource.objects.filter(tenant_id=user.tenant_id, linked_user=user).exists()
-        or Resource.objects.filter(tenant_id=user.tenant_id, external_id=str(user.id)).exists()
-    )
+    return False
 
 
 def _public_sso_tenant_slug() -> str:

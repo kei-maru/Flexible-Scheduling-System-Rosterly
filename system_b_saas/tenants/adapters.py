@@ -118,13 +118,15 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         current_role = str(getattr(user, "role", "") or "").strip().upper()
 
         # Public SSO may be initiated from a logged-out A-side session where role context is unknown.
-        # In that case, preserve ADMIN directly; preserve STAFF only when there is concrete staff evidence.
-        if role_hint == "CONSUMER" and current_role == "ADMIN":
-            desired_role = "ADMIN"
-            logger.info("public sso role sync: preserving ADMIN for user id=%s tenant_id=%s", user.id, user.tenant_id)
-        elif role_hint == "CONSUMER" and current_role == "STAFF" and self._has_staff_evidence(user):
-            desired_role = "STAFF"
-            logger.info("public sso role sync: preserving STAFF for user id=%s tenant_id=%s (evidence=true)", user.id, user.tenant_id)
+        # In that case B remains source-of-truth: preserve existing privileged role.
+        if role_hint == "CONSUMER" and current_role in {"ADMIN", "STAFF"}:
+            desired_role = current_role
+            logger.info(
+                "public sso role sync: preserving %s for user id=%s tenant_id=%s",
+                current_role,
+                user.id,
+                user.tenant_id,
+            )
         else:
             desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
 

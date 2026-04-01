@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_B_ROOT = getattr(settings, "SYSTEM_B_ROOT", "http://system-b:8001")
 SYSTEM_B_API_KEY = getattr(settings, "SAAS_API_KEY", "veludo_secret_key_123")
+SYSTEM_B_API_KEY_HEADER = getattr(settings, "SAAS_API_KEY_HEADER", "X-Tenant-Key")
 SYSTEM_B_SSO_AUTHORIZE_URL = getattr(settings, "SYSTEM_B_SSO_AUTHORIZE_URL", f"{SYSTEM_B_ROOT}/sso/authorize")
 SYSTEM_B_SSO_EXCHANGE_URL = getattr(settings, "SYSTEM_B_SSO_EXCHANGE_URL", f"{SYSTEM_B_ROOT}/api/v1/auth/sso/exchange")
 SYSTEM_B_IDENTITY_URL = getattr(settings, "SYSTEM_B_IDENTITY_URL", f"{SYSTEM_B_ROOT}/api/v1/integration/identity")
@@ -94,6 +95,39 @@ def _build_unique_username(seed_name: str) -> str:
         suffix += 1
         candidate = f"{normalized[:110]}_{suffix}"
     return candidate
+
+
+def _identity_cache_keys(user):
+    keys = []
+    if user is None:
+        return keys
+    user_id = getattr(user, 'id', None)
+    if user_id:
+        keys.append(f"a_shadow_identity_local_{user_id}")
+
+    saas_user_id = str(getattr(user, 'saas_user_id', '') or '').strip()
+    if saas_user_id:
+        keys.append(f"a_shadow_identity_saas_{saas_user_id}")
+
+    discord_uid = str(getattr(user, 'discord_uid', '') or '').strip()
+    if discord_uid:
+        keys.append(f"a_shadow_identity_discord_{discord_uid}")
+    return keys
+
+
+def _ensure_local_cast_profile(user):
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return None
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+    if not bool(getattr(user, 'is_cast', False)) and saas_role not in {'ADMIN', 'STAFF'}:
+        return None
+
+    display_name = (getattr(user, 'vrc_id', '') or '').strip() or (getattr(user, 'username', '') or '').strip() or 'cast'
+    cast_profile, _ = CastProfile.objects.get_or_create(user=user, defaults={'name': display_name})
+    if not cast_profile.name:
+        cast_profile.name = display_name
+        cast_profile.save(update_fields=['name'])
+    return cast_profile
 
 
 def _derive_sso_role_hint(user) -> str:
@@ -135,25 +169,38 @@ def _refresh_shadow_role_from_system_b(user):
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return user
-    if not getattr(user, 'saas_user_id', None):
+    local_saas_user_id = str(getattr(user, 'saas_user_id', '') or '').strip()
+    local_discord_uid = str(getattr(user, 'discord_uid', '') or '').strip()
+    if not local_saas_user_id and not local_discord_uid:
         return user
     if not SYSTEM_B_IDENTITY_URL or not SYSTEM_B_API_KEY:
         return user
 
-    cache_key = f"a_shadow_identity_{user.saas_user_id}"
-    identity_payload = cache.get(cache_key)
+    identity_payload = None
+    for cache_key in _identity_cache_keys(user):
+        payload = cache.get(cache_key)
+        if payload is not None:
+            identity_payload = payload
+            break
     if identity_payload is None:
         try:
+            params = {}
+            if local_saas_user_id:
+                params['user_id'] = local_saas_user_id
+            if local_discord_uid:
+                params['discord_uid'] = local_discord_uid
+
             resp = requests.get(
                 SYSTEM_B_IDENTITY_URL,
                 headers={SYSTEM_B_API_KEY_HEADER: SYSTEM_B_API_KEY},
-                params={'user_id': user.saas_user_id},
+                params=params,
                 timeout=3,
             )
             if resp.status_code != 200:
                 return user
             identity_payload = resp.json()
-            cache.set(cache_key, identity_payload, 20)
+            for cache_key in _identity_cache_keys(user):
+                cache.set(cache_key, identity_payload, 20)
         except Exception as exc:
             logger.warning("identity refresh failed user_id=%s err=%s", user.id, exc)
             return user
@@ -163,6 +210,30 @@ def _refresh_shadow_role_from_system_b(user):
         return user
 
     update_fields = []
+    remote_saas_user_id = str(identity_payload.get('user_id') or '').strip()
+    if remote_saas_user_id and user.saas_user_id != remote_saas_user_id:
+        conflict_user = User.objects.filter(saas_user_id=remote_saas_user_id).exclude(pk=user.pk).first()
+        if conflict_user:
+            logger.warning(
+                "skip updating saas_user_id due conflict local_user=%s conflict_user=%s remote_saas_user_id=%s",
+                user.id,
+                conflict_user.id,
+                remote_saas_user_id,
+            )
+        else:
+            user.saas_user_id = remote_saas_user_id
+            update_fields.append('saas_user_id')
+
+    remote_discord_uid = str(identity_payload.get('discord_uid') or '').strip()
+    if remote_discord_uid and getattr(user, 'discord_uid', '') != remote_discord_uid:
+        user.discord_uid = remote_discord_uid
+        update_fields.append('discord_uid')
+
+    remote_discord_id = str(identity_payload.get('discord_id') or '').strip()
+    if remote_discord_id and user.discord_id != remote_discord_id:
+        user.discord_id = remote_discord_id
+        update_fields.append('discord_id')
+
     remote_tenant_id = identity_payload.get('tenant_id')
     remote_tenant_id = str(remote_tenant_id) if remote_tenant_id else None
     if user.saas_tenant_id != remote_tenant_id:
@@ -196,8 +267,41 @@ def _refresh_shadow_role_from_system_b(user):
 
     if update_fields:
         user.save(update_fields=update_fields)
+        for cache_key in _identity_cache_keys(user):
+            cache.set(cache_key, identity_payload, 20)
+
+    if remote_role in {'ADMIN', 'STAFF'}:
+        _ensure_local_cast_profile(user)
 
     return user
+
+
+def _is_local_cast_user(user) -> bool:
+    """
+    Cast gate for schedule/shift features.
+    STAFF and ADMIN in SaaS should both be treated as cast-capable in System A.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+
+    user = _refresh_shadow_role_from_system_b(user)
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+    if saas_role in {'ADMIN', 'STAFF'}:
+        if not bool(getattr(user, 'is_cast', False)):
+            user.is_cast = True
+            user.save(update_fields=['is_cast'])
+        _ensure_local_cast_profile(user)
+        return True
+    if saas_role == 'CONSUMER':
+        if bool(getattr(user, 'is_cast', False)):
+            user.is_cast = False
+            user.save(update_fields=['is_cast'])
+        return False
+
+    is_cast = bool(getattr(user, 'is_cast', False))
+    if is_cast:
+        _ensure_local_cast_profile(user)
+    return is_cast
 
 
 def _is_local_admin_user(user) -> bool:
@@ -293,6 +397,8 @@ def _upsert_shadow_user(identity_payload: dict):
         user.is_superuser = False
 
     user.save()
+    if user.saas_role in {'ADMIN', 'STAFF'}:
+        _ensure_local_cast_profile(user)
     return user
 
 # --- 1. 登录视图 ---
@@ -437,13 +543,13 @@ class ProfileView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        user = self.request.user
+        user = _refresh_shadow_role_from_system_b(self.request.user)
         
         # [修正] user.vrc_id が空っぽなら警告を出す
         if not user.vrc_id:
              messages.warning(self.request, "登録を完了するために、VRCHAT IDを入力してください。")
 
-        context['is_cast'] = getattr(user, 'is_cast', False) 
+        context['is_cast'] = _is_local_cast_user(user)
         context['is_admin'] = _is_local_admin_user(user)
         
         if context['is_cast']:
@@ -458,7 +564,7 @@ class ProfileView(LoginRequiredMixin, UpdateView):
         messages.success(self.request, "プロフィールを更新しました。")
         response = super().form_valid(form)
 
-        if getattr(self.request.user, "is_cast", False):
+        if _is_local_cast_user(self.request.user):
             cast_profile = CastProfile.objects.filter(user=self.request.user).first()
             if cast_profile:
                 cast_profile_id = cast_profile.id
@@ -482,7 +588,7 @@ class ScheduleView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['is_cast'] = getattr(self.request.user, 'is_cast', False)
+        context['is_cast'] = _is_local_cast_user(self.request.user)
         return context
 
 # --- 6. 排班数据 API (已重构 - 纯代理) ---
@@ -509,7 +615,7 @@ class AvailabilityAPIView(APIView):
 
         # 权限判断
         is_owner = False
-        if getattr(request.user, 'is_cast', False):
+        if _is_local_cast_user(request.user):
             try:
                 my_remote_id = request.user.cast_profile.saas_resource_id
                 if str(my_remote_id) == str(target_resource_id):
@@ -593,7 +699,7 @@ class AvailabilityAPIView(APIView):
         创建排班 (自动支持 单次 和 周期，透传给 System B)
         """
         user = request.user
-        if not getattr(user, 'is_cast', False):
+        if not _is_local_cast_user(user):
              return Response({'error': 'Not a cast'}, status=status.HTTP_403_FORBIDDEN)
              
         remote_id = self._get_my_remote_id(user)
@@ -620,7 +726,7 @@ class AvailabilityAPIView(APIView):
             return Response({'error': str(e)}, status=500)
 
     def delete(self, request, pk=None):
-        if not getattr(request.user, 'is_cast', False):
+        if not _is_local_cast_user(request.user):
              return Response({'error': 'Not a cast'}, status=403)
 
         if not pk: pk = request.data.get('id') or request.query_params.get('id')
@@ -638,8 +744,12 @@ def recurring_config_proxy(request):
     if not request.user.is_authenticated:
         print("[System A] User not authenticated")
         return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    if not _is_local_cast_user(request.user):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
         
-    resource_id = getattr(request.user.cast_profile, 'saas_resource_id', None)
+    cast_profile = CastProfile.objects.filter(user=request.user).first()
+    resource_id = getattr(cast_profile, 'saas_resource_id', None)
     if not resource_id:
         print("[System A] No resource_id found")
         return JsonResponse({})
@@ -664,11 +774,15 @@ class IntegrationAvailabilityProxyView(APIView):
 
     def get(self, request):
         """获取模版列表"""
+        if not _is_local_cast_user(request.user):
+            return Response({'error': 'Permission denied'}, status=403)
+
         requested_resource_id = request.GET.get('resource_id')
         
         # 【安全检查】确保当前登录用户就是这个 resource 的主人
         # 假设 request.user.cast_profile.saas_resource_id 存了当前用户的 ID
-        current_user_resource_id = getattr(request.user.cast_profile, 'saas_resource_id', None)
+        cast_profile = CastProfile.objects.filter(user=request.user).first()
+        current_user_resource_id = getattr(cast_profile, 'saas_resource_id', None)
 
         if str(requested_resource_id) != str(current_user_resource_id):
             return Response({'error': 'Permission Denied: You cannot view other people\'s templates'}, status=403)
@@ -877,7 +991,7 @@ def my_bookings_api(request):
     client = SaaSClient()
     
     # 判断是否为 Cast (保持逻辑一致性)
-    is_cast = getattr(user, 'is_cast', False)
+    is_cast = _is_local_cast_user(user)
     
     bookings = []
 
@@ -925,7 +1039,7 @@ class MyBookingsPageView(LoginRequiredMixin, TemplateView):
         print(f" - discord_id: {user.discord_id}") # <--- 看看这里是不是空的？
         print(f" - email: {user.email}")
         client = SaaSClient()
-        is_cast = getattr(user, 'is_cast', False)
+        is_cast = _is_local_cast_user(user)
         context['is_cast'] = is_cast
         
         # 1. 获取 System B 的数据
@@ -1006,7 +1120,7 @@ class BookingCancelAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
-        if getattr(request.user, 'is_cast', False):
+        if _is_local_cast_user(request.user):
             print(f"SECURITY: Cast用户 {request.user.username} 尝试删除预约 {pk} 被拦截")
             return Response({'error': 'Permission Denied: Cast cannot cancel bookings.'}, status=403)
 
@@ -1078,7 +1192,7 @@ class BookingCompleteAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        if not getattr(request.user, 'is_cast', False):
+        if not _is_local_cast_user(request.user):
              return Response({'error': 'Permission denied'}, status=403)
 
         client = SaaSClient()
@@ -1468,15 +1582,19 @@ def admin_dashboard(request):
                     desired_role = 'STAFF'
 
                 # SSO-linked users: A can initiate changes, but source-of-truth write happens in B.
-                if target_user.saas_user_id:
-                    identity = client.update_identity_role(target_user.saas_user_id, desired_role)
+                if target_user.saas_user_id or target_user.discord_uid:
+                    identity = client.update_identity_role(
+                        user_id=target_user.saas_user_id,
+                        role=desired_role,
+                        discord_uid=getattr(target_user, 'discord_uid', None),
+                    )
                     if identity is None:
                         messages.error(request, "System B の権限更新に失敗しました。しばらくして再試行してください。")
                         return redirect('admin_dashboard')
                     try:
                         _upsert_shadow_user(identity)
                         # Drop short-lived identity cache to reflect latest value immediately.
-                        cache.delete(f"a_shadow_identity_{target_user.saas_user_id}")
+                        cache.delete_many(_identity_cache_keys(target_user))
                     except Exception as exc:
                         logger.warning("post role sync shadow upsert failed user_id=%s err=%s", target_user.id, exc)
                     messages.success(request, f"権限を更新しました（B -> A 同期済み）: {desired_role}")

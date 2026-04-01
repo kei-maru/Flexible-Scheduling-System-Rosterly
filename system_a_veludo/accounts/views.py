@@ -94,6 +94,26 @@ def _build_unique_username(seed_name: str) -> str:
     return candidate
 
 
+def _derive_sso_role_hint(user) -> str:
+    """
+    Resolve outbound A->B role hint.
+    Local A-side privilege flags are authoritative; stale synced saas_role is only a fallback.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return 'CONSUMER'
+
+    is_cast = bool(getattr(user, 'is_cast', False))
+    if getattr(user, 'is_superuser', False) or (getattr(user, 'is_staff', False) and not is_cast):
+        return 'ADMIN'
+    if is_cast:
+        return 'STAFF'
+
+    saas_role = (getattr(user, 'saas_role', '') or '').strip().upper()
+    if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'}:
+        return saas_role
+    return 'CONSUMER'
+
+
 def _upsert_shadow_user(identity_payload: dict):
     saas_user_id = (identity_payload.get('user_id') or '').strip()
     discord_id = (identity_payload.get('discord_id') or '').strip()
@@ -174,16 +194,7 @@ def sso_login(request):
         messages.error(request, 'SSO is not configured. Please contact administrator.')
         return redirect('login')
 
-    role_hint = 'CONSUMER'
-    if request.user.is_authenticated:
-        # Prefer the last synchronized SaaS role when available to reduce local flag drift.
-        saas_role = (getattr(request.user, 'saas_role', '') or '').strip().upper()
-        if saas_role in {'ADMIN', 'STAFF', 'CONSUMER'}:
-            role_hint = saas_role
-        elif request.user.is_superuser or (request.user.is_staff and not getattr(request.user, 'is_cast', False)):
-            role_hint = 'ADMIN'
-        elif getattr(request.user, 'is_cast', False):
-            role_hint = 'STAFF'
+    role_hint = _derive_sso_role_hint(request.user)
 
     if request.user.is_authenticated:
         logout(request)

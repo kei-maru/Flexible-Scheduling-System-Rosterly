@@ -51,6 +51,15 @@ def _get_client_conf(client_id: str):
     }
 
 
+def _should_preserve_staff_or_admin(user, role_hint: str) -> bool:
+    if role_hint != 'CONSUMER' or user is None:
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True
+    current_role = (getattr(user, 'role', '') or '').strip().upper()
+    return current_role in {'ADMIN', 'STAFF'} and bool(getattr(user, 'tenant_id', None))
+
+
 @require_GET
 def sso_authorize(request):
     client_id = (request.GET.get('client_id') or '').strip()
@@ -87,7 +96,7 @@ def sso_authorize(request):
         next_path = _drop_query_params(request.get_full_path(), {'force_login'})
         return redirect(f"/accounts/discord/login/?process=login&next={quote(next_path, safe='')}")
 
-    if role_hint == 'CONSUMER' and not request.user.is_superuser:
+    if role_hint == 'CONSUMER' and not _should_preserve_staff_or_admin(request.user, role_hint):
         update_fields = []
         if request.user.role != 'CONSUMER':
             request.user.role = 'CONSUMER'
@@ -100,6 +109,13 @@ def sso_authorize(request):
             update_fields.append('tenant')
         if update_fields:
             request.user.save(update_fields=update_fields)
+    elif role_hint == 'CONSUMER':
+        logger.info(
+            'SSO authorize: preserving privileged role for user id=%s role=%s tenant_id=%s',
+            request.user.id,
+            getattr(request.user, 'role', ''),
+            getattr(request.user, 'tenant_id', None),
+        )
 
     public_sso_flow = bool(request.session.get('allow_public_sso_login'))
     request.session.pop('allow_public_sso_login', None)

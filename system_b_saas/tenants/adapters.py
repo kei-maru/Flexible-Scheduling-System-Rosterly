@@ -103,7 +103,21 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
             return
 
         public_tenant = self._resolve_public_sso_tenant()
-        desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
+        current_role = str(getattr(user, "role", "") or "").strip().upper()
+        has_tenant_binding = bool(getattr(user, "tenant_id", None))
+
+        # Public SSO may be initiated from a logged-out A-side session where role context is unknown.
+        # In that case, a default CONSUMER hint must not accidentally demote existing staff/admin accounts.
+        if role_hint == "CONSUMER" and current_role in {"ADMIN", "STAFF"} and has_tenant_binding:
+            desired_role = current_role
+            logger.info(
+                "public sso role sync: preserving privileged role for user id=%s role=%s tenant_id=%s",
+                user.id,
+                current_role,
+                user.tenant_id,
+            )
+        else:
+            desired_role = role_hint if role_hint in {"ADMIN", "STAFF"} else "CONSUMER"
 
         desired_is_staff = desired_role in {"ADMIN", "STAFF"}
         update_fields = []

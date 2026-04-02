@@ -489,13 +489,13 @@
                         </div>
                     </div>
 
-                    <div class="panel flex h-[640px] flex-col p-5 lg:col-span-2">
+                    <div class="panel p-5 lg:col-span-2">
                         <div class="mb-4 flex items-center justify-between">
                             <h2 class="text-lg font-semibold text-slate-900">Cast CMS Editor</h2>
                             <span id="cast-editor-target" class="text-xs text-slate-500">対象: 未選択</span>
                         </div>
 
-                        <form method="post" enctype="multipart/form-data" id="cast-cms-form" class="flex-1 space-y-4 overflow-y-auto pr-1">
+                        <form method="post" enctype="multipart/form-data" id="cast-cms-form" class="space-y-4">
                             {% csrf_token %}
                             <input type="hidden" name="save_cast_profile" value="true">
                             <input type="hidden" name="resource_id" id="cms-resource-id" value="">
@@ -611,10 +611,11 @@
                             </div>
                             <p class="mt-2 text-[11px] text-slate-500">シフトは初期表示で今後1か月分、注文は最新100件を表示します。</p>
                         </div>
-                        <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 lg:items-start">
+                        <div class="max-h-[560px] overflow-y-auto p-5">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:items-start">
                             <div>
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-regular fa-calendar mr-1 text-indigo-600"></i> Upcoming Shifts</h3>
-                                <div class="max-h-[560px] overflow-y-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+                                <div class="rounded-md border border-slate-200 bg-slate-50 p-2">
                                     <div class="space-y-2">
                                         {% for shift in upcoming_shifts %}
                                         <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}" data-start="{{ shift.start_time|date:'c' }}" data-name="{{ shift.resource.name|lower }}">
@@ -632,7 +633,7 @@
 
                             <div>
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-solid fa-receipt mr-1 text-indigo-600"></i> Order History</h3>
-                                <div class="max-h-[560px] overflow-y-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+                                <div class="rounded-md border border-slate-200 bg-slate-50 p-2">
                                     <div class="space-y-2">
                                         {% for order in orders %}
                                         <div class="order-card rounded-md border border-slate-200 bg-white p-3 {% if order.booking_type == 'CORE_TIME' %}cursor-pointer hover:border-indigo-200{% endif %}"
@@ -670,6 +671,7 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
                         </div>
 
                         {% if is_core_time_store %}

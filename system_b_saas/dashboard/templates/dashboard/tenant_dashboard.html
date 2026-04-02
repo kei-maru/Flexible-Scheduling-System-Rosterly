@@ -441,13 +441,13 @@
             </section>
 
             <section id="section-content" class="hidden-section">
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                    <div class="panel p-4">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+                    <div class="panel flex h-[640px] flex-col p-4">
                         <div class="mb-3 flex items-center justify-between">
                             <h2 class="text-lg font-semibold text-slate-900">Cast List</h2>
                             <span class="text-[10px] uppercase tracking-widest text-slate-500">Select</span>
                         </div>
-                        <div id="cast-sortable-list" class="space-y-2">
+                        <div id="cast-sortable-list" class="flex-1 space-y-2 overflow-y-auto pr-1">
                             {% for cast in cast_rows %}
                             <div
                                 class="cast-item w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300"
@@ -489,13 +489,13 @@
                         </div>
                     </div>
 
-                    <div class="panel p-5 lg:col-span-2">
+                    <div class="panel flex h-[640px] flex-col p-5 lg:col-span-2">
                         <div class="mb-4 flex items-center justify-between">
                             <h2 class="text-lg font-semibold text-slate-900">Cast CMS Editor</h2>
                             <span id="cast-editor-target" class="text-xs text-slate-500">対象: 未選択</span>
                         </div>
 
-                        <form method="post" enctype="multipart/form-data" id="cast-cms-form" class="space-y-4">
+                        <form method="post" enctype="multipart/form-data" id="cast-cms-form" class="flex-1 space-y-4 overflow-y-auto pr-1">
                             {% csrf_token %}
                             <input type="hidden" name="save_cast_profile" value="true">
                             <input type="hidden" name="resource_id" id="cms-resource-id" value="">
@@ -559,7 +559,7 @@
             </section>
 
             <section id="section-shifts" class="hidden-section">
-                <div id="schedule-grid" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div id="schedule-grid" class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
                     <div id="schedule-cast-panel" class="panel p-4 lg:self-start">
                         <div class="mb-3 flex items-center justify-between">
                             <h2 class="text-lg font-semibold text-slate-900">Select Cast</h2>
@@ -611,20 +611,22 @@
                             </div>
                             <p class="mt-2 text-[11px] text-slate-500">シフトは初期表示で今後1か月分、注文は最新100件を表示します。</p>
                         </div>
-                        <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                        <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 lg:items-start">
                             <div>
                                 <h3 class="mb-3 text-sm font-semibold text-slate-800"><i class="fa-regular fa-calendar mr-1 text-indigo-600"></i> Upcoming Shifts</h3>
-                                <div class="space-y-2">
-                                    {% for shift in upcoming_shifts %}
-                                    <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}" data-start="{{ shift.start_time|date:'c' }}" data-name="{{ shift.resource.name|lower }}">
-                                        <div class="text-xs font-semibold text-indigo-700">{{ shift.resource.name }}</div>
-                                        <div class="mt-1 text-sm text-slate-800">{{ shift.start_time|date:"m/d H:i" }} - {{ shift.end_time|date:"H:i" }}</div>
-                                        <div class="mt-1 text-[11px] text-slate-500">{% if shift.is_recurring %}RECURRING{% else %}SINGLE{% endif %}</div>
+                                <div class="max-h-[560px] overflow-y-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+                                    <div class="space-y-2">
+                                        {% for shift in upcoming_shifts %}
+                                        <div class="shift-card rounded-md border border-slate-200 bg-white p-3" data-cast-id="{{ shift.resource.id }}" data-start="{{ shift.start_time|date:'c' }}" data-name="{{ shift.resource.name|lower }}">
+                                            <div class="text-xs font-semibold text-indigo-700">{{ shift.resource.name }}</div>
+                                            <div class="mt-1 text-sm text-slate-800">{{ shift.start_time|date:"m/d H:i" }} - {{ shift.end_time|date:"H:i" }}</div>
+                                            <div class="mt-1 text-[11px] text-slate-500">{% if shift.is_recurring %}RECURRING{% else %}SINGLE{% endif %}</div>
+                                        </div>
+                                        {% empty %}
+                                        <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">シフトがありません。</div>
+                                        {% endfor %}
+                                        <div id="no-shifts-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">条件に一致するシフトがありません。</div>
                                     </div>
-                                    {% empty %}
-                                    <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">シフトがありません。</div>
-                                    {% endfor %}
-                                    <div id="no-shifts-msg" class="hidden rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">条件に一致するシフトがありません。</div>
                                 </div>
                             </div>
 
@@ -989,10 +991,6 @@
             if (titleEl) titleEl.innerText = PAGE_TITLES[tabName] || "管理者ダッシュボード";
             const descEl = document.getElementById("page-description");
             if (descEl) descEl.innerText = MODULE_DESCRIPTIONS[tabName] || "";
-
-            if (tabName === "shifts") {
-                requestAnimationFrame(updateSchedulePanelFollowOffset);
-            }
         }
 
         function filterUsers() {
@@ -1487,29 +1485,6 @@
             applyScheduleFilters();
         }
 
-        function updateSchedulePanelFollowOffset() {
-            const section = document.getElementById("section-shifts");
-            const grid = document.getElementById("schedule-grid");
-            const leftPanel = document.getElementById("schedule-cast-panel");
-            const rightPanel = document.getElementById("schedule-main-panel");
-            if (!section || !grid || !leftPanel || !rightPanel) return;
-
-            const sectionVisible = !section.classList.contains("hidden-section");
-            if (!sectionVisible || window.innerWidth < 1024) {
-                rightPanel.style.transform = "translateY(0px)";
-                return;
-            }
-
-            const header = document.querySelector("header.sticky");
-            const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
-            const gridTop = grid.getBoundingClientRect().top + window.scrollY;
-            const desired = Math.max(0, window.scrollY + headerBottom + 16 - gridTop);
-
-            const maxOffset = Math.max(0, leftPanel.offsetHeight - 72);
-            const offset = Math.min(desired, maxOffset);
-            rightPanel.style.transform = `translateY(${Math.round(offset)}px)`;
-        }
-
         let allTemplates = {};
         try {
             allTemplates = JSON.parse('{{ templates_json|escapejs }}');
@@ -1683,9 +1658,6 @@
                 prevBtn.setAttribute("href", "#");
             }
 
-            window.addEventListener("scroll", updateSchedulePanelFollowOffset, { passive: true });
-            window.addEventListener("resize", updateSchedulePanelFollowOffset);
-
             const logoInput = document.getElementById("in-logo");
             if (logoInput) {
                 logoInput.addEventListener("change", function (event) {
@@ -1703,7 +1675,6 @@
             switchTemplateType("BOOKING_CONFIRMED");
             resetServicePresetForm();
             initializeAgreementEditor();
-            updateSchedulePanelFollowOffset();
         });
     </script>
 </body>

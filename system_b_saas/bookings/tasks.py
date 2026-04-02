@@ -187,7 +187,9 @@ def _send_booking_emails_logic(booking):
     if duration_minutes <= 0:
         duration_minutes = 60
     duration_hours = round(duration_minutes / 60, 2)
-    date_str = start_jst.strftime('%Y年%m月%d日')
+    weekday_labels = ['月', '火', '水', '木', '金', '土', '日']
+    weekday_label = weekday_labels[start_jst.weekday()]
+    date_str = f"{start_jst.strftime('%Y年%m月%d日')}（{weekday_label}）"
     time_range_str = f"{start_jst.strftime('%H:%M')} - {end_jst.strftime('%H:%M')}"
     cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
     cancel_deadline_jst = (booking.start_time - timedelta(hours=cancellation_window_hours)).astimezone(jst)

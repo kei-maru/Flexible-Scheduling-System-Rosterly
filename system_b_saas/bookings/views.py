@@ -297,7 +297,9 @@ class IntegrationBookingView(APIView):
         c_name = booking.customer_name
         tokyo_tz = zoneinfo.ZoneInfo("Asia/Tokyo")
         # 格式化时间字符串，因为 Celery 最好传基本数据类型
-        s_time_str = booking.start_time.astimezone(tokyo_tz).strftime('%Y-%m-%d %H:%M')
+        local_start = booking.start_time.astimezone(tokyo_tz)
+        weekday_labels = ['月', '火', '水', '木', '金', '土', '日']
+        s_time_str = f"{local_start.strftime('%Y年%m月%d日')}（{weekday_labels[local_start.weekday()]}） {local_start.strftime('%H:%M')}"
 
         cancellation_window_hours = max(1, int(getattr(booking.tenant, "cancellation_window_hours", 2) or 2))
         if (booking.start_time - timezone.now()) < timedelta(hours=cancellation_window_hours):

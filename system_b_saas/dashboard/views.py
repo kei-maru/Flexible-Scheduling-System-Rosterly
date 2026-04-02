@@ -213,12 +213,18 @@ class DashboardLoginView(TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            if not getattr(request.user, "tenant_id", None):
+            has_tenant_id = bool(getattr(request.user, "tenant_id", None))
+            try:
+                tenant_obj = request.user.tenant if has_tenant_id else None
+            except Tenant.DoesNotExist:
+                tenant_obj = None
+
+            if not has_tenant_id or tenant_obj is None:
                 list(get_messages(request))
                 logout(request)
                 messages.warning(request, "このアカウントにはスタッフシステム権限がありません。管理者にお問い合わせください。")
-                return redirect("dashboard_login")
-            return redirect("shared_schedule")
+                return super().dispatch(request, *args, **kwargs)
+            return redirect("shared_home")
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -333,79 +339,84 @@ class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
         owner_email = form.cleaned_data["owner_email"].strip()
         logo = form.cleaned_data.get("logo")
 
-        from tenants.adapters import SaaSDiscordSocialAdapter
+        try:
+            with transaction.atomic():
+                from tenants.adapters import SaaSDiscordSocialAdapter
 
-        adapter = SaaSDiscordSocialAdapter()
-        tenant_slug = adapter._build_unique_tenant_slug(shop_name)
-        tenant = Tenant.objects.create(
-            name=shop_name,
-            slug=tenant_slug,
-            contact_email=owner_email,
-            logo=logo,
-            api_key=secrets.token_urlsafe(24)[:32],
-            api_secret=secrets.token_urlsafe(32),
-            enable_saas_dashboard=True,
-        )
+                adapter = SaaSDiscordSocialAdapter()
+                tenant_slug = adapter._build_unique_tenant_slug(shop_name)
+                tenant = Tenant.objects.create(
+                    name=shop_name,
+                    slug=tenant_slug,
+                    contact_email=owner_email,
+                    logo=logo,
+                    api_key=secrets.token_urlsafe(24)[:32],
+                    api_secret=secrets.token_urlsafe(32),
+                    enable_saas_dashboard=True,
+                )
 
-        user = request.user
-        update_fields = []
-        if user.email != owner_email:
-            user.email = owner_email
-            update_fields.append("email")
-        if user.tenant_id != tenant.id:
-            user.tenant = tenant
-            update_fields.append("tenant")
-        if user.role != "ADMIN":
-            user.role = "ADMIN"
-            update_fields.append("role")
-        if not user.is_staff:
-            user.is_staff = True
-            update_fields.append("is_staff")
-        if user.is_superuser:
-            user.is_superuser = False
-            update_fields.append("is_superuser")
-        if update_fields:
-            user.save(update_fields=update_fields)
+                user = request.user
+                update_fields = []
+                if user.email != owner_email:
+                    user.email = owner_email
+                    update_fields.append("email")
+                if user.tenant_id != tenant.id:
+                    user.tenant = tenant
+                    update_fields.append("tenant")
+                if user.role != "ADMIN":
+                    user.role = "ADMIN"
+                    update_fields.append("role")
+                if not user.is_staff:
+                    user.is_staff = True
+                    update_fields.append("is_staff")
+                if user.is_superuser:
+                    user.is_superuser = False
+                    update_fields.append("is_superuser")
+                if update_fields:
+                    user.save(update_fields=update_fields)
 
-        # Admin owner should also get a bound Resource for schedule/booking operations.
-        ensure_staff_resource_binding(user, tenant=tenant)
+                # Admin owner should also get a bound Resource for schedule/booking operations.
+                ensure_staff_resource_binding(user, tenant=tenant)
 
-        preset_services = []
-        raw_json = (form.cleaned_data.get("preset_services_json") or "").strip()
-        if raw_json:
-            try:
-                parsed = json.loads(raw_json)
-                if isinstance(parsed, list):
-                    preset_services = parsed
-            except json.JSONDecodeError:
                 preset_services = []
+                raw_json = (form.cleaned_data.get("preset_services_json") or "").strip()
+                if raw_json:
+                    try:
+                        parsed = json.loads(raw_json)
+                        if isinstance(parsed, list):
+                            preset_services = parsed
+                    except json.JSONDecodeError:
+                        preset_services = []
 
-        max_order = 0
-        for item in preset_services:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name") or "").strip()
-            if not name:
-                continue
-            try:
-                duration = int(item.get("duration_minutes") or 60)
-            except (TypeError, ValueError):
-                duration = 60
-            try:
-                price = Decimal(str(item.get("price") or "0"))
-            except (InvalidOperation, ValueError):
-                price = Decimal("0")
-            description = str(item.get("description") or "...").strip() or "..."
-            max_order += 1
-            ServicePreset.objects.create(
-                tenant=tenant,
-                name=name,
-                description=description,
-                price=max(price, Decimal("0")),
-                duration_minutes=max(1, duration),
-                is_active=True,
-                sort_order=max_order,
-            )
+                max_order = 0
+                for item in preset_services:
+                    if not isinstance(item, dict):
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        continue
+                    try:
+                        duration = int(item.get("duration_minutes") or 60)
+                    except (TypeError, ValueError):
+                        duration = 60
+                    try:
+                        price = Decimal(str(item.get("price") or "0"))
+                    except (InvalidOperation, ValueError):
+                        price = Decimal("0")
+                    description = str(item.get("description") or "...").strip() or "..."
+                    max_order += 1
+                    ServicePreset.objects.create(
+                        tenant=tenant,
+                        name=name,
+                        description=description,
+                        price=max(price, Decimal("0")),
+                        duration_minutes=max(1, duration),
+                        is_active=True,
+                        sort_order=max_order,
+                    )
+        except Exception as exc:
+            messages.error(request, f"店舗登録に失敗しました: {exc}")
+            return self.get(request, *args, **kwargs)
 
         request.session.pop("allow_shop_signup", None)
         request.session.pop("shop_signup_provisional_user_id", None)

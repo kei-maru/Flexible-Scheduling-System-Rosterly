@@ -136,9 +136,14 @@ def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
     keys = _identity_keys(user)
     discord_uid = _discord_uid(user)
 
-    linked = Resource.objects.filter(tenant=tenant_obj, linked_user=user).first()
+    # linked_user is globally unique (OneToOne). If an old row is bound in another tenant,
+    # reuse and realign it instead of creating a new row (prevents unique key conflicts).
+    linked = Resource.objects.filter(linked_user=user).first()
     if linked:
         update_fields = []
+        if linked.tenant_id != tenant_obj.id:
+            linked.tenant = tenant_obj
+            update_fields.append("tenant")
         desired_name = _desired_resource_name(user)
         if desired_name and linked.name != desired_name:
             linked.name = desired_name

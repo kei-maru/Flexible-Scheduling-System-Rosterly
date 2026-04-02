@@ -172,7 +172,7 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # ====================================
 
 # 1. 登录成功后，自动跳转到哪里？ -> 公共主页面
-LOGIN_REDIRECT_URL = 'shared_schedule'
+LOGIN_REDIRECT_URL = 'shared_home'
 
 # 2. 如果没登录就访问 dashboard，被踢到哪里？ -> 踢到 login
 LOGIN_URL = 'dashboard_login'

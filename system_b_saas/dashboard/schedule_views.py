@@ -31,14 +31,30 @@ logger = logging.getLogger(__name__)
 
 class SharedBaseMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated and not getattr(request.user, "tenant_id", None):
+        try:
+            if request.user.is_authenticated:
+                has_tenant_id = bool(getattr(request.user, "tenant_id", None))
+                try:
+                    tenant_obj = request.user.tenant if has_tenant_id else None
+                except Tenant.DoesNotExist:
+                    tenant_obj = None
+
+                if not has_tenant_id or tenant_obj is None:
+                    logout(request)
+                    messages.warning(request, "このアカウントにはスタッフシステム権限がありません。業務側の入口からログインしてください。")
+                    return redirect("dashboard_login")
+            return super().dispatch(request, *args, **kwargs)
+        except Exception as exc:
+            logger.exception("Shared dashboard dispatch failed", exc_info=exc)
             logout(request)
-            messages.warning(request, "このアカウントにはスタッフシステム権限がありません。業務側の入口からログインしてください。")
+            messages.error(request, f"画面表示エラー: {exc}")
             return redirect("dashboard_login")
-        return super().dispatch(request, *args, **kwargs)
 
     def _tenant(self):
-        return getattr(self.request.user, "tenant", None)
+        try:
+            return getattr(self.request.user, "tenant", None)
+        except Tenant.DoesNotExist:
+            return None
 
     def _staff_default_resource(self, tenant):
         if getattr(self.request.user, "role", "") in {"STAFF", "ADMIN"}:

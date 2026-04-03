@@ -57,6 +57,37 @@
             <p id="cancel-feedback" class="mt-2 hidden text-sm"></p>
             {% endif %}
 
+            <div class="mt-4">
+                <button id="open-report-btn" type="button" class="w-full rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">担当キャストを通報する</button>
+            </div>
+            <div id="report-wrap" class="mt-3 hidden rounded-md border border-rose-200 bg-rose-50 p-3">
+                <div class="mb-2 text-xs font-semibold text-rose-700">通報フォーム</div>
+                <div class="space-y-2">
+                    <div>
+                        <label class="mb-1 block text-[11px] text-slate-600">理由</label>
+                        <select id="report-reason" class="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800">
+                            <option value="">選択してください</option>
+                            {% for reason_value, reason_label in report_reasons %}
+                            <option value="{{ reason_value }}">{{ reason_label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-[11px] text-slate-600">詳細</label>
+                        <textarea id="report-detail" rows="3" class="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800" placeholder="状況を記入してください"></textarea>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-[11px] text-slate-600">メディアアップロード</label>
+                        <input id="report-media" type="file" accept="image/*,video/*" class="w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-rose-100 file:px-3 file:py-1.5 file:font-semibold file:text-rose-700 hover:file:bg-rose-200">
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="submit-report-btn" type="button" class="rounded-md border border-rose-200 bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-200">通報を送信</button>
+                        <button id="close-report-btn" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-100">閉じる</button>
+                    </div>
+                    <p id="report-feedback" class="hidden text-xs"></p>
+                </div>
+            </div>
+
             {% else %}
             <h1 class="text-2xl font-bold">予約が見つかりません</h1>
             <p class="mt-2 text-sm text-slate-600">リンクが無効、または予約が削除された可能性があります。</p>
@@ -107,6 +138,83 @@
                     btn.disabled = false;
                 }
             });
+        });
+    </script>
+    {% endif %}
+
+    {% if booking %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const openBtn = document.getElementById("open-report-btn");
+            const closeBtn = document.getElementById("close-report-btn");
+            const submitBtn = document.getElementById("submit-report-btn");
+            const wrap = document.getElementById("report-wrap");
+            const feedback = document.getElementById("report-feedback");
+            const reasonEl = document.getElementById("report-reason");
+            const detailEl = document.getElementById("report-detail");
+            const mediaEl = document.getElementById("report-media");
+
+            function showFeedback(ok, text) {
+                if (!feedback) return;
+                feedback.classList.remove("hidden", "text-rose-700", "text-emerald-700");
+                feedback.classList.add(ok ? "text-emerald-700" : "text-rose-700");
+                feedback.innerText = text;
+            }
+
+            function closeForm() {
+                if (wrap) wrap.classList.add("hidden");
+                if (reasonEl) reasonEl.value = "";
+                if (detailEl) detailEl.value = "";
+                if (mediaEl) mediaEl.value = "";
+                if (feedback) {
+                    feedback.classList.add("hidden");
+                    feedback.innerText = "";
+                }
+            }
+
+            if (openBtn && wrap) {
+                openBtn.addEventListener("click", function () {
+                    wrap.classList.remove("hidden");
+                });
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener("click", closeForm);
+            }
+
+            if (submitBtn) {
+                submitBtn.addEventListener("click", async function () {
+                    const reason = (reasonEl && reasonEl.value) || "";
+                    if (!reason) {
+                        showFeedback(false, "理由を選択してください。");
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append("reason", reason);
+                    formData.append("detail", (detailEl && detailEl.value) || "");
+                    if (mediaEl && mediaEl.files && mediaEl.files[0]) {
+                        formData.append("media", mediaEl.files[0]);
+                    }
+
+                    try {
+                        const res = await fetch("{% url 'dashboard_public_booking_report' booking.public_access_token %}", {
+                            method: "POST",
+                            headers: { "X-CSRFToken": "{{ csrf_token }}" },
+                            body: formData,
+                        });
+                        const payload = await res.json().catch(() => ({}));
+                        if (!res.ok || !payload.ok) {
+                            showFeedback(false, payload.error || "通報の送信に失敗しました。");
+                            return;
+                        }
+                        showFeedback(true, "通報を送信しました。");
+                        window.setTimeout(closeForm, 700);
+                    } catch (_err) {
+                        showFeedback(false, "通報の送信に失敗しました。");
+                    }
+                });
+            }
         });
     </script>
     {% endif %}

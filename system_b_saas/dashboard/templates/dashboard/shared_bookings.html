@@ -64,6 +64,8 @@
                      data-customer="{{ booking.customer_name }}"
                      data-email="{{ booking.customer_email }}"
                      data-service="{{ booking.display_service_name|default:'' }}"
+                     data-customer-report-count="{{ booking.customer_report_count_ui|default:0 }}"
+                     data-cast-report-count="{{ booking.cast_report_count_ui|default:0 }}"
                      data-start-date="{{ booking.start_time|date:'Y/m/d (D)' }}"
                      data-time-range="{{ booking.start_time|date:'H:i' }} - {{ booking.end_time|date:'H:i' }}"
                      data-status="{{ booking.status }}"
@@ -84,6 +86,7 @@
                                 </div>
                                 <div class="mt-1 text-xs text-slate-500">顧客: {{ booking.customer_name }}</div>
                                 <div class="mt-1 text-xs text-slate-500">サービス: {{ booking.display_service_name|default:"-" }}</div>
+                                <div class="mt-1 text-xs text-slate-500">通報: 顧客 {{ booking.customer_report_count_ui|default:0 }} / キャスト {{ booking.cast_report_count_ui|default:0 }}</div>
                             </div>
                         </div>
 
@@ -147,12 +150,46 @@
                     <div class="mt-1 text-lg font-semibold text-slate-900" id="modal-time">-- : --</div>
                 </div>
 
+                <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs text-slate-500">通報件数</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-900" id="modal-report-count">顧客 0 / キャスト 0</div>
+                </div>
+
+                <div id="report-form-wrap" class="hidden rounded-md border border-rose-200 bg-rose-50 p-3">
+                    <div class="mb-2 text-xs font-semibold text-rose-700">通報フォーム</div>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="mb-1 block text-[11px] text-slate-600">理由</label>
+                            <select id="report-reason" class="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800">
+                                <option value="">選択してください</option>
+                                {% for reason_value, reason_label in report_reasons %}
+                                <option value="{{ reason_value }}">{{ reason_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-[11px] text-slate-600">詳細</label>
+                            <textarea id="report-detail" rows="3" class="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800" placeholder="状況を記入してください"></textarea>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-[11px] text-slate-600">媒体アップロード</label>
+                            <input id="report-media" type="file" accept="image/*,video/*" class="w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-rose-100 file:px-3 file:py-1.5 file:font-semibold file:text-rose-700 hover:file:bg-rose-200">
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="submitBookingReport()" class="rounded-md border border-rose-200 bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-200">通報を送信</button>
+                            <button type="button" onclick="toggleReportForm(false)" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-100">閉じる</button>
+                        </div>
+                        <p id="report-feedback" class="hidden text-xs"></p>
+                    </div>
+                </div>
+
                 <div class="text-center text-xs text-slate-500" id="modal-note">
                     操作権限はロールにより制限されます。
                 </div>
             </div>
 
             <div class="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 p-4 md:flex-row">
+                <button onclick="toggleReportForm(true)" class="flex-1 rounded-md border border-rose-200 bg-rose-50 py-2 text-xs font-semibold tracking-widest text-rose-700 hover:bg-rose-100">通報</button>
                 <button id="btn-complete" onclick="updateBookingStatus('COMPLETED')" class="flex-1 rounded-md border border-emerald-200 bg-emerald-50 py-2 text-xs font-semibold tracking-widest text-emerald-700 hover:bg-emerald-100">完了</button>
                 <button onclick="closeModal()" class="flex-1 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold tracking-widest text-slate-700 hover:bg-slate-100">閉じる</button>
             </div>
@@ -214,6 +251,8 @@ function showDetail(el) {
     document.getElementById('modal-email').innerText = ds.email;
     document.getElementById('modal-service').innerText = ds.service || '--';
     document.getElementById('modal-time').innerText = ds.timeRange;
+    document.getElementById('modal-report-count').innerText = `顧客 ${ds.customerReportCount || 0} / キャスト ${ds.castReportCount || 0}`;
+    toggleReportForm(false);
 
     const statusEl = document.getElementById('modal-status');
     statusEl.innerText = ds.statusLabel || ds.status;
@@ -236,7 +275,73 @@ function showDetail(el) {
 
 function closeModal() {
     currentBookingId = null;
+    toggleReportForm(false);
     document.getElementById('detail-modal').classList.add('hidden');
+}
+
+function toggleReportForm(show) {
+    const wrap = document.getElementById('report-form-wrap');
+    const fb = document.getElementById('report-feedback');
+    if (!wrap) return;
+    wrap.classList.toggle('hidden', !show);
+    if (!show) {
+        document.getElementById('report-reason').value = '';
+        document.getElementById('report-detail').value = '';
+        document.getElementById('report-media').value = '';
+        if (fb) {
+            fb.classList.add('hidden');
+            fb.innerText = '';
+            fb.classList.remove('text-rose-700', 'text-emerald-700');
+        }
+    }
+}
+
+async function submitBookingReport() {
+    if (!currentBookingId) return;
+    const reason = document.getElementById('report-reason').value;
+    const detail = document.getElementById('report-detail').value;
+    const mediaInput = document.getElementById('report-media');
+    const feedback = document.getElementById('report-feedback');
+
+    if (!reason) {
+        if (feedback) {
+            feedback.classList.remove('hidden', 'text-emerald-700');
+            feedback.classList.add('text-rose-700');
+            feedback.innerText = '理由を選択してください。';
+        }
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('reason', reason);
+    formData.append('detail', detail || '');
+    if (mediaInput && mediaInput.files && mediaInput.files[0]) {
+        formData.append('media', mediaInput.files[0]);
+    }
+
+    const res = await fetch(`/dashboard/api/bookings/${currentBookingId}/report/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        if (feedback) {
+            feedback.classList.remove('hidden', 'text-emerald-700');
+            feedback.classList.add('text-rose-700');
+            feedback.innerText = data.error || '通報の送信に失敗しました。';
+        }
+        return;
+    }
+
+    if (feedback) {
+        feedback.classList.remove('hidden', 'text-rose-700');
+        feedback.classList.add('text-emerald-700');
+        feedback.innerText = '通報を送信しました。';
+    }
+    setTimeout(() => location.reload(), 700);
 }
 
 async function updateBookingStatus(status) {

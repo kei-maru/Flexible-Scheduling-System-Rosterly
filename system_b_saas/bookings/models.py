@@ -3,6 +3,17 @@ import uuid
 from tenants.models import Tenant
 from resources.models import Resource
 
+
+REPORT_REASON_CHOICES = [
+    ("NO_SHOW", "無断欠席"),
+    ("HARASSMENT", "ハラスメント・暴言"),
+    ("LATE", "遅刻・時間不履行"),
+    ("FRAUD", "虚偽申告・なりすまし"),
+    ("UNSAFE", "危険行為・不適切行為"),
+    ("PAYMENT", "支払い・返金トラブル"),
+    ("OTHER", "その他"),
+]
+
 class Booking(models.Model):
     """订单表"""
     STATUS_CHOICES = [('PENDING', '待确认'), ('CONFIRMED', '已确认'), ('CANCELLED', '已取消')]
@@ -31,7 +42,34 @@ class Booking(models.Model):
     status = models.CharField(choices=STATUS_CHOICES, default='CONFIRMED', max_length=20)
     public_access_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     public_detail_url = models.URLField(max_length=500, null=True, blank=True)
+    customer_report_count = models.PositiveIntegerField(default=0)
+    cast_report_count = models.PositiveIntegerField(default=0)
+    last_reported_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Booking {self.id} - {self.customer_name}"
+
+
+class BookingReport(models.Model):
+    REPORTER_ROLE_CHOICES = [
+        ("CUSTOMER", "Customer"),
+        ("CAST", "Cast"),
+    ]
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="reports")
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="booking_reports")
+    reporter_role = models.CharField(max_length=16, choices=REPORTER_ROLE_CHOICES)
+    reason = models.CharField(max_length=32, choices=REPORT_REASON_CHOICES)
+    detail = models.TextField(blank=True, default="")
+    media = models.FileField(upload_to="booking_reports/%Y/%m/%d/", null=True, blank=True)
+    reporter_name = models.CharField(max_length=120, blank=True, default="")
+    reporter_email = models.EmailField(blank=True, default="")
+    is_read_by_admin = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Report<{self.booking_id}:{self.reporter_role}:{self.reason}>"

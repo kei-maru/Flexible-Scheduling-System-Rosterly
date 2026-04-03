@@ -11,11 +11,14 @@ from .views import (
     DashboardPublicBookingCreateApi,
     DashboardPublicBookingDetailView,
     DashboardPublicBookingCancelApi,
+    DashboardPublicBookingReportApi,
+    DashboardAdminReportNotificationsApi,
     dashboard_logout,
 )
 from .schedule_views import (
     DashboardScheduleAvailabilityApi,
     DashboardBookingActionApi,
+    DashboardBookingReportApi,
     DashboardScheduleEventsApi,
     DashboardScheduleRecurringConfigApi,
     DashboardScheduleTemplateApi,
@@ -32,6 +35,7 @@ urlpatterns = [
     path('book/<slug:tenant_slug>/api/create/', DashboardPublicBookingCreateApi.as_view(), name='dashboard_public_booking_create'),
     path('book/detail/<str:access_token>/', DashboardPublicBookingDetailView.as_view(), name='dashboard_public_booking_detail'),
     path('book/detail/<str:access_token>/cancel/', DashboardPublicBookingCancelApi.as_view(), name='dashboard_public_booking_cancel'),
+    path('book/detail/<str:access_token>/report/', DashboardPublicBookingReportApi.as_view(), name='dashboard_public_booking_report'),
 
     # 2. 登出
     path('logout/', dashboard_logout, name='logout'),
@@ -42,4 +46,6 @@ urlpatterns = [
     path('api/schedule/recurring-config/', DashboardScheduleRecurringConfigApi.as_view(), name='dashboard_schedule_recurring_config'),
     path('api/schedule/templates/', DashboardScheduleTemplateApi.as_view(), name='dashboard_schedule_templates'),
     path('api/bookings/<uuid:booking_id>/', DashboardBookingActionApi.as_view(), name='dashboard_booking_action'),
+    path('api/bookings/<uuid:booking_id>/report/', DashboardBookingReportApi.as_view(), name='dashboard_booking_report'),
+    path('api/reports/notifications/', DashboardAdminReportNotificationsApi.as_view(), name='dashboard_admin_report_notifications'),
 ]

@@ -16,7 +16,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
 from django.core.files.storage import default_storage
 from django.core.cache import cache
-from django.db.models import Max
+from django.db.models import F, Max
 from django.shortcuts import redirect
 from django.http import JsonResponse
 from django.urls import reverse
@@ -29,7 +29,7 @@ from django.views.generic import TemplateView
 from django.db import transaction
 from django.db.models import Q
 
-from bookings.models import Booking
+from bookings.models import Booking, BookingReport, REPORT_REASON_CHOICES
 from bookings.tasks import process_new_booking, send_cancellation_email_task
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
@@ -702,9 +702,46 @@ class DashboardPublicBookingDetailView(TemplateView):
                 "cancellation_window_hours": cancellation_window_hours,
                 "cancellation_deadline_label": cancellation_deadline_label,
                 "too_late_message": too_late_message,
+                "report_reasons": REPORT_REASON_CHOICES,
             }
         )
         return context
+
+
+class DashboardPublicBookingReportApi(View):
+    def post(self, request, access_token, *args, **kwargs):
+        booking = (
+            Booking.objects.filter(public_access_token=access_token)
+            .select_related("tenant", "resource")
+            .first()
+        )
+        if not booking:
+            return JsonResponse({"ok": False, "error": "予約が見つかりません。"}, status=404)
+
+        reason = (request.POST.get("reason") or "").strip()
+        detail = (request.POST.get("detail") or "").strip()
+        media = request.FILES.get("media")
+        valid_reasons = {choice[0] for choice in REPORT_REASON_CHOICES}
+        if reason not in valid_reasons:
+            return JsonResponse({"ok": False, "error": "通報理由を選択してください。"}, status=400)
+
+        with transaction.atomic():
+            BookingReport.objects.create(
+                booking=booking,
+                tenant=booking.tenant,
+                reporter_role="CUSTOMER",
+                reason=reason,
+                detail=detail,
+                media=media,
+                reporter_name=booking.customer_name or "",
+                reporter_email=booking.customer_email or "",
+                is_read_by_admin=False,
+            )
+            booking.customer_report_count = F("customer_report_count") + 1
+            booking.last_reported_at = timezone.now()
+            booking.save(update_fields=["customer_report_count", "last_reported_at"])
+
+        return JsonResponse({"ok": True})
 
 
 class DashboardPublicBookingCancelApi(View):
@@ -738,6 +775,47 @@ class DashboardPublicBookingCancelApi(View):
             )
 
         return JsonResponse({"ok": True})
+
+
+class DashboardAdminReportNotificationsApi(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        role = getattr(self.request.user, "role", "STAFF")
+        return self.request.user.is_superuser or role == "ADMIN"
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            return JsonResponse({"error": "管理者権限が必要です"}, status=403)
+        return JsonResponse({"error": "ログインが必要です"}, status=401)
+
+    def get(self, request, *args, **kwargs):
+        tenant = getattr(request.user, "tenant", None)
+        if not tenant:
+            return JsonResponse({"unread_count": 0, "items": []})
+
+        qs = (
+            BookingReport.objects.filter(tenant=tenant)
+            .select_related("booking", "booking__resource")
+            .order_by("-created_at")[:20]
+        )
+        items = []
+        for report in qs:
+            reason_label = dict(REPORT_REASON_CHOICES).get(report.reason, report.reason)
+            items.append(
+                {
+                    "id": report.id,
+                    "booking_id": str(report.booking_id),
+                    "booking_short": str(report.booking_id)[:8],
+                    "reporter_role": report.reporter_role,
+                    "reason": reason_label,
+                    "detail": report.detail or "",
+                    "reporter_name": report.reporter_name or "",
+                    "is_read": report.is_read_by_admin,
+                    "created_at": timezone.localtime(report.created_at).strftime("%Y/%m/%d %H:%M"),
+                }
+            )
+
+        unread_count = BookingReport.objects.filter(tenant=tenant, is_read_by_admin=False).count()
+        return JsonResponse({"unread_count": unread_count, "items": items})
 
 
 def dashboard_logout(request):
@@ -1297,6 +1375,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                             profile.display_order = index
                             profile.save(update_fields=["display_order"])
                 return JsonResponse({"status": "success"})
+            if payload.get("action") == "mark_reports_read":
+                if tenant:
+                    BookingReport.objects.filter(tenant=tenant, is_read_by_admin=False).update(is_read_by_admin=True)
+                return JsonResponse({"status": "success"})
 
         try:
             if request.POST.get("save_template") == "true":
@@ -1378,6 +1460,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         service_name_suggestions = []
         recent_invites = []
         core_time_orders = []
+        unread_report_count = 0
+        report_notifications = []
 
         if tenant:
             now = timezone.now()
@@ -1470,6 +1554,28 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     reverse("dashboard_invite_accept", kwargs={"token": invite.token})
                 )
 
+            reports = list(
+                BookingReport.objects.filter(tenant=tenant)
+                .select_related("booking", "booking__resource")
+                .order_by("-created_at")[:20]
+            )
+            unread_report_count = sum(1 for r in reports if not r.is_read_by_admin)
+            reason_labels = dict(REPORT_REASON_CHOICES)
+            for report in reports:
+                report_notifications.append(
+                    {
+                        "id": report.id,
+                        "booking_id": str(report.booking_id),
+                        "booking_short": str(report.booking_id)[:8],
+                        "reporter_role": report.reporter_role,
+                        "reason": reason_labels.get(report.reason, report.reason),
+                        "detail": report.detail or "",
+                        "reporter_name": report.reporter_name or "",
+                        "is_read": report.is_read_by_admin,
+                        "created_at": timezone.localtime(report.created_at).strftime("%Y/%m/%d %H:%M"),
+                    }
+                )
+
         default_service_name_prefill = service_name_suggestions[0] if service_name_suggestions else "{{ selected_service_name }}"
 
         templates_data = {}
@@ -1557,6 +1663,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "public_booking_url": self._public_booking_url(tenant),
                 "recent_invites": recent_invites,
                 "core_time_orders": core_time_orders,
+                "report_unread_count": unread_report_count,
+                "report_notifications_json": json.dumps(report_notifications, ensure_ascii=False),
             }
         )
         return context

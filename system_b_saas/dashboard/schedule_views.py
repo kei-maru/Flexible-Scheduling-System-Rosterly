@@ -9,7 +9,8 @@ from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.files.storage import default_storage
-from django.db import DataError, IntegrityError
+from django.db import DataError, IntegrityError, transaction
+from django.db.models import Count, F
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -18,7 +19,7 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from allauth.socialaccount.models import SocialAccount
-from bookings.models import Booking
+from bookings.models import Booking, BookingReport, REPORT_REASON_CHOICES
 from resources.models import Availability, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services.service_mapping import resolve_booking_service_name
@@ -321,6 +322,23 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
             for booking in bookings:
                 booking.display_service_name = resolve_booking_service_name(booking, tenant)
 
+            booking_ids = [b.id for b in bookings]
+            counts = {}
+            if booking_ids:
+                rows = (
+                    BookingReport.objects.filter(booking_id__in=booking_ids)
+                    .values("booking_id", "reporter_role")
+                    .annotate(c=Count("id"))
+                )
+                for row in rows:
+                    key = (str(row["booking_id"]), row["reporter_role"])
+                    counts[key] = row["c"]
+
+            for booking in bookings:
+                bid = str(booking.id)
+                booking.customer_report_count_ui = counts.get((bid, "CUSTOMER"), 0)
+                booking.cast_report_count_ui = counts.get((bid, "CAST"), 0)
+
         context.update(
             {
                 "bookings": bookings,
@@ -328,6 +346,7 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
                 "is_staff_view": True,
                 "staff_resource_id": str(staff_resource.id) if staff_resource else "",
                 "now_iso": timezone.now().isoformat(),
+                "report_reasons": REPORT_REASON_CHOICES,
             }
         )
         context.update(self._base_nav_context())
@@ -546,3 +565,51 @@ class DashboardBookingActionApi(_ScheduleApiBase):
             return JsonResponse({"status": "COMPLETED"})
 
         return self._json_error("未対応の操作です", status=400)
+
+
+class DashboardBookingReportApi(_ScheduleApiBase):
+    def post(self, request, booking_id):
+        tenant = self._tenant(request)
+        if not tenant:
+            return self._json_error("店舗情報が見つかりません", status=400)
+
+        role = getattr(request.user, "role", "STAFF")
+        is_admin = role == "ADMIN" or request.user.is_superuser
+
+        try:
+            booking = Booking.objects.select_related("resource").get(id=booking_id, tenant=tenant)
+        except Booking.DoesNotExist:
+            return self._json_error("予約が見つかりません", status=404)
+
+        if not is_admin:
+            try:
+                _tenant, staff_resource = self._resolve_dashboard_resource(request, None)
+            except schedule_service.ScheduleServiceError as exc:
+                return self._json_error(str(exc), status=403)
+            if booking.resource_id != staff_resource.id:
+                return self._json_error("自分の担当予約のみ通報できます", status=403)
+
+        reason = (request.POST.get("reason") or "").strip()
+        detail = (request.POST.get("detail") or "").strip()
+        media = request.FILES.get("media")
+        valid_reasons = {choice[0] for choice in REPORT_REASON_CHOICES}
+        if reason not in valid_reasons:
+            return self._json_error("通報理由を選択してください", status=400)
+
+        with transaction.atomic():
+            BookingReport.objects.create(
+                booking=booking,
+                tenant=tenant,
+                reporter_role="CAST",
+                reason=reason,
+                detail=detail,
+                media=media,
+                reporter_name=(request.user.username or "").strip(),
+                reporter_email=(request.user.email or "").strip(),
+                is_read_by_admin=False,
+            )
+            booking.cast_report_count = F("cast_report_count") + 1
+            booking.last_reported_at = timezone.now()
+            booking.save(update_fields=["cast_report_count", "last_reported_at"])
+
+        return JsonResponse({"ok": True})

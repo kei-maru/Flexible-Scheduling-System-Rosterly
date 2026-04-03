@@ -74,6 +74,19 @@
                     <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
                 </div>
                 <div class="flex items-center gap-3 text-sm text-slate-600">
+                    <div class="relative">
+                        <button id="report-bell-btn" type="button" class="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
+                            <i class="fa-regular fa-bell"></i>
+                            <span id="report-unread-dot" class="{% if not report_unread_count %}hidden {% endif %}absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500"></span>
+                        </button>
+                        <div id="report-popover" class="hidden absolute right-0 mt-2 w-[360px] max-w-[90vw] rounded-lg border border-slate-200 bg-white p-3 shadow-xl z-40">
+                            <div class="mb-2 flex items-center justify-between">
+                                <div class="text-xs font-semibold tracking-widest text-slate-700">REPORT NOTIFICATIONS</div>
+                                <span id="report-unread-label" class="text-[11px] text-rose-600">未読 {{ report_unread_count|default:0 }}</span>
+                            </div>
+                            <div id="report-message-list" class="max-h-72 space-y-2 overflow-y-auto"></div>
+                        </div>
+                    </div>
                     <button onclick="switchTab('subscription')" class="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
                         <i class="fa-solid fa-credit-card"></i> サブスクリプション管理
                     </button>
@@ -447,7 +460,7 @@
                             <h2 class="text-lg font-semibold text-slate-900">Cast List</h2>
                             <span class="text-[10px] uppercase tracking-widest text-slate-500">Select</span>
                         </div>
-                        <div id="cast-sortable-list" class="flex-1 space-y-2 overflow-y-auto pr-1">
+                        <div id="cast-sortable-list" class="flex-1 space-y-2 pr-1">
                             {% for cast in cast_rows %}
                             <div
                                 class="cast-item w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300"
@@ -957,6 +970,85 @@
     </div>
 
     <script>
+        let reportNotifications = [];
+        try {
+            reportNotifications = JSON.parse('{{ report_notifications_json|default:"[]"|escapejs }}');
+        } catch (_) {
+            reportNotifications = [];
+        }
+
+        function escapeHtml(text) {
+            return String(text || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function getCsrfToken() {
+            const m = document.cookie.match(/csrftoken=([^;]+)/);
+            return m ? m[1] : "";
+        }
+
+        function renderReportNotifications(items, unreadCount) {
+            const list = document.getElementById("report-message-list");
+            const dot = document.getElementById("report-unread-dot");
+            const label = document.getElementById("report-unread-label");
+            if (!list) return;
+
+            if (!items || !items.length) {
+                list.innerHTML = '<div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">通報メッセージはありません。</div>';
+            } else {
+                list.innerHTML = items.map((item) => {
+                    const roleLabel = item.reporter_role === 'CUSTOMER' ? '顧客' : 'キャスト';
+                    const detail = item.detail ? escapeHtml(item.detail) : '詳細なし';
+                    return `
+                        <div class="rounded-md border ${item.is_read ? 'border-slate-200 bg-slate-50' : 'border-rose-200 bg-rose-50'} p-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="text-[11px] font-semibold text-slate-800">${roleLabel}通報 / ${escapeHtml(item.reason)}</div>
+                                <div class="text-[10px] text-slate-500">${escapeHtml(item.created_at)}</div>
+                            </div>
+                            <div class="mt-1 text-[11px] text-slate-600">予約ID: ${escapeHtml(item.booking_short)}...</div>
+                            <div class="mt-1 text-[11px] text-slate-600">報告者: ${escapeHtml(item.reporter_name || '-')}</div>
+                            <div class="mt-1 line-clamp-2 text-[11px] text-slate-700">${detail}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            if (dot) dot.classList.toggle("hidden", !(unreadCount > 0));
+            if (label) label.innerText = `未読 ${unreadCount || 0}`;
+        }
+
+        async function markReportNotificationsRead() {
+            try {
+                await fetch("{% url 'tenant_dashboard' %}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCsrfToken(),
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    body: JSON.stringify({ action: "mark_reports_read" }),
+                });
+                reportNotifications = (reportNotifications || []).map((item) => ({ ...item, is_read: true }));
+                renderReportNotifications(reportNotifications, 0);
+            } catch (_err) {
+            }
+        }
+
+        async function refreshReportNotifications() {
+            try {
+                const res = await fetch("{% url 'dashboard_admin_report_notifications' %}");
+                const data = await res.json();
+                if (!res.ok) return;
+                reportNotifications = Array.isArray(data.items) ? data.items : [];
+                renderReportNotifications(reportNotifications, Number(data.unread_count || 0));
+            } catch (_err) {
+            }
+        }
+
         const PAGE_TITLES = {
             shop: "Store Settings",
             subscription: "Subscription",
@@ -1539,6 +1631,30 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
+            const initialUnreadCount = parseInt('{{ report_unread_count|default:"0" }}', 10) || 0;
+            renderReportNotifications(reportNotifications, initialUnreadCount);
+
+            const bellBtn = document.getElementById("report-bell-btn");
+            const popover = document.getElementById("report-popover");
+            if (bellBtn && popover) {
+                bellBtn.addEventListener("click", function (event) {
+                    event.stopPropagation();
+                    const opening = popover.classList.contains("hidden");
+                    popover.classList.toggle("hidden", !opening);
+                    if (opening) {
+                        markReportNotificationsRead();
+                    }
+                });
+
+                document.addEventListener("click", function (event) {
+                    if (!popover.contains(event.target) && !bellBtn.contains(event.target)) {
+                        popover.classList.add("hidden");
+                    }
+                });
+            }
+
+            window.setInterval(refreshReportNotifications, 20000);
+
             const params = new URLSearchParams(window.location.search);
             const initialTab = params.get("tab") || "shop";
             switchTab(initialTab);

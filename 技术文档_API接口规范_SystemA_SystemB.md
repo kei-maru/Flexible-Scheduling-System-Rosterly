@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-04-01  
+**最后更新**: 2026-04-03  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -672,6 +672,62 @@
 - `GET /dashboard/book/detail/<access_token>/`
   - 功能：顾客订单详情页（邮件“详细を見る”按钮目标）。
   - 展示：预约明细 + 日语取消期限（例：`2026年03月31日 20:00 まで`）。
+
+- `POST /dashboard/book/detail/<access_token>/report/`
+  - 功能：顾客在订单详情页提交通报（投诉/问题上报）。
+  - Content-Type：`multipart/form-data`
+  - 入参：
+    - `reason`（必填，枚举值见下方“通报理由枚举”）
+    - `detail`（可选，文本说明）
+    - `media`（可选，附件）
+  - 成功响应：`{"ok": true}`
+  - 失败：`400`（reason 非法）、`404`（订单不存在）
+
+- `POST /dashboard/api/bookings/<uuid:booking_id>/report/`
+  - 功能：担当 Cast（或管理员）在共享订单侧提交通报。
+  - Content-Type：`multipart/form-data`
+  - 入参与返回同顾客通报接口。
+  - 权限：
+    - `STAFF` 仅可通报“自己担当”的预约。
+    - `ADMIN` 可通报当前租户任意预约。
+
+- `GET /dashboard/api/reports/notifications/`
+  - 功能：管理员拉取“最新通报消息 + 未读数”（用于管理台气泡红点与弹层列表）。
+  - 权限：仅 `ADMIN`（未登录 `401`，非管理员 `403`）。
+  - 返回示例：
+
+```json
+{
+  "unread_count": 2,
+  "items": [
+    {
+      "id": 15,
+      "booking_id": "3f8...",
+      "booking_short": "3f8a2c1d",
+      "reporter_role": "CUSTOMER",
+      "reason": "ハラスメント・暴言",
+      "detail": "......",
+      "reporter_name": "userA",
+      "is_read": false,
+      "created_at": "2026/04/03 10:42"
+    }
+  ]
+}
+```
+
+- `POST /dashboard/`（Tenant Dashboard）
+  - 功能：管理员将当前租户通报全部标记已读。
+  - 请求体（JSON）：`{"action": "mark_reports_read"}`
+  - 响应：`{"status": "success"}`
+
+通报理由枚举（`reason`）：
+- `NO_SHOW`（無断欠席）
+- `HARASSMENT`（ハラスメント・暴言）
+- `LATE`（遅刻・時間不履行）
+- `FRAUD`（虚偽申告・なりすまし）
+- `UNSAFE`（危険行為・不適切行為）
+- `PAYMENT`（支払い・返金トラブル）
+- `OTHER`（その他）
 
 - Tenant 店铺设置字段补充（Store Settings）
   - `booking_detail_redirect_url`（可选）：

@@ -18,6 +18,7 @@ from rest_framework import status
 
 from .models import SSOAuthCode, Tenant, SaaSUser
 from .permissions import IsTenantAuthorized
+from resources.models import Resource
 import logging
 
 
@@ -253,6 +254,7 @@ def sso_exchange(request):
         'discord_id': user.discord_id,
         'discord_uid': str(discord_social.uid) if discord_social and discord_social.uid else None,
         'username': user.username,
+        'email': user.email,
         'tenant_id': str(user.tenant_id) if user.tenant_id else None,
         'role': user.role,
         'nonce': auth_code.nonce,
@@ -305,6 +307,7 @@ class IntegrationIdentityView(APIView):
         return {
             'user_id': str(user.id),
             'username': user.username,
+            'email': user.email,
             'discord_id': user.discord_id,
             'discord_uid': str(discord_social.uid) if discord_social and discord_social.uid else None,
             'tenant_id': str(user.tenant_id) if user.tenant_id else None,
@@ -329,7 +332,9 @@ class IntegrationIdentityView(APIView):
         user_id = str(request.data.get('user_id') or '').strip()
         discord_uid = str(request.data.get('discord_uid') or '').strip()
         desired_role = str(request.data.get('role') or '').strip().upper()
-        if (not user_id and not discord_uid) or desired_role not in {'ADMIN', 'STAFF', 'CONSUMER'}:
+        has_role_update = desired_role in {'ADMIN', 'STAFF', 'CONSUMER'}
+        has_email_update = 'email' in request.data
+        if (not user_id and not discord_uid) or (not has_role_update and not has_email_update):
             return Response({'error': 'invalid_request'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = self._resolve_target_user(request, user_id=user_id, discord_uid=discord_uid)
@@ -340,35 +345,49 @@ class IntegrationIdentityView(APIView):
             return Response({'error': 'cross_tenant_forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
         update_fields = []
-        if user.role != desired_role:
-            user.role = desired_role
-            update_fields.append('role')
+        if has_role_update:
+            if user.role != desired_role:
+                user.role = desired_role
+                update_fields.append('role')
 
-        if desired_role in {'ADMIN', 'STAFF'}:
-            if user.tenant_id != request.tenant.id:
-                user.tenant = request.tenant
-                update_fields.append('tenant')
-            if not user.is_staff:
-                user.is_staff = True
-                update_fields.append('is_staff')
-            if not user.is_active:
-                user.is_active = True
-                update_fields.append('is_active')
-            if desired_role == 'STAFF' and user.is_superuser:
-                user.is_superuser = False
-                update_fields.append('is_superuser')
-        else:
-            if user.tenant_id is not None:
-                user.tenant = None
-                update_fields.append('tenant')
-            if user.is_staff:
-                user.is_staff = False
-                update_fields.append('is_staff')
-            if user.is_superuser:
-                user.is_superuser = False
-                update_fields.append('is_superuser')
+            if desired_role in {'ADMIN', 'STAFF'}:
+                if user.tenant_id != request.tenant.id:
+                    user.tenant = request.tenant
+                    update_fields.append('tenant')
+                if not user.is_staff:
+                    user.is_staff = True
+                    update_fields.append('is_staff')
+                if not user.is_active:
+                    user.is_active = True
+                    update_fields.append('is_active')
+                if desired_role == 'STAFF' and user.is_superuser:
+                    user.is_superuser = False
+                    update_fields.append('is_superuser')
+            else:
+                if user.tenant_id is not None:
+                    user.tenant = None
+                    update_fields.append('tenant')
+                if user.is_staff:
+                    user.is_staff = False
+                    update_fields.append('is_staff')
+                if user.is_superuser:
+                    user.is_superuser = False
+                    update_fields.append('is_superuser')
+
+        if has_email_update:
+            new_email = str(request.data.get('email') or '').strip()
+            if (user.email or '') != new_email:
+                user.email = new_email
+                update_fields.append('email')
 
         if update_fields:
             user.save(update_fields=update_fields)
+
+        # Keep cast delivery email aligned with identity email for linked staff/admin resources.
+        if has_email_update and user.tenant_id == request.tenant.id and user.role in {'ADMIN', 'STAFF'}:
+            linked_resource = Resource.objects.filter(tenant=request.tenant, linked_user=user).first()
+            if linked_resource and (linked_resource.email or '') != (user.email or ''):
+                linked_resource.email = user.email or ''
+                linked_resource.save(update_fields=['email'])
 
         return Response(self._serialize_user(user), status=status.HTTP_200_OK)

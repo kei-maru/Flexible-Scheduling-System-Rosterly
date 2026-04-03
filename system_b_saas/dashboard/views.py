@@ -1295,6 +1295,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 linked.name = display_name
                 linked.save(update_fields=["name"])
 
+            if linked and (linked.email or "") != (user.email or ""):
+                linked.email = user.email or ""
+                linked.save(update_fields=["email"])
+
             if linked and linked.is_active != user.is_active:
                 linked.is_active = user.is_active
                 linked.save(update_fields=["is_active"])

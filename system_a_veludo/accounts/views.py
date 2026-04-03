@@ -133,6 +133,45 @@ def _identity_cache_keys(user):
     return keys
 
 
+def _normalize_email_value(raw_value):
+    return str(raw_value or '').strip()
+
+
+def _push_email_to_system_b(user, email_value: str) -> bool:
+    if user is None:
+        return False
+    if not SYSTEM_B_IDENTITY_URL or not SYSTEM_B_API_KEY:
+        return False
+
+    user_id = str(getattr(user, 'saas_user_id', '') or '').strip()
+    discord_uid = str(getattr(user, 'discord_uid', '') or '').strip()
+    if not user_id and not discord_uid:
+        return False
+
+    payload = {'email': _normalize_email_value(email_value)}
+    if user_id:
+        payload['user_id'] = user_id
+    if discord_uid:
+        payload['discord_uid'] = discord_uid
+
+    try:
+        resp = requests.patch(
+            SYSTEM_B_IDENTITY_URL,
+            headers={SYSTEM_B_API_KEY_HEADER: SYSTEM_B_API_KEY},
+            json=payload,
+            timeout=3,
+        )
+        if resp.status_code != 200:
+            logger.warning('push email to system_b failed user_id=%s status=%s', user.id, resp.status_code)
+            return False
+        for cache_key in _identity_cache_keys(user):
+            cache.delete(cache_key)
+        return True
+    except Exception as exc:
+        logger.warning('push email to system_b exception user_id=%s err=%s', user.id, exc)
+        return False
+
+
 def _ensure_local_cast_profile(user):
     if user is None or not getattr(user, 'is_authenticated', False):
         return None
@@ -252,6 +291,15 @@ def _refresh_shadow_role_from_system_b(user):
         user.discord_id = remote_discord_id
         update_fields.append('discord_id')
 
+    remote_email = _normalize_email_value(identity_payload.get('email'))
+    local_email = _normalize_email_value(getattr(user, 'email', ''))
+    if remote_email and local_email != remote_email:
+        user.email = remote_email
+        update_fields.append('email')
+    elif not remote_email and local_email:
+        # Bootstrap rule: if B email is empty, initialize from A.
+        _push_email_to_system_b(user, local_email)
+
     remote_tenant_id = identity_payload.get('tenant_id')
     remote_tenant_id = str(remote_tenant_id) if remote_tenant_id else None
     if user.saas_tenant_id != remote_tenant_id:
@@ -352,6 +400,7 @@ def _upsert_shadow_user(identity_payload: dict):
     discord_id = (identity_payload.get('discord_id') or '').strip()
     discord_uid = (identity_payload.get('discord_uid') or '').strip()
     username_from_b = (identity_payload.get('username') or '').strip()
+    email_from_b = _normalize_email_value(identity_payload.get('email'))
     saas_tenant_id = identity_payload.get('tenant_id')
     saas_role = (identity_payload.get('role') or '').strip().upper()
 
@@ -386,6 +435,9 @@ def _upsert_shadow_user(identity_payload: dict):
     if username_from_b and user.username != username_from_b and not User.objects.filter(username=username_from_b).exclude(pk=user.pk).exists():
         user.username = username_from_b
 
+    if email_from_b:
+        user.email = email_from_b
+
     if discord_uid:
         user.discord_uid = discord_uid
 
@@ -415,6 +467,13 @@ def _upsert_shadow_user(identity_payload: dict):
         user.is_superuser = False
 
     user.save()
+
+    if not email_from_b:
+        local_email = _normalize_email_value(getattr(user, 'email', ''))
+        if local_email:
+            # Bootstrap rule: initial value uses System A email.
+            _push_email_to_system_b(user, local_email)
+
     if user.saas_role in {'ADMIN', 'STAFF'}:
         _ensure_local_cast_profile(user)
     return user
@@ -600,6 +659,9 @@ class ProfileView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "プロフィールを更新しました。")
         response = super().form_valid(form)
+
+        # Keep A/B identity email in sync after profile update.
+        _push_email_to_system_b(self.request.user, getattr(self.request.user, 'email', '') or "")
 
         if _is_local_cast_user(self.request.user):
             cast_profile = CastProfile.objects.filter(user=self.request.user).first()

@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 import uuid
@@ -30,6 +31,18 @@ class Tenant(models.Model):
     # API 模式认证 (Phase 1 核心)
     api_key = models.CharField(max_length=64, unique=True, db_index=True)
     api_secret = models.CharField(max_length=64)
+    is_api_enabled = models.BooleanField(default=True)
+    api_ban_reason = models.CharField(max_length=32, blank=True, default='')
+    api_ban_note = models.TextField(blank=True, default='')
+    api_ban_media = models.FileField(upload_to='tenant_ban_evidences/', blank=True, null=True)
+    api_banned_at = models.DateTimeField(blank=True, null=True)
+    api_banned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='api_banned_tenants',
+    )
     
     enable_saas_dashboard = models.BooleanField(default=False)
 

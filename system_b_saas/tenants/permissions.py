@@ -17,6 +17,8 @@ class IsTenantAuthorized(permissions.BasePermission):
         # 2. 查找对应的 Tenant
         try:
             tenant = Tenant.objects.get(api_key=api_key)
+            if not getattr(tenant, 'is_api_enabled', True):
+                return False
             # 将 tenant 对象绑定到 request 上，方便后续 View 使用
             request.tenant = tenant 
             return True

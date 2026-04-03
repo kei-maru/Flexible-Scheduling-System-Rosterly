@@ -462,23 +462,27 @@
   - `discord_uid`（可选）
   - 至少传一个
 - 返回字段：
-  - `user_id`, `username`, `discord_id`, `discord_uid`
+  - `user_id`, `username`, `discord_id`, `discord_uid`, `email`
   - `tenant_id`, `role`, `is_staff`, `is_superuser`
 - 关键规则（2026-04-01）：
   - 当 `user_id` 与 `discord_uid` 同时传入且不一致时，优先按 `discord_uid` 解析，返回真实账号。
   - 用途：修复 A 端历史 `saas_user_id` 漂移造成的错人同步。
+  - A 端可据此回拉 B 侧邮箱并修正本地影子用户邮箱。
 
 #### `PATCH /api/v1/integration/identity`
 
-- 功能：A 发起修改 B 端角色（B 仍为 source of truth）。
+- 功能：A 发起修改 B 端角色/邮箱（B 仍为 source of truth）。
 - 请求体：
-  - `role`（必填）：`ADMIN|STAFF|CONSUMER`
+  - `role`（可选）：`ADMIN|STAFF|CONSUMER`
+  - `email`（可选）
   - `user_id`（可选）
   - `discord_uid`（可选）
-  - 至少传一个身份键
+  - 约束：至少传一个身份键；`role` 与 `email` 至少传一个
 - 关键规则：
   - `ADMIN/STAFF`：确保 `tenant` 归属为请求租户，`is_staff=True`，`is_active=True`
   - `CONSUMER`：强制 `tenant=null`，`is_staff=False`，并清理 `is_superuser`
+  - 仅更新 `email` 时允许不传 `role`（用于 A/B 邮箱同步）。
+  - 当目标账号属于当前租户 `STAFF/ADMIN` 且存在 `linked_user` 资源时，会同步更新 `Resource.email`。
 
 ---
 
@@ -653,6 +657,9 @@
   - 说明：Store Settings 中“预约链接（自动生成）”已切换为该路由，不再依赖 `localhost:8000` 的 System A 页面。
   - 数据隔离：仅展示当前 `tenant_slug` 对应店铺的 Resource 与 ServicePreset。
   - 反刷保护：页面包含 honeypot 字段 `website`（正常用户不可见）。
+  - 预约确认同意项（2026-04-03）：
+    - 固定项：VRC 利用規約、Rosterly 利用規約。
+    - 店铺项：按店主配置逐项渲染（支持多条）；URL 类型显示为链接，文本类型按多行文本展示。
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
   - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
@@ -719,6 +726,40 @@
   - 功能：管理员将当前租户通报全部标记已读。
   - 请求体（JSON）：`{"action": "mark_reports_read"}`
   - 响应：`{"status": "success"}`
+  - 前端调用注意（2026-04-03）：CSRF 优先读取 `saas_csrftoken`，并兼容回退 `csrftoken`。
+
+- `GET|POST /dashboard/super/global/`（Super Admin）
+  - 功能：全域系统总览 + 调试店铺创建 + 店铺 API 封禁/解封。
+  - 权限：仅 `is_superuser=true`。
+  - 封禁动作（POST）：
+    - `action=disable_tenant_api`
+    - `tenant_id`（必填）
+    - `ban_reason`（必填，枚举）
+    - `ban_note`（可选）
+    - `ban_media`（可选，附件）
+  - 解封动作（POST）：
+    - `action=enable_tenant_api`
+    - `tenant_id`（必填）
+  - 调试店铺创建（POST）：
+    - `action=create_debug_tenant`
+    - `shop_name`（必填）
+    - `tenant_slug`（可选）
+    - `contact_email`（可选）
+
+店铺 API 封禁理由枚举（`ban_reason`）：
+- `ABUSE`（不正利用・スパム）
+- `PAYMENT`（料金・契約違反）
+- `SECURITY`（セキュリティ違反）
+- `LEGAL`（法令・規約違反）
+- `OTHER`（その他）
+
+封禁展示口径（2026-04-03）：
+- 被封禁店铺在以下页面显示红色警示条：
+  - 管理员面板（`/dashboard/`）
+  - 员工侧共享页面（`/home`、`/schedule`、`/bookings`、`/profile`）
+  - 公开预约页与预约详情页（`/dashboard/book/<tenant_slug>/`、`/dashboard/book/detail/<token>/`）
+- 管理员面板额外显示：
+  - `ご不明点がある場合は、システム管理者へお問い合わせください。`（可配置联系链接）
 
 通报理由枚举（`reason`）：
 - `NO_SHOW`（無断欠席）

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>スーパー管理者ログイン | Rosterly</title>
+  <style>
+    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--dark:#111827;--dark2:#1f2937;--accent:#0f766e}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 15% 20%,rgba(15,118,110,.08),transparent 35%),var(--bg);color:var(--text)}
+    .wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+    .card{width:min(520px,100%);background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px;box-shadow:0 18px 50px -28px rgba(15,23,42,.45)}
+    .pill{display:inline-block;border:1px solid #99f6e4;background:#f0fdfa;color:#115e59;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;letter-spacing:.04em}
+    h1{margin:12px 0 6px;font-size:30px;line-height:1.2}
+    .sub{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.7}
+    label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px}
+    input{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px}
+    button{margin-top:18px;width:100%;padding:12px;border-radius:10px;border:0;background:var(--dark);color:#fff;font-weight:700;cursor:pointer}
+    button:hover{background:var(--dark2)}
+    .row{margin-top:14px;display:flex;justify-content:space-between;gap:10px}
+    .link{font-size:12px;color:#0f172a;text-decoration:none;border-bottom:1px solid #cbd5e1}
+    .msg{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px}
+    .msg.error{border:1px solid #fecdd3;background:#fff1f2;color:#be123c}
+    .msg.info{border:1px solid #bae6fd;background:#ecfeff;color:#155e75}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="card">
+    <span class="pill">SUPER ADMIN CONSOLE</span>
+    <h1>スーパー管理者ログイン</h1>
+    <p class="sub">この入口は Discord を使わないローカル認証専用です。全店舗横断の管理画面へ入ります。</p>
+
+    <form method="post" action="">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.GET.next|default:'' }}">
+      <label>ユーザー名</label>
+      <input type="text" name="username" autocomplete="username" required>
+      <label>パスワード</label>
+      <input type="password" name="password" autocomplete="current-password" required>
+      <button type="submit">ログイン</button>
+    </form>
+
+    {% if messages %}
+      {% for message in messages %}
+      <div class="msg {% if 'error' in message.tags %}error{% else %}info{% endif %}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="row">
+      <a class="link" href="{% url 'dashboard_login' %}">通常ログインへ戻る</a>
+      <a class="link" href="{% url 'admin:index' %}">Django Admin</a>
+    </div>
+  </section>
+</div>
+</body>
+</html>

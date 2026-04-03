@@ -129,6 +129,14 @@
     {% if not tenant %}
     <section class="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-700">指定された店舗が見つかりません。</section>
     {% else %}
+  {% if tenant_is_banned %}
+  <div class="mb-5 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
+    <p class="font-semibold">この店舗は規約違反により停止されています。</p>
+    <p class="mt-1 text-xs">理由: {{ tenant_ban_reason_label }}{% if tenant_ban_note %} / {{ tenant_ban_note }}{% endif %}</p>
+    {% if tenant_ban_media_url %}<p class="mt-1 text-xs"><a href="{{ tenant_ban_media_url }}" class="underline" target="_blank" rel="noopener">添付証跡を見る</a></p>{% endif %}
+  </div>
+  {% endif %}
+
     <div class="mb-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-700">
         <i class="fa-solid fa-circle-info mr-1"></i>
         予約は 24 時間以上先のみ受け付けます。空き枠表示は次の <span id="window-days">{{ booking_window_days|default:14 }}</span> 日です。

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>全域システム状況 | Rosterly</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
+      <div>
+        <p class="text-xs font-semibold tracking-[0.18em] text-teal-700">SUPER ADMIN</p>
+        <h1 class="text-xl font-bold">全域システム状況</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">店铺管理页</a>
+        <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">员工侧入口</a>
+        <a href="{% url 'logout' %}" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">退出登录</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-5 py-7">
+    {% if messages %}
+    <section class="mb-4 space-y-2">
+      {% for message in messages %}
+      <div class="rounded-md border px-3 py-2 text-sm {% if 'success' in message.tags %}border-emerald-200 bg-emerald-50 text-emerald-700{% elif 'warning' in message.tags %}border-amber-200 bg-amber-50 text-amber-700{% elif 'error' in message.tags %}border-rose-200 bg-rose-50 text-rose-700{% else %}border-slate-200 bg-slate-100 text-slate-700{% endif %}">
+        {{ message }}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">店铺总数</p><p class="mt-1 text-2xl font-bold">{{ total_tenants }}</p><p class="text-xs text-slate-500">活跃 {{ active_tenants }}</p></div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">账号总数</p><p class="mt-1 text-2xl font-bold">{{ total_users }}</p><p class="text-xs text-slate-500">超管 {{ total_superusers }}</p></div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">员工+店长</p><p class="mt-1 text-2xl font-bold">{{ total_staff_like }}</p><p class="text-xs text-slate-500">资源 {{ total_resources }}</p></div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">预约总量</p><p class="mt-1 text-2xl font-bold">{{ total_bookings }}</p><p class="text-xs text-slate-500">今日 {{ today_bookings }}</p></div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">未来24小时预约</p><p class="mt-1 text-2xl font-bold">{{ upcoming_24h_bookings }}</p><p class="text-xs text-rose-600">全域未读通报 {{ unread_reports_global }}</p></div>
+    </section>
+
+    <section class="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">调试店铺快速创建</h2>
+        <p class="text-xs text-slate-500">创建后会自动绑定当前超管到该店铺</p>
+      </div>
+      <form method="post" class="grid gap-3 md:grid-cols-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_debug_tenant">
+        <input name="shop_name" required class="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="店铺名（例: Keimaru Debug）">
+        <input name="tenant_slug" class="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="slug（可选，a-z0-9-）">
+        <input name="contact_email" class="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="联系邮箱（可选）">
+        <button type="submit" class="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100">创建调试店铺</button>
+      </form>
+    </section>
+
+    <section class="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">租户明细</h2>
+        <p class="text-xs text-slate-500">可直接跳转店铺后台，并一键封禁/解封店铺 API</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-slate-600">
+            <tr>
+              <th class="px-3 py-2 text-left">店铺</th>
+              <th class="px-3 py-2 text-left">状态</th>
+              <th class="px-3 py-2 text-left">API</th>
+              <th class="px-3 py-2 text-right">用户</th>
+              <th class="px-3 py-2 text-right">资源</th>
+              <th class="px-3 py-2 text-right">预约</th>
+              <th class="px-3 py-2 text-right">未读通报</th>
+              <th class="px-3 py-2 text-left">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in tenant_rows %}
+            <tr>
+              <td class="px-3 py-2">
+                <p class="font-medium text-slate-900">{{ row.name }}</p>
+                <p class="text-xs text-slate-500">{{ row.slug }}{% if row.contact_email %} · {{ row.contact_email }}{% endif %}</p>
+              </td>
+              <td class="px-3 py-2">{{ row.subscription_status }}</td>
+              <td class="px-3 py-2">
+                {% if row.is_api_enabled %}
+                <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">ENABLED</span>
+                {% else %}
+                <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">BANNED</span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-2 text-right">{{ row.users_count }}</td>
+              <td class="px-3 py-2 text-right">{{ row.resources_count }}</td>
+              <td class="px-3 py-2 text-right">{{ row.bookings_count }}</td>
+              <td class="px-3 py-2 text-right {% if row.unread_reports %}text-rose-600 font-semibold{% else %}text-slate-600{% endif %}">{{ row.unread_reports }}</td>
+              <td class="px-3 py-2">
+                <div class="flex flex-wrap gap-2">
+                  <a href="{{ row.tenant_dashboard_url }}" class="rounded border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">店铺后台</a>
+                  <a href="{{ row.public_booking_url }}" target="_blank" rel="noopener" class="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50">公开预约页</a>
+                  {% if row.is_api_enabled %}
+                  <details class="group rounded border border-rose-200 bg-rose-50/60 px-2 py-1">
+                    <summary class="cursor-pointer text-xs font-semibold text-rose-700">封禁 API</summary>
+                    <form method="post" enctype="multipart/form-data" class="mt-2 space-y-2 min-w-[260px]">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="disable_tenant_api">
+                      <input type="hidden" name="tenant_id" value="{{ row.id }}">
+                      <select name="ban_reason" required class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
+                        <option value="">封禁理由を選択</option>
+                        {% for code, label in ban_reason_choices %}
+                        <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                      <textarea name="ban_note" rows="3" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700" placeholder="补充说明（可选）"></textarea>
+                      <input name="ban_media" type="file" accept="image/*,video/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:rounded-full file:border-0 file:bg-rose-100 file:px-2 file:py-1 file:font-semibold file:text-rose-700 hover:file:bg-rose-200">
+                      <button type="submit" class="w-full rounded border border-rose-200 bg-rose-100 px-2 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-200">确认封禁</button>
+                    </form>
+                  </details>
+                  {% else %}
+                  <div class="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+                    理由: {{ row.api_ban_reason_label }}{% if row.api_ban_note %}<br>{{ row.api_ban_note|truncatechars:60 }}{% endif %}
+                  </div>
+                  <form method="post" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="tenant_id" value="{{ row.id }}">
+                    <input type="hidden" name="action" value="enable_tenant_api">
+                    <button type="submit" class="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">解封 API</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="px-3 py-8 text-center text-slate-500">暂无租户数据</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

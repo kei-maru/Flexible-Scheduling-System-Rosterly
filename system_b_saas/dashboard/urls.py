@@ -2,6 +2,8 @@ from django.urls import path
 from .views import (
     TenantDashboardView,
     DashboardLoginView,
+    DashboardSuperAdminLoginView,
+    DashboardSuperGlobalView,
     DashboardRegisterShopRedirectView,
     DashboardShopSignupFormView,
     DashboardInviteAcceptView,
@@ -26,6 +28,8 @@ from .schedule_views import (
 
 urlpatterns = [
     path('login/', DashboardLoginView.as_view(), name='dashboard_login'),
+    path('super/login/', DashboardSuperAdminLoginView.as_view(), name='dashboard_super_login'),
+    path('super/global/', DashboardSuperGlobalView.as_view(), name='dashboard_super_global'),
     path('register-shop/', DashboardRegisterShopRedirectView.as_view(), name='dashboard_register_shop'),
     path('register-shop/form/', DashboardShopSignupFormView.as_view(), name='dashboard_register_shop_form'),
     path('invite/<str:token>/', DashboardInviteAcceptView.as_view(), name='dashboard_invite_accept'),

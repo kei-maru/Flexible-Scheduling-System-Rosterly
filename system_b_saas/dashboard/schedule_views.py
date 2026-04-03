@@ -3,6 +3,7 @@ from datetime import timedelta
 from uuid import uuid4
 import logging
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth import logout
@@ -30,10 +31,48 @@ from tenants.models import Tenant
 logger = logging.getLogger(__name__)
 
 
+def _tenant_api_ban_reason_label(reason_code: str) -> str:
+    reason_map = {
+        "ABUSE": "不正利用・スパム",
+        "PAYMENT": "料金・契約違反",
+        "SECURITY": "セキュリティ違反",
+        "LEGAL": "法令・規約違反",
+        "OTHER": "その他",
+    }
+    return reason_map.get((reason_code or "").strip().upper(), "規約違反")
+
+
+def _tenant_api_ban_banner_context(tenant):
+    if not tenant or getattr(tenant, "is_api_enabled", True):
+        return {
+            "tenant_is_banned": False,
+            "tenant_ban_reason_label": "",
+            "tenant_ban_note": "",
+            "tenant_ban_media_url": "",
+            "tenant_ban_admin_help": False,
+        }
+    media_url = ""
+    media_file = getattr(tenant, "api_ban_media", None)
+    if media_file:
+        try:
+            media_url = media_file.url
+        except Exception:
+            media_url = ""
+    return {
+        "tenant_is_banned": True,
+        "tenant_ban_reason_label": _tenant_api_ban_reason_label(getattr(tenant, "api_ban_reason", "")),
+        "tenant_ban_note": (getattr(tenant, "api_ban_note", "") or "").strip(),
+        "tenant_ban_media_url": media_url,
+        "tenant_ban_admin_help": False,
+    }
+
+
 class SharedBaseMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         try:
             if request.user.is_authenticated:
+                if request.user.is_superuser:
+                    return super().dispatch(request, *args, **kwargs)
                 has_tenant_id = bool(getattr(request.user, "tenant_id", None))
                 try:
                     tenant_obj = request.user.tenant if has_tenant_id else None
@@ -101,13 +140,16 @@ class SharedBaseMixin(LoginRequiredMixin):
                 tenant_logo_url = tenant.logo.url
             except Exception:
                 tenant_logo_url = ""
-        return {
+        context = {
             "is_admin": self._is_admin(),
             "user_avatar_url": self._avatar_url(),
             "user_initial": (self.request.user.username[:1] or "U").upper(),
             "tenant_name": tenant.name if tenant else "未設定店舗",
             "tenant_logo_url": tenant_logo_url,
+            "system_admin_contact_url": (getattr(settings, "SYSTEM_ADMIN_CONTACT_URL", "") or "mailto:support@rosterlyreverse.com").strip(),
         }
+        context.update(_tenant_api_ban_banner_context(tenant))
+        return context
 
 
 class SharedHomeView(SharedBaseMixin, TemplateView):

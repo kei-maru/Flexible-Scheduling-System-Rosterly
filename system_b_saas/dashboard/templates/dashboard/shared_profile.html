@@ -34,6 +34,14 @@
 </header>
 
 <main class="mx-auto max-w-6xl px-4 py-10">
+    {% if tenant_is_banned %}
+    <div class="mb-5 rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <p class="font-semibold">この店舗は規約違反により停止されています。</p>
+        <p class="mt-1 text-xs">理由: {{ tenant_ban_reason_label }}{% if tenant_ban_note %} / {{ tenant_ban_note }}{% endif %}</p>
+        {% if tenant_ban_media_url %}<p class="mt-1 text-xs"><a href="{{ tenant_ban_media_url }}" class="underline" target="_blank" rel="noopener">添付証跡を見る</a></p>{% endif %}
+    </div>
+    {% endif %}
+
     <div class="mb-6 flex flex-wrap gap-2">
         <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">ホーム</a>
         <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm text-white">プロフィール管理</a>

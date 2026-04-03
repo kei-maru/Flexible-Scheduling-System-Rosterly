@@ -9,7 +9,7 @@ import secrets
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.messages import get_messages
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -28,6 +28,7 @@ from django.views import View
 from django.views.generic import TemplateView
 from django.db import transaction
 from django.db.models import Q
+from django.utils.text import slugify
 
 from bookings.models import Booking, BookingReport, REPORT_REASON_CHOICES
 from bookings.tasks import process_new_booking, send_cancellation_email_task
@@ -130,6 +131,43 @@ DEFAULT_EMAIL_FOOTER_TEXT = "キャンセルは予定時刻の二十四時間前
 PUBLIC_BOOKING_IP_LIMIT_10MIN = 8
 PUBLIC_BOOKING_IP_LIMIT_1H = 24
 PUBLIC_BOOKING_FINGERPRINT_LIMIT_10MIN = 3
+TENANT_API_BAN_REASON_CHOICES = [
+    ("ABUSE", "不正利用・スパム"),
+    ("PAYMENT", "料金・契約違反"),
+    ("SECURITY", "セキュリティ違反"),
+    ("LEGAL", "法令・規約違反"),
+    ("OTHER", "その他"),
+]
+
+
+def _tenant_api_ban_reason_label(reason_code: str) -> str:
+    reason_map = dict(TENANT_API_BAN_REASON_CHOICES)
+    return reason_map.get((reason_code or "").strip().upper(), "規約違反")
+
+
+def _tenant_api_ban_banner_context(tenant):
+    if not tenant or getattr(tenant, "is_api_enabled", True):
+        return {
+            "tenant_is_banned": False,
+            "tenant_ban_reason_label": "",
+            "tenant_ban_note": "",
+            "tenant_ban_media_url": "",
+            "tenant_ban_admin_help": False,
+        }
+    media_url = ""
+    media_file = getattr(tenant, "api_ban_media", None)
+    if media_file:
+        try:
+            media_url = media_file.url
+        except Exception:
+            media_url = ""
+    return {
+        "tenant_is_banned": True,
+        "tenant_ban_reason_label": _tenant_api_ban_reason_label(getattr(tenant, "api_ban_reason", "")),
+        "tenant_ban_note": (getattr(tenant, "api_ban_note", "") or "").strip(),
+        "tenant_ban_media_url": media_url,
+        "tenant_ban_admin_help": True,
+    }
 
 
 def _absolute_public_url(request, path):
@@ -223,6 +261,8 @@ class DashboardLoginView(TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
+            if request.user.is_superuser:
+                return redirect("dashboard_super_global")
             has_tenant_id = bool(getattr(request.user, "tenant_id", None))
             try:
                 tenant_obj = request.user.tenant if has_tenant_id else None
@@ -549,6 +589,8 @@ class DashboardPublicBookingView(TemplateView):
                     getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
                 ),
                 "agreement_modules": agreement_modules,
+                **_tenant_api_ban_banner_context(tenant),
+                "system_admin_contact_url": (getattr(settings, "SYSTEM_ADMIN_CONTACT_URL", "") or "mailto:support@rosterlyreverse.com").strip(),
             }
         )
         return context
@@ -764,6 +806,8 @@ class DashboardPublicBookingDetailView(TemplateView):
                 "cancellation_deadline_label": cancellation_deadline_label,
                 "too_late_message": too_late_message,
                 "report_reasons": REPORT_REASON_CHOICES,
+                **_tenant_api_ban_banner_context(getattr(booking, "tenant", None)),
+                "system_admin_contact_url": (getattr(settings, "SYSTEM_ADMIN_CONTACT_URL", "") or "mailto:support@rosterlyreverse.com").strip(),
             }
         )
         return context
@@ -884,6 +928,204 @@ def dashboard_logout(request):
     return redirect("dashboard_login")
 
 
+class DashboardSuperAdminLoginView(TemplateView):
+    template_name = "dashboard/super_login.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.is_superuser:
+            return redirect("dashboard_super_global")
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        username = (request.POST.get("username") or "").strip()
+        password = request.POST.get("password") or ""
+        next_url = (request.POST.get("next") or "").strip()
+        if next_url and not url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            next_url = ""
+
+        user = authenticate(request, username=username, password=password)
+        if not user:
+            messages.error(request, "ユーザー名またはパスワードが正しくありません。")
+            return self.get(request, *args, **kwargs)
+        if not user.is_superuser:
+            messages.error(request, "この入口はスーパー管理者専用です。")
+            return self.get(request, *args, **kwargs)
+
+        login(request, user)
+        return redirect(next_url or reverse("dashboard_super_global"))
+
+
+class SuperAdminRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    def test_func(self):
+        return bool(getattr(self.request.user, "is_superuser", False))
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.warning(self.request, "スーパー管理者専用ページです。")
+            return redirect("dashboard_login")
+        return redirect("dashboard_super_login")
+
+
+class DashboardSuperGlobalView(SuperAdminRequiredMixin, TemplateView):
+    template_name = "dashboard/super_global_dashboard.html"
+
+    def _build_unique_tenant_slug(self, base_text):
+        base_slug = slugify(base_text or "debug-shop") or "debug-shop"
+        base_slug = re.sub(r"[^a-z0-9-]", "", base_slug.lower()).strip("-") or "debug-shop"
+        candidate = base_slug
+        index = 2
+        while Tenant.objects.filter(slug=candidate).exists():
+            candidate = f"{base_slug}-{index}"
+            index += 1
+        return candidate
+
+    def post(self, request, *args, **kwargs):
+        action = (request.POST.get("action") or "").strip()
+        if action == "create_debug_tenant":
+            shop_name = (request.POST.get("shop_name") or "").strip() or "Debug Shop"
+            contact_email = (request.POST.get("contact_email") or request.user.email or "").strip()
+            requested_slug = (request.POST.get("tenant_slug") or "").strip().lower()
+            if requested_slug and not re.fullmatch(r"[a-z0-9-]+", requested_slug):
+                messages.error(request, "slug は英字・数字・ハイフンのみ使用できます。")
+                return redirect("dashboard_super_global")
+
+            tenant_slug = requested_slug
+            if not tenant_slug:
+                tenant_slug = self._build_unique_tenant_slug(shop_name)
+            elif Tenant.objects.filter(slug=tenant_slug).exists():
+                messages.error(request, f"slug 已存在: {tenant_slug}")
+                return redirect("dashboard_super_global")
+
+            tenant = Tenant.objects.create(
+                name=shop_name,
+                slug=tenant_slug,
+                contact_email=contact_email or None,
+                api_key=secrets.token_urlsafe(24)[:32],
+                api_secret=secrets.token_urlsafe(32),
+                is_api_enabled=True,
+                enable_saas_dashboard=True,
+            )
+
+            user = request.user
+            update_fields = []
+            if user.tenant_id != tenant.id:
+                user.tenant = tenant
+                update_fields.append("tenant")
+            if user.role != "ADMIN":
+                user.role = "ADMIN"
+                update_fields.append("role")
+            if not user.is_staff:
+                user.is_staff = True
+                update_fields.append("is_staff")
+            if update_fields:
+                user.save(update_fields=update_fields)
+
+            ensure_staff_resource_binding(user, tenant=tenant)
+            messages.success(request, f"已创建调试店铺: {tenant.name} ({tenant.slug})")
+            return redirect(f"{reverse('tenant_dashboard')}?tenant_id={tenant.id}&tab=shop")
+
+        if action in {"disable_tenant_api", "enable_tenant_api"}:
+            tenant_id = (request.POST.get("tenant_id") or "").strip()
+            tenant = Tenant.objects.filter(id=tenant_id).first()
+            if not tenant:
+                messages.error(request, "店铺不存在。")
+                return redirect("dashboard_super_global")
+            target_enabled = action == "enable_tenant_api"
+            if tenant.is_api_enabled != target_enabled:
+                tenant.is_api_enabled = target_enabled
+                update_fields = ["is_api_enabled"]
+                if target_enabled:
+                    tenant.api_ban_reason = ""
+                    tenant.api_ban_note = ""
+                    tenant.api_ban_media = None
+                    tenant.api_banned_at = None
+                    tenant.api_banned_by = None
+                    update_fields.extend(["api_ban_reason", "api_ban_note", "api_ban_media", "api_banned_at", "api_banned_by"])
+                else:
+                    reason_code = (request.POST.get("ban_reason") or "").strip().upper()
+                    if reason_code not in {code for code, _label in TENANT_API_BAN_REASON_CHOICES}:
+                        messages.error(request, "封禁时必须选择有效原因。")
+                        return redirect("dashboard_super_global")
+                    tenant.api_ban_reason = reason_code
+                    tenant.api_ban_note = (request.POST.get("ban_note") or "").strip()
+                    media = request.FILES.get("ban_media")
+                    if media:
+                        tenant.api_ban_media = media
+                        update_fields.append("api_ban_media")
+                    tenant.api_banned_at = timezone.now()
+                    tenant.api_banned_by = request.user
+                    update_fields.extend(["api_ban_reason", "api_ban_note", "api_banned_at", "api_banned_by"])
+                tenant.save(update_fields=list(dict.fromkeys(update_fields)))
+            if target_enabled:
+                messages.success(request, f"已解封店铺 API: {tenant.name}")
+            else:
+                messages.warning(request, f"已封禁店铺 API: {tenant.name}")
+            return redirect("dashboard_super_global")
+
+        messages.error(request, "未识别的操作。")
+        return redirect("dashboard_super_global")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        now = timezone.now()
+        today = timezone.localdate()
+
+        total_tenants = Tenant.objects.count()
+        active_tenants = Tenant.objects.filter(subscription_status__in=["ACTIVE", "TRIAL"]).count()
+        total_users = SaaSUser.objects.count()
+        total_superusers = SaaSUser.objects.filter(is_superuser=True).count()
+        total_staff_like = SaaSUser.objects.filter(role__in=["ADMIN", "STAFF"]).count()
+        total_resources = Resource.objects.count()
+        total_bookings = Booking.objects.count()
+        today_bookings = Booking.objects.filter(start_time__date=today).count()
+        upcoming_24h_bookings = Booking.objects.filter(start_time__gte=now, start_time__lte=now + timedelta(hours=24)).count()
+        unread_reports_global = BookingReport.objects.filter(is_read_by_admin=False).count()
+
+        tenant_rows = []
+        tenants = Tenant.objects.all().order_by("name")
+        for tenant in tenants:
+            tenant_rows.append(
+                {
+                    "id": str(tenant.id),
+                    "name": tenant.name,
+                    "slug": tenant.slug,
+                    "contact_email": tenant.contact_email or "",
+                    "subscription_status": (tenant.subscription_status or "NONE").upper(),
+                    "is_api_enabled": bool(getattr(tenant, "is_api_enabled", True)),
+                    "api_ban_reason_label": _tenant_api_ban_reason_label(getattr(tenant, "api_ban_reason", "")),
+                    "api_ban_note": (getattr(tenant, "api_ban_note", "") or "").strip(),
+                    "users_count": SaaSUser.objects.filter(tenant=tenant).count(),
+                    "resources_count": Resource.objects.filter(tenant=tenant).count(),
+                    "bookings_count": Booking.objects.filter(tenant=tenant).count(),
+                    "unread_reports": BookingReport.objects.filter(tenant=tenant, is_read_by_admin=False).count(),
+                    "tenant_dashboard_url": f"{reverse('tenant_dashboard')}?tenant_id={tenant.id}",
+                    "public_booking_url": reverse("dashboard_public_booking", kwargs={"tenant_slug": tenant.slug}),
+                }
+            )
+
+        context.update(
+            {
+                "total_tenants": total_tenants,
+                "active_tenants": active_tenants,
+                "total_users": total_users,
+                "total_superusers": total_superusers,
+                "total_staff_like": total_staff_like,
+                "total_resources": total_resources,
+                "total_bookings": total_bookings,
+                "today_bookings": today_bookings,
+                "upcoming_24h_bookings": upcoming_24h_bookings,
+                "unread_reports_global": unread_reports_global,
+                "tenant_rows": tenant_rows,
+                "ban_reason_choices": TENANT_API_BAN_REASON_CHOICES,
+            }
+        )
+        return context
+
+
 class LocalPasswordLoginView(LoginView):
     template_name = "account/local_login.html"
     authentication_form = AuthenticationForm
@@ -906,6 +1148,12 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
     template_name = "dashboard/tenant_dashboard.html"
 
     def _resolve_tenant(self):
+        if self.request.user.is_superuser:
+            requested_tenant_id = (self.request.GET.get("tenant_id") or self.request.POST.get("tenant_id") or "").strip()
+            if requested_tenant_id:
+                scoped_tenant = Tenant.objects.filter(id=requested_tenant_id).first()
+                if scoped_tenant:
+                    return scoped_tenant
         tenant = getattr(self.request.user, "tenant", None)
         if tenant:
             return tenant
@@ -1509,7 +1757,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         except Exception as exc:
             messages.error(request, f"エラー: {exc}")
 
-        return redirect(f"{reverse('tenant_dashboard')}?tab={target_tab}")
+        redirect_url = f"{reverse('tenant_dashboard')}?tab={target_tab}"
+        if request.user.is_superuser and tenant:
+            redirect_url += f"&tenant_id={tenant.id}"
+        return redirect(redirect_url)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1750,6 +2001,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "core_time_orders": core_time_orders,
                 "report_unread_count": unread_report_count,
                 "report_notifications_json": json.dumps(report_notifications, ensure_ascii=False),
+                "is_super_admin": bool(self.request.user.is_superuser),
+                "selected_tenant_id": str(tenant.id) if tenant else "",
+                **_tenant_api_ban_banner_context(tenant),
+                "system_admin_contact_url": (getattr(settings, "SYSTEM_ADMIN_CONTACT_URL", "") or "mailto:support@rosterlyreverse.com").strip(),
             }
         )
         return context

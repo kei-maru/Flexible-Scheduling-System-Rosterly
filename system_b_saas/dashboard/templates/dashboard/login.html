@@ -60,6 +60,10 @@
         >店舗を登録</a>
       </div>
 
+      <div style="margin-top:10px">
+        <a class="btn btn-secondary" href="{% url 'dashboard_super_login' %}">スーパー管理者ログイン（ローカル認証）</a>
+      </div>
+
       <div class="auth-box">
         <h3>外部認証（予約枠）</h3>
         <p>将来的に Google / Apple / GitHub などの認証を追加予定です。</p>
@@ -67,7 +71,7 @@
 
       {% else %}
       <div class="warn">Discord OAuth が未設定です。`SYSTEM_B_DISCORD_CLIENT_ID` / `SYSTEM_B_DISCORD_SECRET` を先に設定してください。</div>
-      <p style="margin-top:10px;font-size:12px;color:#64748b">一時的にローカルアカウントでログインできます: <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
+      <p style="margin-top:10px;font-size:12px;color:#64748b">ローカル入口: <a href="{% url 'dashboard_super_login' %}" style="color:#0f172a;font-weight:700">スーパー管理者ログイン</a> / <a href="/accounts/login/" style="color:#0f172a;font-weight:700">/accounts/login/</a></p>
       {% endif %}
 
       {% if auth_blocked_message %}

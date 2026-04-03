@@ -116,6 +116,16 @@ def _agreement_modules_for_template(raw_json, legacy_label="", legacy_body=""):
     return items
 
 
+def _normalize_report_detail_text(raw_text):
+    text = str(raw_text or "")
+    text = re.sub(r"\\u000[dD]\\u000[aA]", "\n", text)
+    text = re.sub(r"\\u000[dD]", "\n", text)
+    text = re.sub(r"\\u000[aA]", "\n", text)
+    text = text.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\n")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return text.strip()
+
+
 DEFAULT_EMAIL_FOOTER_TEXT = "キャンセルは予定時刻の二十四時間前までにDisocordまたはEmailにて連絡"
 PUBLIC_BOOKING_IP_LIMIT_10MIN = 8
 PUBLIC_BOOKING_IP_LIMIT_1H = 24
@@ -467,6 +477,57 @@ class DashboardPublicBookingView(TemplateView):
             .order_by("profile__display_order", "name")
         )
         services = ServicePreset.objects.filter(tenant=tenant, is_active=True).order_by("sort_order", "id")
+        agreement_modules = _agreement_modules_for_template(
+            tenant.custom_terms_body,
+            legacy_label=tenant.custom_terms_label,
+            legacy_body=tenant.custom_terms_body,
+        )
+
+        vrc_terms_url = (getattr(settings, "PUBLIC_VRC_TERMS_URL", "") or "").strip() or "https://hello.vrchat.com/legal"
+        rosterly_terms_url = (getattr(settings, "PUBLIC_ROSTERLY_TERMS_URL", "") or "").strip()
+        if not rosterly_terms_url:
+            rosterly_terms_url = _absolute_public_url(self.request, reverse("dashboard_terms"))
+
+        # Store contract links must be fully synchronized with owner settings.
+        # Do not use fallback URLs here.
+        store_contract_url_effective = (tenant.store_contract_url or "").strip()
+
+        store_contract_items = []
+        seen_store_items = set()
+
+        def _append_store_item(item_type, label_value, content_value):
+            label = (label_value or "詳細").strip() or "詳細"
+            content = (content_value or "").strip()
+            if not content:
+                return
+            key = (item_type, content)
+            if key in seen_store_items:
+                return
+            seen_store_items.add(key)
+            store_contract_items.append(
+                {
+                    "type": item_type,
+                    "label": label,
+                    "content": content,
+                }
+            )
+
+        if _is_http_url(store_contract_url_effective):
+            _append_store_item(
+                "url",
+                (tenant.store_contract_label or "店舗利用規約").strip() or "店舗利用規約",
+                store_contract_url_effective,
+            )
+
+        for module in agreement_modules:
+            module_title = module.get("title") or "追加条項"
+            module_content = (module.get("content") or "").strip()
+            if not module_content:
+                continue
+            if module.get("is_url") and _is_http_url(module_content):
+                _append_store_item("url", module_title, module_content)
+            else:
+                _append_store_item("text", module_title, module_content)
 
         context.update(
             {
@@ -478,16 +539,16 @@ class DashboardPublicBookingView(TemplateView):
                 "cancellation_window_hours": max(1, int(getattr(tenant, "cancellation_window_hours", 2) or 2)),
                 "store_contract_label": (tenant.store_contract_label or "店舗利用規約").strip() or "店舗利用規約",
                 "store_contract_url": (tenant.store_contract_url or "").strip(),
+                "vrc_terms_url": vrc_terms_url,
+                "rosterly_terms_url": rosterly_terms_url,
+                "store_contract_url_effective": store_contract_url_effective,
+                "store_contract_items": store_contract_items,
                 "tenant_is_subscribed": _tenant_is_subscribed(tenant),
                 "subscription_status": (tenant.subscription_status or "").upper() or "NONE",
                 "required_customer_fields": _normalize_required_customer_fields(
                     getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
                 ),
-                "agreement_modules": _agreement_modules_for_template(
-                    tenant.custom_terms_body,
-                    legacy_label=tenant.custom_terms_label,
-                    legacy_body=tenant.custom_terms_body,
-                ),
+                "agreement_modules": agreement_modules,
             }
         )
         return context
@@ -1486,8 +1547,28 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 .order_by("-start_time")[:100]
             )
             orders = list(orders_qs)
+            report_reason_labels = dict(REPORT_REASON_CHOICES)
+            order_ids = [order.id for order in orders]
+            report_text_map = {}
+            if order_ids:
+                report_rows = (
+                    BookingReport.objects.filter(tenant=tenant, booking_id__in=order_ids)
+                    .order_by("-created_at")
+                )
+                for report in report_rows:
+                    key = str(report.booking_id)
+                    bucket = report_text_map.setdefault(key, [])
+                    if len(bucket) >= 5:
+                        continue
+                    role_label = "顧客" if report.reporter_role == "CUSTOMER" else "キャスト"
+                    reason_label = report_reason_labels.get(report.reason, report.reason)
+                    created_label = timezone.localtime(report.created_at).strftime("%Y/%m/%d %H:%M")
+                    detail_text = _normalize_report_detail_text(report.detail) or "詳細なし"
+                    bucket.append(f"[{created_label}] {role_label} / {reason_label}\n{detail_text}")
+
             for order in orders:
                 order.display_service_name = resolve_booking_service_name(order, tenant)
+                order.report_content_text = "\n\n".join(report_text_map.get(str(order.id), [])) if report_text_map.get(str(order.id)) else "通報内容はありません。"
             core_time_orders = list(
                 Booking.objects.filter(tenant=tenant, booking_type="CORE_TIME")
                 .select_related("resource")

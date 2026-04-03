@@ -152,10 +152,15 @@ CSRF_COOKIE_NAME = 'saas_csrftoken'
 STATIC_URL = '/static/'
 MEDIA_URL = '/media/'
 
-# 👇 关键修改：使用绝对路径，指向 Docker 容器内的 /app/static_root
-# 这样才能和 docker-compose.yml 里的 volumes 挂载点对齐
-STATIC_ROOT = '/app/static_root'
-MEDIA_ROOT = '/app/media'
+# Prefer explicit env vars; default to container paths when running in Docker,
+# otherwise fallback to workspace-local paths for local development.
+STATIC_ROOT = os.environ.get('STATIC_ROOT', '').strip()
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', '').strip()
+
+if not STATIC_ROOT:
+    STATIC_ROOT = '/app/static_root' if os.path.isdir('/app') else str(BASE_DIR.parent / 'static_root_saas')
+if not MEDIA_ROOT:
+    MEDIA_ROOT = '/app/media' if os.path.isdir('/app') else str(BASE_DIR.parent / 'media')
 
 # Email (Gmail 配置)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

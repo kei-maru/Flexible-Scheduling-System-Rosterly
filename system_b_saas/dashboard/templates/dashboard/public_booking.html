@@ -282,7 +282,7 @@
                 </div>
 
                 <button type="button" onclick="openConfirmModal()" class="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">予約する</button>
-                <p class="pt-1 text-center text-[11px] text-slate-500">キャンセル可能時間：予約時間の{{ cancellation_window_hours|default:2 }}時間前まで</p>
+                <p class="pt-1 text-center text-[11px] text-slate-500">キャンセル可能時間：予約時間の{{ cancellation_window_hours }}時間前まで</p>
             </form>
             <div id="result" class="mt-3 hidden rounded-md border px-3 py-2 text-sm"></div>
         </section>
@@ -299,38 +299,37 @@
         </div>
         <div id="confirm-summary" class="mt-4"></div>
               <p class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                キャンセル可能時間：予約時間の{{ cancellation_window_hours|default:2 }}時間前まで
+                キャンセル可能時間：予約時間の{{ cancellation_window_hours }}時間前まで
               </p>
               <p class="mt-4 text-xs text-slate-500">下記の条項に同意すると予約を確定できます。</p>
             <div class="mt-3 space-y-2">
+          
           <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
                     <input class="confirm-check mt-1" type="checkbox">
-                  <span>VRC 契約に同意する（<a class="text-indigo-600 hover:underline" href="https://hello.vrchat.com/legal" target="_blank" rel="noopener">VRChat Terms</a>）</span>
+                  <span>Rosterly 利用規約に同意する（<a class="text-indigo-600 hover:underline" href="{{ rosterly_terms_url }}" target="_blank" rel="noopener">Rosterly Terms</a>）</span>
                 </label>
-          <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
-                    <input class="confirm-check mt-1" type="checkbox">
-                    <span>
-                        {{ store_contract_label|default:'店舗利用規約' }} に同意する
-                        {% if store_contract_url %}
-                    （<a class="text-indigo-600 hover:underline" href="{{ store_contract_url }}" target="_blank" rel="noopener">詳細</a>）
-                        {% endif %}
-                    </span>
-                </label>
-                {% for agreement in agreement_modules %}
-          <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
-                    <input class="confirm-check mt-1" type="checkbox">
-                    <span>
-                    {{ agreement.title|default:'追加条項' }} に同意する
-                    {% if agreement.content %}
-                      {% if agreement.is_url %}
-                      <span class="mt-1 block text-xs text-slate-500">内容: <a class="text-indigo-600 hover:underline" href="{{ agreement.content }}" target="_blank" rel="noopener">{{ agreement.content }}</a></span>
-                      {% else %}
-                      <span class="mt-1 block whitespace-pre-line text-xs text-slate-500">{{ agreement.content }}</span>
-                      {% endif %}
-                    {% endif %}
-                    </span>
-                </label>
+              {% if store_contract_items %}
+                {% for item in store_contract_items %}
+            <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
+                <input class="confirm-check mt-1" type="checkbox">
+                <span>
+                  {% if item.type == 'url' %}
+                  {{ item.label }} に同意する（<a class="text-indigo-600 hover:underline" href="{{ item.content }}" target="_blank" rel="noopener">リンク</a>）
+                  {% else %}
+                  {{ item.label }} に同意する {{ item.content }}
+                  {% endif %}
+                </span>
+              </label>
                 {% endfor %}
+              {% else %}
+            <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
+                <input class="confirm-check mt-1" type="checkbox">
+                <span>
+                  {{ store_contract_label|default:'店舗利用規約' }} に同意する
+                  <span class="mt-1 block text-xs text-slate-400">未設定</span>
+                </span>
+              </label>
+              {% endif %}
             </div>
             <div class="mt-5 flex justify-end gap-2">
                   <button type="button" onclick="closeConfirmModal()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">戻る</button>

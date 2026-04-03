@@ -82,7 +82,10 @@
                         <div id="report-popover" class="hidden absolute right-0 mt-2 w-[360px] max-w-[90vw] rounded-lg border border-slate-200 bg-white p-3 shadow-xl z-40">
                             <div class="mb-2 flex items-center justify-between">
                                 <div class="text-xs font-semibold tracking-widest text-slate-700">REPORT NOTIFICATIONS</div>
-                                <span id="report-unread-label" class="text-[11px] text-rose-600">未読 {{ report_unread_count|default:0 }}</span>
+                                <div class="flex items-center gap-2">
+                                    <button id="report-mark-read-btn" type="button" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50">すべて既読</button>
+                                    <span id="report-unread-label" class="text-[11px] text-rose-600">未読 {{ report_unread_count|default:0 }}</span>
+                                </div>
                             </div>
                             <div id="report-message-list" class="max-h-72 space-y-2 overflow-y-auto"></div>
                         </div>
@@ -649,16 +652,29 @@
                                 <div class="rounded-md border border-slate-200 bg-slate-50 p-2">
                                     <div class="space-y-2">
                                         {% for order in orders %}
-                                        <div class="order-card rounded-md border border-slate-200 bg-white p-3 {% if order.booking_type == 'CORE_TIME' %}cursor-pointer hover:border-indigo-200{% endif %}"
+                                        <div class="order-card cursor-pointer rounded-md border border-slate-200 bg-white p-3 hover:border-indigo-200"
                                             data-cast-id="{{ order.resource.id }}"
                                             data-start="{{ order.start_time|date:'c' }}"
                                             data-name="{{ order.resource.name|lower }} {{ order.customer_name|lower }} {{ order.display_service_name|default:''|lower }}"
                                             data-core-time="{% if order.booking_type == 'CORE_TIME' %}1{% else %}0{% endif %}"
                                             data-id="{{ order.id }}"
+                                            data-resource-name="{{ order.resource.name|escapejs }}"
+                                            data-status="{{ order.status }}"
+                                            data-status-label="{% if order.status == 'COMPLETED' %}完了{% elif order.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}"
+                                            data-customer-name="{{ order.customer_name|escapejs }}"
+                                            data-customer-email="{{ order.customer_email|default:''|escapejs }}"
+                                            data-service-name="{{ order.display_service_name|default:'-'|escapejs }}"
+                                            data-created-at="{{ order.created_at|date:'Y/m/d H:i' }}"
+                                            data-report-content="{{ order.report_content_text|default:'通報内容はありません。'|escapejs }}"
+                                            data-start-label="{{ order.start_time|date:'Y/m/d H:i' }}"
+                                            data-end-label="{{ order.end_time|date:'H:i' }}"
+                                            data-customer-report-count="{{ order.customer_report_count|default:0 }}"
+                                            data-cast-report-count="{{ order.cast_report_count|default:0 }}"
                                             data-resource-id="{{ order.resource.id }}"
                                             data-customer-vrcid="{{ order.customer_id|default:''|escapejs }}"
                                             data-service-preset-id="{% if order.selected_service_id %}{{ order.selected_service_id }}{% endif %}"
-                                            data-start-local="{{ order.start_time|date:'Y-m-d\\TH:i' }}">
+                                            data-start-local="{{ order.start_time|date:'Y-m-d\\TH:i' }}"
+                                            onclick="openAdminOrderDetail(this, event)">
                                             <div class="flex items-center justify-between">
                                                 <div class="text-xs font-semibold text-indigo-700">{{ order.resource.name }}</div>
                                                 <div class="flex items-center gap-1">
@@ -955,6 +971,62 @@
                     </div>
                 </div>
             </section>
+
+            <div id="admin-order-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/45 px-4">
+                <div class="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+                    <div class="mb-4 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-slate-900">注文詳細</h3>
+                        <button type="button" onclick="closeAdminOrderDetail()" class="rounded-md border border-slate-200 bg-white px-2 py-1 text-slate-500 hover:bg-slate-50">✕</button>
+                    </div>
+                    <div class="space-y-3 text-sm">
+                        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <span class="text-slate-500">注文ID</span>
+                            <div id="admin-order-id" class="font-semibold text-slate-900">-</div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                                <span class="text-slate-500">担当</span>
+                                <div id="admin-order-resource" class="font-semibold text-slate-900">-</div>
+                            </div>
+                            <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                                <span class="text-slate-500">顧客</span>
+                                <div id="admin-order-customer" class="font-semibold text-slate-900">-</div>
+                            </div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <span class="text-slate-500">顧客メール</span>
+                            <div id="admin-order-email" class="font-semibold text-slate-900">-</div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <span class="text-slate-500">サービス</span>
+                            <div id="admin-order-service" class="font-semibold text-slate-900">-</div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <span class="text-slate-500">予約時間</span>
+                            <div id="admin-order-time" class="font-semibold text-slate-900">-</div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                                <span class="text-slate-500">状態</span>
+                                <div id="admin-order-status" class="font-semibold text-slate-900">-</div>
+                            </div>
+                            <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                                <span class="text-slate-500">作成時間</span>
+                                <div id="admin-order-created-at" class="font-semibold text-slate-900">-</div>
+                            </div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <span class="text-slate-500">通報内容</span>
+                            <textarea id="admin-order-report-content" rows="6" readonly class="mt-1 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-5 flex justify-end gap-2">
+                        <button id="admin-coretime-edit-btn" type="button" onclick="openCoreTimeEditorFromModal()" class="hidden rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">Core-Time編集へ</button>
+                        <a id="admin-order-open-bookings" href="{% url 'shared_bookings' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">注文画面で開く</a>
+                        <button type="button" onclick="closeAdminOrderDetail()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">閉じる</button>
+                    </div>
+                </div>
+            </div>
     </main>
 
     <div id="users-confirm-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
@@ -987,8 +1059,13 @@
         }
 
         function getCsrfToken() {
-            const m = document.cookie.match(/csrftoken=([^;]+)/);
-            return m ? m[1] : "";
+            const cookie = document.cookie || "";
+            const fromSaas = cookie.match(/(?:^|;\s*)saas_csrftoken=([^;]+)/);
+            if (fromSaas) return fromSaas[1];
+            const fromDefault = cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            if (fromDefault) return fromDefault[1];
+            const hidden = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            return hidden ? (hidden.value || "") : "";
         }
 
         function renderReportNotifications(items, unreadCount) {
@@ -998,11 +1075,12 @@
             if (!list) return;
 
             if (!items || !items.length) {
-                list.innerHTML = '<div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">通報メッセージはありません。</div>';
+                list.innerHTML = '<div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">新着メッセージはありません。</div>';
             } else {
                 list.innerHTML = items.map((item) => {
                     const roleLabel = item.reporter_role === 'CUSTOMER' ? '顧客' : 'キャスト';
                     const detail = item.detail ? escapeHtml(item.detail) : '詳細なし';
+                    const orderLink = `{% url 'tenant_dashboard' %}?tab=shifts&order_id=${encodeURIComponent(item.booking_id || '')}`;
                     return `
                         <div class="rounded-md border ${item.is_read ? 'border-slate-200 bg-slate-50' : 'border-rose-200 bg-rose-50'} p-2">
                             <div class="flex items-center justify-between gap-2">
@@ -1012,29 +1090,40 @@
                             <div class="mt-1 text-[11px] text-slate-600">予約ID: ${escapeHtml(item.booking_short)}...</div>
                             <div class="mt-1 text-[11px] text-slate-600">報告者: ${escapeHtml(item.reporter_name || '-')}</div>
                             <div class="mt-1 line-clamp-2 text-[11px] text-slate-700">${detail}</div>
+                            <div class="mt-2">
+                                <a href="${orderLink}" data-booking-id="${escapeHtml(item.booking_id || '')}" class="report-open-order-link inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">該当注文を開く</a>
+                            </div>
                         </div>
                     `;
                 }).join('');
             }
 
             if (dot) dot.classList.toggle("hidden", !(unreadCount > 0));
-            if (label) label.innerText = `未読 ${unreadCount || 0}`;
+            if (label) {
+                const n = unreadCount || 0;
+                label.innerText = n > 0 ? `未読 ${n}` : '新着なし';
+            }
         }
 
         async function markReportNotificationsRead() {
             try {
-                await fetch("{% url 'tenant_dashboard' %}", {
+                const res = await fetch("{% url 'tenant_dashboard' %}", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "X-CSRFToken": getCsrfToken(),
                         "X-Requested-With": "XMLHttpRequest",
                     },
+                    credentials: "same-origin",
                     body: JSON.stringify({ action: "mark_reports_read" }),
                 });
+                if (!res.ok) return false;
                 reportNotifications = (reportNotifications || []).map((item) => ({ ...item, is_read: true }));
                 renderReportNotifications(reportNotifications, 0);
+                await refreshReportNotifications();
+                return true;
             } catch (_err) {
+                return false;
             }
         }
 
@@ -1542,11 +1631,76 @@
         }
 
         function bindCoreTimeOrderClicks() {
-            document.querySelectorAll(".order-card[data-core-time='1']").forEach((card) => {
-                card.addEventListener("click", function () {
-                    editCoreTimeOrder(card);
-                });
-            });
+            // Core-Time orders are edited from the order detail modal.
+        }
+
+        let currentAdminOrderCard = null;
+
+        function openAdminOrderDetail(card, event) {
+            if (!card) return;
+            if (event) event.stopPropagation();
+
+            currentAdminOrderCard = card;
+            const ds = card.dataset;
+            const modal = document.getElementById("admin-order-modal");
+            if (!modal) return;
+
+            const setText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = value || "-";
+            };
+
+            const normalizeMultilineText = (text) => {
+                return String(text || "")
+                    .replace(/\\u000[dD]\\u000[aA]/g, "\n")
+                    .replace(/\\u000[dD]/g, "\n")
+                    .replace(/\\u000[aA]/g, "\n")
+                    .replace(/\\r\\n/g, "\n")
+                    .replace(/\\n/g, "\n")
+                    .replace(/\\r/g, "\n")
+                    .trim();
+            };
+
+            setText("admin-order-id", ds.id || "-");
+            setText("admin-order-resource", ds.resourceName || "-");
+            setText("admin-order-customer", ds.customerName || "-");
+            setText("admin-order-email", ds.customerEmail || "-");
+            setText("admin-order-service", ds.serviceName || "-");
+            setText("admin-order-time", `${ds.startLabel || "-"} - ${ds.endLabel || "-"}`);
+            setText("admin-order-status", ds.statusLabel || ds.status || "-");
+            setText("admin-order-created-at", ds.createdAt || "-");
+
+            const reportContentEl = document.getElementById("admin-order-report-content");
+            if (reportContentEl) {
+                reportContentEl.value = normalizeMultilineText(ds.reportContent) || "通報内容はありません。";
+            }
+
+            const openBtn = document.getElementById("admin-order-open-bookings");
+            if (openBtn && ds.id) {
+                openBtn.href = `{% url 'shared_bookings' %}?booking_id=${encodeURIComponent(ds.id)}`;
+            }
+
+            const coreEditBtn = document.getElementById("admin-coretime-edit-btn");
+            if (coreEditBtn) {
+                coreEditBtn.classList.toggle("hidden", ds.coreTime !== "1");
+            }
+
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+        }
+
+        function closeAdminOrderDetail() {
+            const modal = document.getElementById("admin-order-modal");
+            if (!modal) return;
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+            currentAdminOrderCard = null;
+        }
+
+        function openCoreTimeEditorFromModal() {
+            if (!currentAdminOrderCard) return;
+            editCoreTimeOrder(currentAdminOrderCard);
+            closeAdminOrderDetail();
         }
 
         function deleteCoreTimeOrder() {
@@ -1653,11 +1807,44 @@
                 });
             }
 
+            const markReadBtn = document.getElementById("report-mark-read-btn");
+            if (markReadBtn) {
+                markReadBtn.addEventListener("click", async function (event) {
+                    event.preventDefault();
+                    markReadBtn.disabled = true;
+                    const ok = await markReportNotificationsRead();
+                    if (!ok) {
+                        const label = document.getElementById("report-unread-label");
+                        if (label) label.innerText = "既読更新に失敗";
+                        await refreshReportNotifications();
+                    }
+                    markReadBtn.disabled = false;
+                });
+            }
+
+            document.addEventListener("click", async function (event) {
+                const link = event.target.closest(".report-open-order-link");
+                if (!link) return;
+                // Ensure unread state is persisted server-side before navigation.
+                await markReportNotificationsRead();
+            });
+
             window.setInterval(refreshReportNotifications, 20000);
 
             const params = new URLSearchParams(window.location.search);
             const initialTab = params.get("tab") || "shop";
             switchTab(initialTab);
+
+            const focusOrderId = (params.get("order_id") || "").trim();
+            if (focusOrderId) {
+                const targetOrderCard = document.querySelector(`.order-card[data-id="${CSS.escape(focusOrderId)}"]`);
+                if (targetOrderCard) {
+                    setTimeout(() => {
+                        openAdminOrderDetail(targetOrderCard);
+                        targetOrderCard.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }, 80);
+                }
+            }
 
             const confirmSubmitBtn = document.getElementById("users-confirm-submit");
             if (confirmSubmitBtn) {
@@ -1679,8 +1866,18 @@
             document.addEventListener("keydown", function (event) {
                 if (event.key === "Escape") {
                     closeUsersConfirmModal();
+                    closeAdminOrderDetail();
                 }
             });
+
+            const adminOrderModal = document.getElementById("admin-order-modal");
+            if (adminOrderModal) {
+                adminOrderModal.addEventListener("click", function (event) {
+                    if (event.target === adminOrderModal) {
+                        closeAdminOrderDetail();
+                    }
+                });
+            }
 
             const firstCast = document.querySelector(".cast-item");
             if (firstCast) selectCast(firstCast);

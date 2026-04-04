@@ -641,7 +641,7 @@
                                     <button type="button" onclick="resetScheduleRange()" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100">リセット</button>
                                 </div>
                             </div>
-                            <p class="mt-2 text-[11px] text-slate-500">シフトは初期表示で今後1か月分、注文は最新100件を表示します。</p>
+                            <p class="mt-2 text-[11px] text-slate-500">初期表示は当月1か月分です。期間を指定して検索すると全件から絞り込みます。</p>
                         </div>
                         <div class="max-h-[560px] overflow-y-auto p-5">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:items-start">
@@ -1621,6 +1621,28 @@
             applyScheduleFilters();
         }
 
+        function setDefaultMonthlyRangeIfEmpty() {
+            const start = document.getElementById("range-start");
+            const end = document.getElementById("range-end");
+            if (!start || !end) return;
+            if (start.value || end.value) return;
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth();
+            const first = new Date(year, month, 1);
+            const last = new Date(year, month + 1, 0);
+
+            const fmt = (d) => {
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                return `${d.getFullYear()}-${mm}-${dd}`;
+            };
+
+            start.value = fmt(first);
+            end.value = fmt(last);
+        }
+
         function resetCoreTimeForm() {
             const form = document.getElementById("core-time-form");
             if (!form) return;
@@ -1902,6 +1924,7 @@
             const rangeStart = document.getElementById("range-start");
             const rangeEnd = document.getElementById("range-end");
             const nameSearch = document.getElementById("schedule-name-search");
+            setDefaultMonthlyRangeIfEmpty();
             if (rangeStart) rangeStart.addEventListener("change", applyScheduleFilters);
             if (rangeEnd) rangeEnd.addEventListener("change", applyScheduleFilters);
             if (nameSearch) nameSearch.addEventListener("input", applyScheduleFilters);

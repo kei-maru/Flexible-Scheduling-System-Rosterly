@@ -31,3 +31,6 @@ media/
 
 # 忽略本地开发容器配置
 .devcontainer/
+
+# 忽略历史表单导入 CSV
+ASMR Salon Veludo-ビロード-予約フォーム（回答） - フォームの回答 1.csv

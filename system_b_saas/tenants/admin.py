@@ -9,13 +9,23 @@ class TenantAdmin(admin.ModelAdmin):
     list_filter = ('enable_saas_dashboard',)
     # 自动生成 slug
     prepopulated_fields = {"slug": ("name",)}
-    readonly_fields = ('api_key', 'api_secret')
+    readonly_fields = ('api_key', 'api_secret_masked')
     fieldsets = (
         ("基本信息", {"fields": ("name", "slug", "contact_email", "logo", "webhook_url", "enable_saas_dashboard")}),
         ("订阅设置", {"fields": ("subscription_status", "subscription_plan_code", "subscription_started_at", "subscription_ends_at")}),
         ("预约设置", {"fields": ("store_type", "booking_window_days", "cancellation_window_hours", "booking_detail_redirect_url", "store_contract_label", "store_contract_url", "required_customer_fields", "custom_terms_label", "custom_terms_body")}),
-        ("API 凭据", {"fields": ("api_key", "api_secret")}),
+        ("API 凭据", {"fields": ("api_key", "api_secret_masked")}),
     )
+
+    def api_secret_masked(self, obj):
+        secret = (getattr(obj, 'api_secret', '') or '').strip()
+        if not secret:
+            return '(not set)'
+        if len(secret) <= 8:
+            return '****'
+        return f"{secret[:4]}...{secret[-4:]}"
+
+    api_secret_masked.short_description = 'api_secret'
 
 @admin.register(SaaSUser)
 class CustomSaaSUserAdmin(UserAdmin):

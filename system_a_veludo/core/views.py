@@ -17,13 +17,19 @@ from django.conf import settings
 from django.core.cache import cache
 from .models import UserActivity, BlockedIP
 from casts.source import get_public_casts
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_client_ip(request):
+    remote_addr = (request.META.get('REMOTE_ADDR') or '').strip()
+    trusted_proxies = set(getattr(settings, 'TRUSTED_PROXY_IPS', set()) or set())
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
+    if x_forwarded_for and remote_addr in trusted_proxies:
         return x_forwarded_for.split(',')[0].strip()
-    return (request.META.get('REMOTE_ADDR') or '').strip()
+    return remote_addr
 
 
 def _is_whitelisted_ip(ip):
@@ -103,9 +109,6 @@ def track_activity(request):
         meta['ip'] = ip
         meta['user_agent'] = request.META.get('HTTP_USER_AGENT', '')
         
-        # [新增] 打印调试信息到终端，方便你看有没有收到
-        print(f"--- TRACKING --- User: {request.user}, Action: {action}, Target: {target}")
-
         # 保存到数据库
         UserActivity.objects.create(
             user=request.user if request.user.is_authenticated else None,
@@ -114,9 +117,9 @@ def track_activity(request):
             meta_data=meta
         )
         return JsonResponse({'status': 'success'})
-    except Exception as e:
-        print(f"--- TRACKING ERROR --- {e}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    except Exception:
+        logger.exception('track_activity failed')
+        return JsonResponse({'status': 'error', 'message': 'invalid_request'}, status=400)
 
 def index(request):
     """

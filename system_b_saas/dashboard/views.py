@@ -1,6 +1,7 @@
 import json
 import re
 import hashlib
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
@@ -36,6 +37,9 @@ from resources.models import Availability, EmailTemplate, Resource, ResourceProf
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
 from tenants.models import SaaSUser, StaffInvite, Tenant
+
+
+logger = logging.getLogger(__name__)
 
 
 def _is_http_url(value):
@@ -224,16 +228,24 @@ def _ensure_booking_public_access(request, booking):
 
 
 def _client_ip(request):
+    remote_addr = (request.META.get("REMOTE_ADDR") or "").strip()
+    trusted_proxies = set(getattr(settings, "TRUSTED_PROXY_IPS", set()) or set())
     forwarded = (request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
-    if forwarded:
+    if forwarded and remote_addr in trusted_proxies:
         return forwarded.split(",")[0].strip()
-    return (request.META.get("REMOTE_ADDR") or "").strip() or "unknown"
+    return remote_addr or "unknown"
 
 
 def _cache_bump(key, ttl_seconds):
-    current = int(cache.get(key) or 0) + 1
-    cache.set(key, current, ttl_seconds)
-    return current
+    cache.add(key, 0, ttl_seconds)
+    try:
+        current = cache.incr(key)
+    except ValueError:
+        cache.set(key, 1, ttl_seconds)
+        current = 1
+    if hasattr(cache, 'touch'):
+        cache.touch(key, ttl_seconds)
+    return int(current)
 
 
 def _public_booking_is_rate_limited(request, tenant_slug, fingerprint=""):
@@ -464,8 +476,9 @@ class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
                         is_active=True,
                         sort_order=max_order,
                     )
-        except Exception as exc:
-            messages.error(request, f"店舗登録に失敗しました: {exc}")
+        except Exception:
+            logger.exception('shop register failed for user_id=%s', getattr(request.user, 'id', None))
+            messages.error(request, "店舗登録に失敗しました。入力内容を確認して再試行してください。")
             return self.get(request, *args, **kwargs)
 
         request.session.pop("allow_shop_signup", None)
@@ -1754,8 +1767,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             messages.error(request, "スタッフユーザーが見つかりません。")
         except ServicePreset.DoesNotExist:
             messages.error(request, "サービスプリセットが見つかりません。")
-        except Exception as exc:
-            messages.error(request, f"エラー: {exc}")
+        except Exception:
+            logger.exception('tenant dashboard operation failed tenant_id=%s', getattr(tenant, 'id', None))
+            messages.error(request, "処理中にエラーが発生しました。時間をおいて再試行してください。")
 
         redirect_url = f"{reverse('tenant_dashboard')}?tab={target_tab}"
         if request.user.is_superuser and tenant:

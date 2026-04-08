@@ -5,12 +5,18 @@ Django settings for System B (SaaS API).
 from pathlib import Path
 import os 
 import json
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-saas-key')
-
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+SECRET_KEY = (os.environ.get('SECRET_KEY') or '').strip()
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'dev-only-unsafe-secret-change-me'
+    else:
+        raise ImproperlyConfigured('SECRET_KEY environment variable is required when DEBUG=False')
 
 # =========================================================
 # 1. 域名与主机配置
@@ -34,6 +40,18 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
 ]
+
+_allowed_hosts_raw = (os.environ.get('ALLOWED_HOSTS') or '').strip()
+if _allowed_hosts_raw:
+    env_allowed_hosts = [h.strip() for h in _allowed_hosts_raw.split(',') if h.strip()]
+    # Keep internal Docker hostnames always allowed for A->B service calls.
+    ALLOWED_HOSTS = sorted(set(ALLOWED_HOSTS + env_allowed_hosts))
+
+TRUSTED_PROXY_IPS = {
+    ip.strip()
+    for ip in (os.environ.get('TRUSTED_PROXY_IPS') or '').split(',')
+    if ip.strip()
+}
 
 # 代理设置 (Nginx 后面需要)
 USE_X_FORWARDED_HOST = True
@@ -167,8 +185,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'keimarustudio@gmail.com'
-EMAIL_HOST_PASSWORD = 'tmrh pdor cxjm zssu'
+EMAIL_HOST_USER = (os.environ.get('EMAIL_HOST_USER') or '').strip()
+EMAIL_HOST_PASSWORD = (os.environ.get('EMAIL_HOST_PASSWORD') or '').strip()
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
@@ -223,6 +241,11 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 SYSTEM_B_SSO_CODE_TTL_SECONDS = int(os.environ.get('SYSTEM_B_SSO_CODE_TTL_SECONDS', '60'))
+SAAS_SIGNING_HEADER = os.environ.get('SAAS_SIGNING_HEADER', 'X-Tenant-Signature')
+SAAS_TIMESTAMP_HEADER = os.environ.get('SAAS_TIMESTAMP_HEADER', 'X-Tenant-Timestamp')
+SAAS_SIGNATURE_MAX_SKEW_SECONDS = int(os.environ.get('SAAS_SIGNATURE_MAX_SKEW_SECONDS', '300'))
+SAAS_SIGNATURE_REPLAY_TTL_SECONDS = int(os.environ.get('SAAS_SIGNATURE_REPLAY_TTL_SECONDS', '300'))
+SYSTEM_B_SSO_EXCHANGE_IP_LIMIT_PER_MIN = int(os.environ.get('SYSTEM_B_SSO_EXCHANGE_IP_LIMIT_PER_MIN', '60'))
 SYSTEM_B_SSO_CLIENTS = {}
 SYSTEM_B_PUBLIC_BASE_URL = os.environ.get('SYSTEM_B_PUBLIC_BASE_URL', '').strip()
 

@@ -1,6 +1,30 @@
 import requests
 from django.conf import settings
 import datetime
+import hashlib
+import hmac
+import time
+
+
+class TenantHMACAuth(requests.auth.AuthBase):
+    def __init__(self, secret, signature_header='X-Tenant-Signature', timestamp_header='X-Tenant-Timestamp'):
+        self.secret = (secret or '').encode('utf-8')
+        self.signature_header = signature_header
+        self.timestamp_header = timestamp_header
+
+    def __call__(self, r):
+        timestamp = str(int(time.time()))
+        body = r.body if r.body is not None else b''
+        if isinstance(body, str):
+            body = body.encode('utf-8')
+        body_hash = hashlib.sha256(body).hexdigest()
+        path_with_query = r.path_url or '/'
+        method = (r.method or 'GET').upper()
+        message = f"{method}\n{path_with_query}\n{timestamp}\n{body_hash}".encode('utf-8')
+        signature = hmac.new(self.secret, message, hashlib.sha256).hexdigest()
+        r.headers[self.timestamp_header] = timestamp
+        r.headers[self.signature_header] = signature
+        return r
 
 class SaaSClient:
     """
@@ -11,13 +35,20 @@ class SaaSClient:
         # [基础配置]
         # 默认端口假定为 8001，路径包含 /integration
         self.api_base_url = getattr(settings, 'SAAS_API_URL', 'http://127.0.0.1:8001/api/v1/integration')
-        
-        self.api_key = getattr(settings, 'veludo_secret_key_123', '') 
+        self.api_key = getattr(settings, 'SAAS_API_KEY', '')
+        self.signature_header = getattr(settings, 'SAAS_SIGNING_HEADER', 'X-Tenant-Signature')
+        self.timestamp_header = getattr(settings, 'SAAS_TIMESTAMP_HEADER', 'X-Tenant-Timestamp')
         
         self.headers = {
             "X-Tenant-Key": settings.SAAS_API_KEY,
             'Content-Type': 'application/json',
         }
+        self.session = requests.Session()
+        self.session.auth = TenantHMACAuth(
+            secret=self.api_key,
+            signature_header=self.signature_header,
+            timestamp_header=self.timestamp_header,
+        )
 
     # ========================================================
     # Identity (A/B user role sync)
@@ -37,7 +68,7 @@ class SaaSClient:
         if not params:
             return None
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             if response.status_code == 404:
                 return None
             response.raise_for_status()
@@ -64,7 +95,7 @@ class SaaSClient:
         if 'user_id' not in payload and 'discord_uid' not in payload:
             return None
         try:
-            response = requests.patch(url, headers=self.headers, json=payload, timeout=5)
+            response = self.session.patch(url, headers=self.headers, json=payload, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -100,7 +131,7 @@ class SaaSClient:
         if end_date: params['end'] = end_date
         
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             if response.status_code == 400:
                 print(f"❌ SaaS 400 Error Detail: {response.text}")
             response.raise_for_status()
@@ -121,7 +152,7 @@ class SaaSClient:
             'end': end_time      
         }
         try:
-            response = requests.post(url, headers=self.headers, json=data, timeout=5)
+            response = self.session.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -142,7 +173,7 @@ class SaaSClient:
         print(f"[SaaSClient] Requesting URL: {url}") # Debug
         
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             
             if response.status_code == 404:
                 print("[SaaSClient] 404 Not Found (Normal for new users)")
@@ -169,7 +200,7 @@ class SaaSClient:
             'week_config': week_config # JSON Object
         }
         try:
-            response = requests.post(url, headers=self.headers, json=data, timeout=5)
+            response = self.session.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -185,7 +216,7 @@ class SaaSClient:
         """
         url = f"{self.api_base_url}/availability/{availability_id}/"
         try:
-            response = requests.delete(url, headers=self.headers, timeout=5)
+            response = self.session.delete(url, headers=self.headers, timeout=5)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -210,7 +241,7 @@ class SaaSClient:
             # [修正] 之前这里写错了，这里不需要再加 /api/v1/integration
             url = f"{self.api_base_url}/availability/"
             
-            response = requests.get(url, params=params, headers=self.headers, timeout=5)
+            response = self.session.get(url, params=params, headers=self.headers, timeout=5)
             if response.status_code == 200:
                 return response.json() 
             return []
@@ -231,7 +262,7 @@ class SaaSClient:
             'mode': 'calendar_admin' # 【关键】告诉 System B 启用 admin 计算逻辑
         }
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -253,7 +284,7 @@ class SaaSClient:
         
         try:
             print(f"[SaaSClient] Getting Templates from: {url}")
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -275,7 +306,7 @@ class SaaSClient:
         
         try:
             print(f"[SaaSClient] Saving Template to: {url}")
-            response = requests.post(url, headers=self.headers, json=data, timeout=5)
+            response = self.session.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -301,7 +332,7 @@ class SaaSClient:
         if course_duration_minutes is not None:
             data['course_duration_minutes'] = int(course_duration_minutes)
         try:
-            response = requests.post(url, headers=self.headers, json=data, timeout=5)
+            response = self.session.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -344,7 +375,7 @@ class SaaSClient:
 
         try:
             print(f"[SaaSClient] Requesting: {url} with params {params}")
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             
             # print(f"[SaaSClient] Raw Response Status: {response.status_code}")
             
@@ -358,7 +389,7 @@ class SaaSClient:
         """取消预约"""
         url = f"{self.api_base_url}/bookings/{booking_id}/"
         try:
-            response = requests.delete(url, headers=self.headers, timeout=5)
+            response = self.session.delete(url, headers=self.headers, timeout=5)
             if response.status_code == 204: return True
             return False
         except requests.RequestException as e:
@@ -370,7 +401,7 @@ class SaaSClient:
         url = f"{self.api_base_url}/bookings/{booking_id}/"
         data = {'status': 'COMPLETED'}
         try:
-            response = requests.patch(url, headers=self.headers, json=data, timeout=5)
+            response = self.session.patch(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -394,7 +425,7 @@ class SaaSClient:
         if medias is not None:
             data['medias'] = medias
         try:
-            response = requests.post(url, headers=self.headers, json=data, timeout=5)
+            response = self.session.post(url, headers=self.headers, json=data, timeout=5)
             response.raise_for_status()
             result = response.json()
             return result.get('saas_id')
@@ -415,7 +446,7 @@ class SaaSClient:
             params['external_id'] = str(external_id)
 
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = self.session.get(url, headers=self.headers, params=params, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -429,7 +460,7 @@ class SaaSClient:
         """
         url = f"{self.api_base_url}/resources/{resource_id}/"
         try:
-            response = requests.get(url, headers=self.headers, timeout=5)
+            response = self.session.get(url, headers=self.headers, timeout=5)
             if response.status_code == 404:
                 return None
             response.raise_for_status()
@@ -460,7 +491,7 @@ class SaaSClient:
             return {}
 
         try:
-            response = requests.patch(url, headers=self.headers, json=payload, timeout=5)
+            response = self.session.patch(url, headers=self.headers, json=payload, timeout=5)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:

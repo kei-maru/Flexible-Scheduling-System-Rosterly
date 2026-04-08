@@ -2,6 +2,10 @@
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.core.files.base import ContentFile
 import requests
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 class MySocialAccountAdapter(DefaultSocialAccountAdapter):
     def populate_user(self, request, sociallogin, data):
@@ -39,10 +43,10 @@ class MySocialAccountAdapter(DefaultSocialAccountAdapter):
         if discord_id_num and avatar_hash:
             avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id_num}/{avatar_hash}.png"
             try:
-                response = requests.get(avatar_url)
+                response = requests.get(avatar_url, timeout=5)
                 if response.status_code == 200:
                     user.avatar.save(f"{user.username}_discord.png", ContentFile(response.content), save=False)
-            except Exception as e:
-                print(f"Failed to download discord avatar: {e}")
+            except Exception as exc:
+                logger.warning("Failed to download discord avatar uid=%s err=%s", discord_id_num, exc)
 
         return user

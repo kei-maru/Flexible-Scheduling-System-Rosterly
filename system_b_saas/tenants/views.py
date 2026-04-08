@@ -6,8 +6,10 @@ from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
 from django.conf import settings
 from django.contrib.auth import logout
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -23,6 +25,29 @@ import logging
 
 
 logger = logging.getLogger(__name__)
+
+
+def _client_ip(request):
+    remote_addr = (request.META.get('REMOTE_ADDR') or '').strip()
+    trusted_proxies = set(getattr(settings, 'TRUSTED_PROXY_IPS', set()) or set())
+    forwarded = (request.META.get('HTTP_X_FORWARDED_FOR') or '').strip()
+    if forwarded and remote_addr in trusted_proxies:
+        return forwarded.split(',')[0].strip()
+    return remote_addr or 'unknown'
+
+
+def _sso_exchange_rate_limited(request):
+    ip = _client_ip(request)
+    key = f"sso_exchange:{ip}"
+    cache.add(key, 0, 60)
+    try:
+        count = int(cache.incr(key))
+    except ValueError:
+        cache.set(key, 1, 60)
+        count = 1
+    if hasattr(cache, 'touch'):
+        cache.touch(key, 60)
+    return count > int(getattr(settings, 'SYSTEM_B_SSO_EXCHANGE_IP_LIMIT_PER_MIN', 60) or 60)
 
 
 def _hash_code(raw_code: str) -> str:
@@ -195,6 +220,10 @@ def sso_authorize(request):
 @require_POST
 @csrf_exempt
 def sso_exchange(request):
+    if _sso_exchange_rate_limited(request):
+        logger.warning('SSO exchange rejected: rate limited ip=%s', _client_ip(request))
+        return JsonResponse({'error': 'rate_limited'}, status=429)
+
     payload = {}
     if request.content_type and 'application/json' in request.content_type:
         try:
@@ -236,16 +265,20 @@ def sso_exchange(request):
         logger.warning('SSO exchange rejected: code not found')
         return JsonResponse({'error': 'invalid_grant'}, status=400)
 
-    if auth_code.used_at is not None:
-        logger.warning('SSO exchange rejected: code already used, id=%s', auth_code.id)
-        return JsonResponse({'error': 'invalid_grant'}, status=400)
-
     if auth_code.is_expired:
         logger.warning('SSO exchange rejected: code expired, id=%s', auth_code.id)
         return JsonResponse({'error': 'invalid_grant'}, status=400)
 
-    auth_code.used_at = timezone.now()
-    auth_code.save(update_fields=['used_at'])
+    now = timezone.now()
+    with transaction.atomic():
+        consumed = SSOAuthCode.objects.filter(
+            id=auth_code.id,
+            used_at__isnull=True,
+            expires_at__gt=now,
+        ).update(used_at=now)
+    if consumed != 1:
+        logger.warning('SSO exchange rejected: code already consumed concurrently, id=%s', auth_code.id)
+        return JsonResponse({'error': 'invalid_grant'}, status=400)
 
     user = auth_code.user
     discord_social = SocialAccount.objects.filter(user=user, provider='discord').only('uid').first()

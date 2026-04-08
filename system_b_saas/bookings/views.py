@@ -14,6 +14,7 @@ from django.db.models import Q
 from django.conf import settings
 from django.urls import reverse
 import secrets
+import logging
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # 👇 导入我们刚才写好的 Tasks
@@ -26,6 +27,9 @@ from resources.services.service_mapping import (
     resolve_service_by_duration,
 )
 from bookings.models import Booking
+
+
+logger = logging.getLogger(__name__)
 
 
 def _is_http_url(value):
@@ -193,8 +197,9 @@ class IntegrationBookingView(APIView):
                     lambda: process_new_booking.delay(booking.id)
                 )
 
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
+        except Exception:
+            logger.exception('integration booking create failed tenant_id=%s', getattr(request.tenant, 'id', None))
+            return Response({'error': 'internal_server_error'}, status=500)
 
         return Response({
             'booking_id': str(booking.id),
@@ -217,8 +222,7 @@ class IntegrationBookingView(APIView):
         resource_id = request.query_params.get('resource_id')
         sync_all = request.query_params.get('sync_all') # ✅ 关键：获取管理员通行证
 
-        print(f"\n========== SYSTEM B DEBUG ==========")
-        print(f"Params: ID={query_id}, Name={query_name}, SyncAll={sync_all}")
+        logger.debug('bookings get params customer_id=%s customer_name=%s sync_all=%s', query_id, query_name, sync_all)
 
         # 2. 初始化 Queryset
         queryset = Booking.objects.filter(tenant=request.tenant).select_related('resource').order_by('-start_time')
@@ -237,7 +241,7 @@ class IntegrationBookingView(APIView):
             
         # 4. 应用 User 筛选
         if filter_condition:
-            print(f"Applying Q Filter: {filter_condition}")
+            logger.debug('bookings get applying q filter=%s', filter_condition)
             queryset = queryset.filter(filter_condition)
         
         # 5. 如果没有查 User，则检查其他条件 (互斥逻辑)
@@ -256,17 +260,16 @@ class IntegrationBookingView(APIView):
             
             # --- 分支 C: 管理员全量同步 (关键修复) ---
             elif sync_all == 'true':
-                 print("Applying Admin Sync (All Data)")
-                 # 不做任何过滤，直接返回全量数据
-                 pass
+                logger.debug('bookings get applying admin sync_all')
+                # 不做任何过滤，直接返回全量数据
+                pass
                  
             # --- 分支 D: 没有任何有效条件 -> 拒绝返回 ---
             else:
-                 print("No valid filter params -> returning empty list.")
+                 logger.info('bookings get rejected due to missing query params')
                  return Response([])
 
-        print(f"Result Count: {queryset.count()}")
-        print(f"========== SYSTEM B DEBUG END ==========\n")
+        logger.debug('bookings get result_count=%s', queryset.count())
         return self._serialize_response(queryset)
 
     def _serialize_response(self, queryset):

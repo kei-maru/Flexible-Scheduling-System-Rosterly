@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
+import hmac
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode, urlsplit
 
 import requests
 
 
 def iso(dt: datetime) -> str:
     return dt.replace(microsecond=0).isoformat()
+
+
+def build_signature(secret: str, method: str, full_url: str, timestamp: str, body_bytes: bytes) -> str:
+    parsed = urlsplit(full_url)
+    path_with_query = parsed.path
+    if parsed.query:
+        path_with_query = f"{parsed.path}?{parsed.query}"
+    body_hash = hashlib.sha256(body_bytes).hexdigest()
+    message = f"{method.upper()}\n{path_with_query}\n{timestamp}\n{body_hash}".encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
 
 def main() -> int:
@@ -22,6 +36,8 @@ def main() -> int:
     saas_api_url = os.environ.get("SAAS_API_URL", f"{system_b_root}/api/v1/integration")
     saas_api_key = os.environ.get("SAAS_API_KEY", "")
     saas_api_key_header = os.environ.get("SAAS_API_KEY_HEADER", "X-Tenant-Key")
+    sig_header = os.environ.get("SAAS_SIGNING_HEADER", "X-Tenant-Signature")
+    ts_header = os.environ.get("SAAS_TIMESTAMP_HEADER", "X-Tenant-Timestamp")
 
     print("=== System B Connectivity Check ===")
     print(f"SYSTEM_B_ROOT={system_b_root}")
@@ -29,7 +45,6 @@ def main() -> int:
     print(f"SAAS_API_KEY_HEADER={saas_api_key_header}")
     print(f"SAAS_API_KEY_SET={'yes' if saas_api_key else 'no'}")
 
-    headers = {saas_api_key_header: saas_api_key}
     start = args.start or iso(datetime.now(timezone.utc))
     end = args.end or iso(datetime.now(timezone.utc) + timedelta(days=1))
 
@@ -38,6 +53,16 @@ def main() -> int:
         "resource_id": args.resource_id,
         "start": start,
         "end": end,
+    }
+
+    query = urlencode(params)
+    full_url = f"{url}?{query}"
+    timestamp = str(int(time.time()))
+    signature = build_signature(saas_api_key, "GET", full_url, timestamp, b"")
+    headers = {
+        saas_api_key_header: saas_api_key,
+        ts_header: timestamp,
+        sig_header: signature,
     }
 
     print(f"\nGET {url}")

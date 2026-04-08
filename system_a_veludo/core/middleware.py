@@ -1,4 +1,5 @@
 from django.http import JsonResponse, HttpResponseForbidden
+from django.conf import settings
 
 from core.models import BlockedIP
 
@@ -8,11 +9,13 @@ class BlockBlockedIPMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        remote_addr = (request.META.get('REMOTE_ADDR') or '').strip()
+        trusted_proxies = set(getattr(settings, 'TRUSTED_PROXY_IPS', set()) or set())
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
+        if x_forwarded_for and remote_addr in trusted_proxies:
             ip = x_forwarded_for.split(',')[0].strip()
         else:
-            ip = (request.META.get('REMOTE_ADDR') or '').strip()
+            ip = remote_addr
 
         if ip:
             blocked = BlockedIP.objects.filter(ip=ip, is_active=True).first()

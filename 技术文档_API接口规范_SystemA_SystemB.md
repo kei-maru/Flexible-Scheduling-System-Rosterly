@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-04-03  
+**最后更新**: 2026-04-08  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -634,6 +634,41 @@
   - `a_role=CONSUMER` 时，仅当存在“真实特权证据”才保留 `STAFF/ADMIN`：
     - `is_staff=True` 或 `tenant_id` 非空。
   - 无证据的新用户按 `CONSUMER` 落库。
+
+  ### 4.10 SSO Exchange 安全收口（2026-04-08）
+
+  - `POST /api/v1/auth/sso/exchange` 新增 IP 级限流：
+    - 默认阈值：每 IP 每分钟 `60` 次（`SYSTEM_B_SSO_EXCHANGE_IP_LIMIT_PER_MIN`）
+    - 超限返回：`429 {"error": "rate_limited"}`
+  - 授权码消费从“读后改”升级为“原子消费”：
+    - 通过事务 + 条件更新（`used_at is null`）确保同一 code 只会被成功消费一次
+    - 并发二次消费统一返回：`400 {"error": "invalid_grant"}`
+
+  ### 3.6 Integration 鉴权安全升级（2026-04-08）
+
+  - 原有 Header 保留：`X-Tenant-Key: <api_key>`
+  - 新增强制签名头：
+    - `X-Tenant-Timestamp: <unix_ts>`
+    - `X-Tenant-Signature: <hmac_sha256>`
+  - 签名串格式：
+
+  ```text
+  METHOD + "\n" + PATH_WITH_QUERY + "\n" + TIMESTAMP + "\n" + SHA256(BODY_BYTES)
+  ```
+
+  - 校验规则：
+    - 时间漂移窗口：默认 `300s`（`SAAS_SIGNATURE_MAX_SKEW_SECONDS`）
+    - 签名使用 `tenant.api_secret` 验证
+    - 同签名+时间戳重放拦截（cache，TTL 默认 `300s`）
+  - 失败行为：签名缺失、时间戳非法、过期、签名不匹配、重放命中均拒绝访问。
+
+  ### 2.2 /accounts/api/availability/ 失败响应规范（2026-04-08）
+
+  - 场景：System A 代理 System B 排班创建。
+  - 行为更新：
+    - A 到 B 的 POST 统一走带签名会话（`SaaSClient.session`）。
+    - A 侧将上游错误统一规范为：`{"error": "可读错误信息"}`。
+  - 前端收益：避免出现 `Error: Unknown`，可直接展示明确失败原因（如参数错误、鉴权失败、冲突等）。
 
 ---
 

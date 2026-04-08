@@ -107,7 +107,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-veludo_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-zym02060}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     command: postgres -c 'shared_buffers=64MB' -c 'max_connections=50'
     ports:
       - "5432:5432"

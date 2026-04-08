@@ -19,9 +19,11 @@ from uuid import UUID
 import pytz
 from zoneinfo import ZoneInfo
 from django.db.models import Min, Max
+import logging
 
 
 JST = ZoneInfo("Asia/Tokyo")
+logger = logging.getLogger(__name__)
 # =========================================================
 # 核心算法 A: 针对 Guest 搜索 (纯净空闲时间)
 # =========================================================
@@ -656,9 +658,9 @@ class RecurringConfigView(APIView):
         except Resource.DoesNotExist:
             print("[System B] Resource not found.")
             return Response({})
-        except Exception as e:
-            print(f"[System B] Error in RecurringConfigView: {e}")
-            return Response({'error': str(e)}, status=500)
+        except Exception:
+            logger.exception('RecurringConfigView failed tenant_id=%s', getattr(request.tenant, 'id', None))
+            return Response({'error': 'internal_server_error'}, status=500)
 
 class ScheduleTemplateView(APIView):
     permission_classes = [IsTenantAuthorized]
@@ -716,8 +718,9 @@ class ScheduleTemplateView(APIView):
 
         except Resource.DoesNotExist:
             return Response({'error': 'Resource not found'}, status=404)
-        except Exception as e:
-            return Response({'error': str(e)}, status=400)
+        except Exception:
+            logger.exception('Schedule template save failed tenant_id=%s', getattr(request.tenant, 'id', None))
+            return Response({'error': 'invalid_request'}, status=400)
 
     # 删除模版
     def delete(self, request):
@@ -731,8 +734,9 @@ class ScheduleTemplateView(APIView):
                 resource__tenant=request.tenant
             ).delete()
             return Response(status=204)
-        except Exception as e:
-            return Response({'error': str(e)}, status=400)
+        except Exception:
+            logger.exception('Schedule template delete failed tenant_id=%s', getattr(request.tenant, 'id', None))
+            return Response({'error': 'invalid_request'}, status=400)
 
 
 # ---------------------------------------------------------

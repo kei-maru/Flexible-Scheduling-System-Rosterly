@@ -4,13 +4,19 @@ Django settings for System A (Veludo Main).
 
 from pathlib import Path
 import os 
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-prod-key')
-
 # 自动判断：如果在 .env 里写了 DEBUG=True，就是开发模式
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+SECRET_KEY = (os.environ.get('SECRET_KEY') or '').strip()
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'dev-only-unsafe-secret-change-me'
+    else:
+        raise ImproperlyConfigured('SECRET_KEY environment variable is required when DEBUG=False')
 
 # =========================================================
 # 1. 域名与主机配置 (同时兼容本地和线上)
@@ -150,8 +156,10 @@ MEDIA_ROOT = '/app/media'        # 指向 Docker 内部路径
 # 无论是在本地还是线上，只要在 Docker 里，这个名字都是通用的
 SYSTEM_B_ROOT = os.environ.get('SYSTEM_B_ROOT', 'http://system-b:8001')
 SAAS_API_URL = os.environ.get('SAAS_API_URL', f'{SYSTEM_B_ROOT}/api/v1/integration')
-SAAS_API_KEY = os.environ.get('SAAS_API_KEY', 'veludo_secret_key_123')
+SAAS_API_KEY = (os.environ.get('SAAS_API_KEY') or '').strip()
 SAAS_API_KEY_HEADER = os.environ.get('SAAS_API_KEY_HEADER', 'X-Tenant-Key')
+SAAS_SIGNING_HEADER = os.environ.get('SAAS_SIGNING_HEADER', 'X-Tenant-Signature')
+SAAS_TIMESTAMP_HEADER = os.environ.get('SAAS_TIMESTAMP_HEADER', 'X-Tenant-Timestamp')
 CAST_SOURCE = os.environ.get('CAST_SOURCE', 'remote')
 CAST_SOURCE_FALLBACK_LOCAL = os.environ.get('CAST_SOURCE_FALLBACK_LOCAL', 'True') == 'True'
 CAST_SOURCE_SKIP_LOCAL_LINK = os.environ.get('CAST_SOURCE_SKIP_LOCAL_LINK', 'False') == 'True'
@@ -217,3 +225,11 @@ CELERY_TASK_TIME_LIMIT = 360
 TRACKING_BOT_WINDOW_SECONDS = int(os.environ.get('TRACKING_BOT_WINDOW_SECONDS', '600'))
 TRACKING_BOT_THRESHOLD = int(os.environ.get('TRACKING_BOT_THRESHOLD', '300'))
 TRACKING_IP_WHITELIST = [ip.strip() for ip in os.environ.get('TRACKING_IP_WHITELIST', '127.0.0.1,::1').split(',') if ip.strip()]
+TRUSTED_PROXY_IPS = {
+    ip.strip()
+    for ip in (os.environ.get('TRUSTED_PROXY_IPS') or '').split(',')
+    if ip.strip()
+}
+
+if not SAAS_API_KEY and not DEBUG:
+    raise ImproperlyConfigured('SAAS_API_KEY environment variable is required when DEBUG=False')

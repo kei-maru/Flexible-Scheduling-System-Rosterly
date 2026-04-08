@@ -10,7 +10,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-dev_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     # 🚀 ARM 12GB 专属高性能配置
     command: postgres -c 'shared_buffers=2GB' -c 'max_connections=200' -c 'work_mem=16MB'
     ports:
@@ -52,7 +52,7 @@ services:
       - DB_HOST=rosterly-db
       - DB_PORT=5432
       - DB_NAME=saas_db
-      - ALLOWED_HOSTS=*
+      - ALLOWED_HOSTS=rosterlyreverse.com,www.rosterlyreverse.com,api.rosterlyreverse.com,localhost,127.0.0.1
       - CELERY_BROKER_URL=redis://rosterly-redis:6379/0
       - CELERY_RESULT_BACKEND=redis://rosterly-redis:6379/0
 

@@ -13,10 +13,14 @@ import pytz
 import requests
 import os  
 import secrets
+import logging
 from email.mime.image import MIMEImage 
 
 from resources.models import EmailTemplate
 from bookings.models import Booking
+
+
+logger = logging.getLogger(__name__)
 
 
 def _is_http_url(value):
@@ -374,5 +378,14 @@ def _trigger_webhook_logic(booking):
         "end_time": booking.end_time.isoformat(),
         "status": booking.status
     }
-    requests.post(tenant.webhook_url, json=payload, timeout=5)
-    print(f"[Webhook] Sent for booking {booking.id}")
+    try:
+        resp = requests.post(tenant.webhook_url, json=payload, timeout=5)
+        resp.raise_for_status()
+        logger.info("Webhook sent booking_id=%s tenant_id=%s", booking.id, getattr(tenant, 'id', None))
+    except requests.RequestException as exc:
+        logger.warning(
+            "Webhook delivery failed booking_id=%s tenant_id=%s err=%s",
+            booking.id,
+            getattr(tenant, 'id', None),
+            exc,
+        )

@@ -87,7 +87,7 @@ class SharedBaseMixin(LoginRequiredMixin):
         except Exception as exc:
             logger.exception("Shared dashboard dispatch failed", exc_info=exc)
             logout(request)
-            messages.error(request, f"画面表示エラー: {exc}")
+            messages.error(request, "画面表示でエラーが発生しました。再度ログインしてください。")
             return redirect("dashboard_login")
 
     def _tenant(self):

@@ -57,7 +57,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 SYSTEM_B_ROOT = getattr(settings, "SYSTEM_B_ROOT", "http://system-b:8001")
-SYSTEM_B_API_KEY = getattr(settings, "SAAS_API_KEY", "veludo_secret_key_123")
+SYSTEM_B_API_KEY = getattr(settings, "SAAS_API_KEY", "")
 SYSTEM_B_API_KEY_HEADER = getattr(settings, "SAAS_API_KEY_HEADER", "X-Tenant-Key")
 SYSTEM_B_SSO_AUTHORIZE_URL = getattr(settings, "SYSTEM_B_SSO_AUTHORIZE_URL", f"{SYSTEM_B_ROOT}/sso/authorize")
 SYSTEM_B_SSO_EXCHANGE_URL = getattr(settings, "SYSTEM_B_SSO_EXCHANGE_URL", f"{SYSTEM_B_ROOT}/api/v1/auth/sso/exchange")
@@ -155,9 +155,10 @@ def _push_email_to_system_b(user, email_value: str) -> bool:
         payload['discord_uid'] = discord_uid
 
     try:
-        resp = requests.patch(
+        client = SaaSClient()
+        resp = client.session.patch(
             SYSTEM_B_IDENTITY_URL,
-            headers={SYSTEM_B_API_KEY_HEADER: SYSTEM_B_API_KEY},
+            headers=client.headers,
             json=payload,
             timeout=3,
         )
@@ -247,9 +248,10 @@ def _refresh_shadow_role_from_system_b(user):
             if local_discord_uid:
                 params['discord_uid'] = local_discord_uid
 
-            resp = requests.get(
+            client = SaaSClient()
+            resp = client.session.get(
                 SYSTEM_B_IDENTITY_URL,
-                headers={SYSTEM_B_API_KEY_HEADER: SYSTEM_B_API_KEY},
+                headers=client.headers,
                 params=params,
                 timeout=3,
             )
@@ -812,14 +814,35 @@ class AvailabilityAPIView(APIView):
         client = SaaSClient()
         try:
             url = f"{client.api_base_url}/availability/"
-            resp = requests.post(url, headers=client.headers, json=payload, timeout=10)
+            # Use signed tenant session so POST body is included in HMAC and auth stays consistent.
+            resp = client.session.post(url, headers=client.headers, json=payload, timeout=10)
             
             if resp.status_code == 201:
                 return Response(resp.json(), status=201)
-            else:
-                try: err = resp.json()
-                except: err = resp.text
-                return Response(err, status=resp.status_code)
+
+            try:
+                err_payload = resp.json()
+            except ValueError:
+                err_payload = None
+
+            error_message = 'Request failed'
+            if isinstance(err_payload, dict):
+                error_message = (
+                    err_payload.get('error')
+                    or err_payload.get('detail')
+                    or err_payload.get('message')
+                    or error_message
+                )
+            elif isinstance(err_payload, list) and err_payload:
+                first = err_payload[0]
+                if isinstance(first, dict):
+                    error_message = first.get('error') or first.get('detail') or str(first)
+                else:
+                    error_message = str(first)
+            elif resp.text:
+                error_message = resp.text[:300]
+
+            return Response({'error': error_message}, status=resp.status_code)
                 
         except Exception as e:
             return Response({'error': str(e)}, status=500)
@@ -1231,61 +1254,44 @@ class BookingCancelAPI(APIView):
 
 @login_required
 def availability_proxy(request):
-    print("----- System A Proxy Start -----")
-    print(f"DEBUG:收到请求: {request.method} {request.path}")
-    
+    client = SaaSClient()
     url = f"{SYSTEM_B_ROOT}/api/v1/integration/availability/"
-    headers = {
-        "X-Tenant-Key": SYSTEM_B_API_KEY,
-        "Content-Type": "application/json"
-    }
+    headers = dict(client.headers)
 
     try:
         if request.method == 'GET':
-            print("DEBUG: 正在转发 GET 请求...")
             params = request.GET.dict()
-            response = requests.get(url, params=params, headers=headers, timeout=5)
+            response = client.session.get(url, params=params, headers=headers, timeout=5)
             
         elif request.method == 'POST':
-            print("DEBUG: 正在处理 POST 请求...")
             try:
                 raw_body = request.body.decode('utf-8')
-                print(f"DEBUG: 原始 Request Body: {raw_body}")
                 payload = json.loads(raw_body)
-                print(f"DEBUG: 解析后的 Payload: {payload}")
-                print("DEBUG: 正在向 System B 发送 POST...")
-                response = requests.post(url, json=payload, headers=headers, timeout=5)
-            except json.JSONDecodeError as e:
-                print(f"ERROR: System A JSON 解析失败: {e}")
+                response = client.session.post(url, json=payload, headers=headers, timeout=5)
+            except json.JSONDecodeError:
                 return JsonResponse({'error': 'Invalid JSON format from Frontend'}, status=400)
 
         elif request.method == 'DELETE':
-            print("DEBUG: 正在转发 DELETE 请求...")
             payload = json.loads(request.body)
-            response = requests.delete(url, json=payload, headers=headers, timeout=5)
+            response = client.session.delete(url, json=payload, headers=headers, timeout=5)
             
         else:
             return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-        print(f"DEBUG: System B 响应状态码: {response.status_code}")
-        print(f"DEBUG: System B 响应内容: {response.text}")
 
         if response.status_code == 204:
             return JsonResponse({}, status=204)
 
         try:
             return JsonResponse(response.json(), status=response.status_code, safe=False)
-        except:
+        except Exception:
             return JsonResponse({'error': 'System B returned invalid data', 'details': response.text[:200]}, status=502)
 
-    except requests.exceptions.RequestException as e:
-        print(f"CRITICAL ERROR: 连接 System B 失败: {e}")
-        traceback.print_exc()
-        return JsonResponse({'error': f'Failed to connect to SaaS: {str(e)}'}, status=503)
-    except Exception as e:
-        print(f"CRITICAL ERROR: System A 内部未知错误: {e}")
-        traceback.print_exc()
-        return JsonResponse({'error': str(e)}, status=500)
+    except requests.exceptions.RequestException as exc:
+        logger.warning('availability proxy request failed err=%s', exc)
+        return JsonResponse({'error': 'Failed to connect to SaaS'}, status=503)
+    except Exception:
+        logger.exception('availability proxy unexpected failure')
+        return JsonResponse({'error': 'internal_server_error'}, status=500)
 
 class BookingCompleteAPI(APIView):
     permission_classes = [IsAuthenticated]
@@ -1696,6 +1702,40 @@ def admin_dashboard(request):
                         cache.delete_many(_identity_cache_keys(target_user))
                     except Exception as exc:
                         logger.warning("post role sync shadow upsert failed user_id=%s err=%s", target_user.id, exc)
+
+                    # Keep local flags aligned even when source-of-truth write happens in B.
+                    update_fields = []
+                    if target_user.saas_role != desired_role:
+                        target_user.saas_role = desired_role
+                        update_fields.append('saas_role')
+
+                    desired_is_staff = desired_role == 'ADMIN'
+                    if target_user.is_staff != desired_is_staff:
+                        target_user.is_staff = desired_is_staff
+                        update_fields.append('is_staff')
+
+                    desired_is_cast = desired_role in {'ADMIN', 'STAFF'}
+                    if target_user.is_cast != desired_is_cast:
+                        target_user.is_cast = desired_is_cast
+                        update_fields.append('is_cast')
+
+                    if update_fields:
+                        target_user.save(update_fields=update_fields)
+
+                    # Critical: role promotion to STAFF/ADMIN should always ensure
+                    # local CastProfile exists and push Resource up to System B.
+                    if desired_is_cast:
+                        cast_profile = _ensure_local_cast_profile(target_user)
+                        if cast_profile:
+                            try:
+                                sync_cast_profile_to_system_b(cast_profile)
+                            except Exception as exc:
+                                logger.warning(
+                                    "post role sync cast resource push failed user_id=%s err=%s",
+                                    target_user.id,
+                                    exc,
+                                )
+
                     messages.success(request, f"権限を更新しました（B -> A 同期済み）: {desired_role}")
                     return redirect('admin_dashboard')
 

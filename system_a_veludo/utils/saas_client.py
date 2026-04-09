@@ -36,6 +36,7 @@ class SaaSClient:
         # 默认端口假定为 8001，路径包含 /integration
         self.api_base_url = getattr(settings, 'SAAS_API_URL', 'http://127.0.0.1:8001/api/v1/integration')
         self.api_key = getattr(settings, 'SAAS_API_KEY', '')
+        self.api_secret = getattr(settings, 'SAAS_API_SECRET', self.api_key)
         self.signature_header = getattr(settings, 'SAAS_SIGNING_HEADER', 'X-Tenant-Signature')
         self.timestamp_header = getattr(settings, 'SAAS_TIMESTAMP_HEADER', 'X-Tenant-Timestamp')
         
@@ -45,7 +46,7 @@ class SaaSClient:
         }
         self.session = requests.Session()
         self.session.auth = TenantHMACAuth(
-            secret=self.api_key,
+            secret=self.api_secret,
             signature_header=self.signature_header,
             timestamp_header=self.timestamp_header,
         )

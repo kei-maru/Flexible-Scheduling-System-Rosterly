@@ -157,6 +157,7 @@ MEDIA_ROOT = '/app/media'        # 指向 Docker 内部路径
 SYSTEM_B_ROOT = os.environ.get('SYSTEM_B_ROOT', 'http://system-b:8001')
 SAAS_API_URL = os.environ.get('SAAS_API_URL', f'{SYSTEM_B_ROOT}/api/v1/integration')
 SAAS_API_KEY = (os.environ.get('SAAS_API_KEY') or '').strip()
+SAAS_API_SECRET = (os.environ.get('SAAS_API_SECRET') or SAAS_API_KEY).strip()
 SAAS_API_KEY_HEADER = os.environ.get('SAAS_API_KEY_HEADER', 'X-Tenant-Key')
 SAAS_SIGNING_HEADER = os.environ.get('SAAS_SIGNING_HEADER', 'X-Tenant-Signature')
 SAAS_TIMESTAMP_HEADER = os.environ.get('SAAS_TIMESTAMP_HEADER', 'X-Tenant-Timestamp')
@@ -233,3 +234,5 @@ TRUSTED_PROXY_IPS = {
 
 if not SAAS_API_KEY and not DEBUG:
     raise ImproperlyConfigured('SAAS_API_KEY environment variable is required when DEBUG=False')
+if not SAAS_API_SECRET and not DEBUG:
+    raise ImproperlyConfigured('SAAS_API_SECRET environment variable is required when DEBUG=False')

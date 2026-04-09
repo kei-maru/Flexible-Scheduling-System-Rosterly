@@ -97,13 +97,13 @@ def _should_preserve_staff_or_admin(user, role_hint: str) -> bool:
 
 
 def _public_sso_tenant_slug() -> str:
-    return str(getattr(settings, 'SYSTEM_B_PUBLIC_SSO_TENANT_SLUG', 'Veludo') or 'Veludo').strip()
+    return str(getattr(settings, 'SYSTEM_B_PUBLIC_SSO_TENANT_SLUG', 'rosterly') or 'rosterly').strip()
 
 
 def _public_sso_tenant_name() -> str:
     return str(
-        getattr(settings, 'SYSTEM_B_PUBLIC_SSO_TENANT_NAME', 'VR ASMR Salon Veludo')
-        or 'VR ASMR Salon Veludo'
+        getattr(settings, 'SYSTEM_B_PUBLIC_SSO_TENANT_NAME', 'Rosterly')
+        or 'Rosterly'
     ).strip()
 
 

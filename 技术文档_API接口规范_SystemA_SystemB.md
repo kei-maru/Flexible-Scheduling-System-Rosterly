@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-04-08  
+**最后更新**: 2026-04-09  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -128,6 +128,12 @@
 }
 ```
 说明：`slots` 为新字段，`start/end` 为兼容字段（第一个时段）。
+补充（2026-04-09）：
+- 若当前 Cast 尚未保存过周期排班，且所属店铺为 `CORE_TIME`，后端返回店铺级 `core_time_week_config` 作为默认 `week_config`。
+- 前端应将默认日期范围设为：
+  - `range_start=今天`
+  - `range_end=一个月后`
+- `FLEX_SHIFT` 前端默认启用时段为 `22:00-25:00`（HTML `time` 输入内部以跨日 `22:00-01:00` 表示）。
 
 #### `GET /accounts/api/availability/templates/?resource_id=<id>`
 
@@ -217,6 +223,19 @@
 
 前缀：`/api/v1/integration/`  
 统一 Header：`X-Tenant-Key`
+
+### 3.x Stripe / Subscription 配置补充（2026-04-09）
+
+- 管理后台订阅模块依赖以下环境变量：
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_PUBLISHABLE_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+  - `STRIPE_SUBSCRIPTION_PRICE_ID`
+  - `STRIPE_FIRST_MONTH_DISCOUNT_JPY`
+- Webhook Endpoint:
+  - `POST /dashboard/webhooks/stripe/`
+- 当前 Basic plan 展示价：
+  - `5000 JPY / month`
 
 ### 3.1 资源同步
 

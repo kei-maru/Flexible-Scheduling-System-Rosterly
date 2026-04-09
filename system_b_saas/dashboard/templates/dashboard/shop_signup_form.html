@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>店舗登録 | Rosterly</title>
   <style>
-    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--line:#e2e8f0;--muted:#64748b;--accent:#3730a3}
+    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--line:#e2e8f0;--muted:#64748b;--accent:#0f766e;--accent2:#0f172a}
     *{box-sizing:border-box}
-    body{margin:0;background:radial-gradient(circle at 20% 15%,rgba(55,48,163,.08),transparent 35%),var(--bg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI";color:var(--text)}
+    body{margin:0;background:radial-gradient(circle at 20% 15%,rgba(15,118,110,.08),transparent 35%),radial-gradient(circle at 85% 18%,rgba(15,23,42,.08),transparent 28%),var(--bg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI";color:var(--text)}
     .wrap{min-height:100vh;display:grid;place-items:center;padding:22px}
-    .card{width:min(840px,100%);background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 20px 50px -30px rgba(15,23,42,.45);padding:26px}
+    .card{width:min(920px,100%);background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 60px -34px rgba(15,23,42,.45);padding:30px}
     h1{margin:0 0 6px;font-size:30px}
     p{margin:0;color:var(--muted);font-size:14px;line-height:1.65}
     .grid{margin-top:18px;display:grid;gap:12px;grid-template-columns:1fr 1fr}
@@ -23,14 +23,34 @@
     .actions{margin-top:18px;display:flex;gap:10px;justify-content:flex-end}
     .muted{font-size:12px;color:var(--muted)}
     .line{margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:14px}
+    .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin-bottom:8px}
+    .hero-card{border-radius:18px;padding:22px;border:1px solid var(--line)}
+    .hero-main{background:linear-gradient(145deg,#0f172a 0%,#0f766e 100%);color:#fff}
+    .hero-main p{color:rgba(255,255,255,.82)}
+    .hero-main .eyebrow{font-size:11px;letter-spacing:.18em;font-weight:700;text-transform:uppercase;opacity:.78}
+    .hero-side{background:#f8fafc}
+    .hero-side strong{display:block;font-size:14px}
+    .hero-side span{display:block;margin-top:6px;font-size:12px;color:var(--muted);line-height:1.7}
+    .submit-note{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
     @media (max-width:860px){.grid{grid-template-columns:1fr}.service-row{grid-template-columns:1fr}}
+    @media (max-width:860px){.hero{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
 <div class="wrap">
   <section class="card">
-    <h1>初回 店舗登録</h1>
-    <p>Discord 認証が完了しました。以下を入力すると店舗が作成され、あなたは管理者として登録されます。</p>
+    <div class="hero">
+      <div class="hero-card hero-main">
+        <div class="eyebrow">Rosterly Onboarding</div>
+        <h1>初回 店舗登録</h1>
+        <p>Discord 認証が完了しました。以下を入力すると店舗が作成され、あなたは管理者として登録されます。</p>
+      </div>
+      <div class="hero-card hero-side">
+        <strong>この画面でできること</strong>
+        <span>店舗名と管理者メールを登録し、必要なら初期サービスをまとめて作成できます。</span>
+        <span>登録後はそのまま管理者ダッシュボードへ移動し、スタッフ招待や予約設定を続けられます。</span>
+      </div>
+    </div>
 
     {% if messages %}
       <div style="margin-top:10px;display:grid;gap:8px;">
@@ -45,11 +65,11 @@
       <div class="grid">
         <div class="field">
           <label>店舗名（必須）</label>
-          <input type="text" name="shop_name" required value="{{ default_shop_name }}" maxlength="100">
+          <input type="text" name="shop_name" required value="{{ form_shop_name|default:default_shop_name }}" maxlength="100">
         </div>
         <div class="field">
           <label>管理者メールアドレス（必須）</label>
-          <input type="email" name="owner_email" required value="{{ default_owner_email }}">
+          <input type="email" name="owner_email" required value="{{ form_owner_email|default:default_owner_email }}">
         </div>
         <div class="field full">
           <label>店舗ロゴ（任意）</label>
@@ -68,13 +88,14 @@
           </div>
           <div id="services"></div>
           <button type="button" class="btn" onclick="addServiceRow()">+ サービスを追加</button>
-          <input type="hidden" name="preset_services_json" id="preset-services-json">
+          <input type="hidden" name="preset_services_json" id="preset-services-json" value="{{ form_preset_services_json|default:''|escape }}">
         </div>
 
       </div>
 
       <div class="actions">
-        <button type="submit" class="btn btn-primary">登録を完了</button>
+        <div class="submit-note" id="submit-note">入力後に保存すると、このまま店舗管理画面へ移動します。</div>
+        <button type="submit" class="btn btn-primary" id="shop-submit-btn">登録を完了</button>
       </div>
     </form>
 
@@ -120,9 +141,25 @@ function buildServicesPayload() {
 document.getElementById('shop-form').addEventListener('submit', function () {
   const payload = buildServicesPayload();
   document.getElementById('preset-services-json').value = JSON.stringify(payload);
+  const btn = document.getElementById('shop-submit-btn');
+  const note = document.getElementById('submit-note');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '登録中...';
+  }
+  if (note) note.textContent = '送信中です。数秒お待ちください。';
 });
 
-addServiceRow({name: '60分 VRASMR コース', duration_minutes: 60, price: 0, description: '...'});
+try {
+  const seed = JSON.parse(document.getElementById('preset-services-json').value || '[]');
+  if (Array.isArray(seed) && seed.length) {
+    seed.forEach(addServiceRow);
+  } else {
+    addServiceRow({name: '60分 VRASMR コース', duration_minutes: 60, price: 0, description: '...'});
+  }
+} catch (_) {
+  addServiceRow({name: '60分 VRASMR コース', duration_minutes: 60, price: 0, description: '...'});
+}
 </script>
 </body>
 </html>

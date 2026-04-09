@@ -60,6 +60,36 @@
         .drag-handle:active {
             cursor: grabbing;
         }
+        .hover-note {
+            position: relative;
+            display: inline-flex;
+        }
+        .hover-note .hover-note-box {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 8px);
+            z-index: 20;
+            width: 300px;
+            max-width: min(300px, 75vw);
+            border: 1px solid #cbd5e1;
+            background: #0f172a;
+            color: #f8fafc;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 11px;
+            line-height: 1.6;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateY(0);
+        }
+        .hover-note:hover .hover-note-box {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
@@ -176,6 +206,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="save_tenant_settings" value="true">
                         <input id="custom-agreements-json" type="hidden" name="custom_agreements_json" value="{{ custom_agreements_json|default:'[]'|escape }}">
+                        <input id="core-time-week-config" type="hidden" name="core_time_week_config" value="{{ core_time_week_config_json|default:'{}'|escape }}">
 
                         <div class="rounded-lg border border-slate-200 bg-white p-4">
                             <h2 class="text-lg font-semibold text-slate-900">店舗設定</h2>
@@ -202,6 +233,17 @@
                                         </label>
                                     </div>
                                 </div>
+                                <div id="core-time-config-box" class="{% if store_type != 'CORE_TIME' %}hidden {% endif %}rounded-md border border-amber-200 bg-amber-50 p-3">
+                                    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <div class="text-xs font-semibold text-amber-900">Core Time 営業時間</div>
+                                            <div id="core-time-summary" class="mt-1 text-xs text-amber-800">{{ core_time_summary|default:'未設定' }}</div>
+                                        </div>
+                                        <button type="button" onclick="openCoreTimeModal()" class="rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                                            営業時間を設定
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                     <div>
                                         <label class="mb-1 block text-xs text-slate-500">店舗アイコン</label>
@@ -215,7 +257,7 @@
                                     </div>
                                     <div>
                                         <label class="mb-1 block text-xs text-slate-500">店舗 slug</label>
-                                        <input type="text" name="tenant_slug" required value="{{ tenant_slug|default:'' }}" pattern="[a-z0-9-]+" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: veludo-shop">
+                                        <input type="text" name="tenant_slug" required value="{{ tenant_slug|default:'' }}" pattern="[a-z0-9-]+" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: rosterly-shop">
                                         <p class="mt-1 text-[11px] text-slate-500">予約リンク生成に使用します。英数字とハイフン（a-z / 0-9 / -）のみ入力できます。</p>
                                     </div>
                                 </div>
@@ -230,7 +272,7 @@
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs text-slate-500">予約詳細リダイレクトURL（任意）</label>
-                                    <input type="url" name="booking_detail_redirect_url" value="{{ booking_detail_redirect_url|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://veludo.example.com/booking/detail">
+                                    <input type="url" name="booking_detail_redirect_url" value="{{ booking_detail_redirect_url|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://rosterly.example.com/booking/detail">
                                     <p class="mt-1 text-[11px] text-slate-500">設定すると、メール内「詳細を見る」ボタンはこのURLに遷移します。booking_token パラメータが自動付与されます。</p>
                                 </div>
                             </div>
@@ -350,47 +392,91 @@
             </section>
 
             <section id="section-subscription" class="hidden-section panel p-5">
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <div class="rounded-lg border border-slate-200 bg-white p-4">
-                        <p class="text-xs text-slate-500">公開予約の最終確定可否に影響します（ACTIVE / TRIAL のみ確定可能）。</p>
-                        <form method="post" class="mt-4 space-y-3">
-                            {% csrf_token %}
-                            <input type="hidden" name="save_subscription_settings" value="true">
-                            <div>
-                                <label class="mb-1 block text-xs text-slate-500">サブスクリプション状態</label>
-                                <select name="subscription_status" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                    <option value="ACTIVE" {% if subscription_status == 'ACTIVE' %}selected{% endif %}>ACTIVE（有効）</option>
-                                    <option value="TRIAL" {% if subscription_status == 'TRIAL' %}selected{% endif %}>TRIAL（試用）</option>
-                                    <option value="CANCELED" {% if subscription_status == 'CANCELED' %}selected{% endif %}>CANCELED（停止）</option>
-                                    <option value="NONE" {% if subscription_status == 'NONE' %}selected{% endif %}>NONE（未契約）</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs text-slate-500">プランコード</label>
-                                <input type="text" name="subscription_plan_code" value="{{ subscription_plan_code|default:'' }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例: basic-monthly">
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs text-slate-500">契約開始日時</label>
-                                <input type="datetime-local" name="subscription_started_at" value="{% if subscription_started_at %}{{ subscription_started_at|date:'Y-m-d\\TH:i' }}{% endif %}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs text-slate-500">契約終了日時</label>
-                                <input type="datetime-local" name="subscription_ends_at" value="{% if subscription_ends_at %}{{ subscription_ends_at|date:'Y-m-d\\TH:i' }}{% endif %}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            </div>
-                            <button type="submit" class="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">サブスクリプションを保存</button>
-                        </form>
+                <div class="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.08),_transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Subscription</div>
+                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">プランを選択してすぐ開始</h3>
+                            <p class="mt-2 text-sm text-slate-600">この画面を開くと Stripe の契約状態を自動同期します。Basic の申込みボタンからそのまま Stripe Checkout へ移動します。</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-sm">
+                            <div>現在の状態: <span class="font-semibold">{{ effective_subscription_status|default:'NONE' }}</span></div>
+                            <div class="mt-1">Stripe 状態: <span class="font-semibold">{{ subscription_status|default:'NONE' }}</span></div>
+                            {% if subscription_is_overridden %}
+                            <div class="mt-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800">SUPER ADMIN OVERRIDE</div>
+                            {% endif %}
+                        </div>
                     </div>
 
-                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <h3 class="text-sm font-semibold text-slate-900">現在の状態</h3>
-                        <div class="mt-3 space-y-2 text-sm text-slate-700">
-                            <div>状態: <span class="font-semibold">{{ subscription_status|default:'ACTIVE' }}</span></div>
-                            <div>店舗タイプ: <span class="font-semibold">{% if is_core_time_store %}コアタイム制{% else %}自由シフト制{% endif %}</span></div>
-                            <div>予約公開日数: <span class="font-semibold">{{ booking_window_days|default:14 }} 日</span></div>
-                            <div>必須情報: <span class="font-semibold">{% if required_customer_fields %}{{ required_customer_fields|join:', ' }}{% else %}なし{% endif %}</span></div>
-                            {% if public_booking_url %}
-                            <a href="{{ public_booking_url }}" target="_blank" rel="noopener" class="inline-block text-xs text-indigo-700 underline hover:text-indigo-900">予約リンクを開く</a>
+                    <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+                        <form id="subscription-basic-form" method="post" class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.4)]">
+                            {% csrf_token %}
+                            <input type="hidden" name="create_stripe_checkout" value="true">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <div class="text-sm font-semibold text-slate-900">Basic</div>
+                                    <div class="mt-2 text-3xl font-bold text-slate-950">¥{{ stripe_basic_price_display }}<span class="ml-1 text-sm font-medium text-slate-500">/ 月</span></div>
+                                </div>
+                                <span class="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white">AVAILABLE</span>
+                            </div>
+                            <p class="mt-4 text-sm text-slate-600">基礎プラン。予約受付、キャスト管理、シフト管理、店舗運営に必要な基本機能を使えます。</p>
+                            <div class="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                                初月は {{ stripe_first_credit_amount }} 円分を Stripe の顧客残高クレジットとして自動付与します。
+                            </div>
+                            {% if stripe_checkout_ready %}
+                            <button type="submit" class="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Basic を申し込む</button>
+                            {% else %}
+                            <button type="button" disabled class="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400">Stripe 未設定</button>
+                            <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_SUBSCRIPTION_PRICE_ID` を設定すると申込みできます。
+                            </div>
                             {% endif %}
+                        </form>
+
+                        <div class="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] p-6 opacity-90 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.25)]">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <div class="text-sm font-semibold text-slate-900">Pro</div>
+                                    <div class="mt-2 text-3xl font-bold text-slate-400">Coming Soon</div>
+                                </div>
+                                <span class="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-500">COMING SOON</span>
+                            </div>
+                            <p class="mt-4 text-sm text-slate-600">データ分析付きプラン。予約傾向、来店状況、運営データの可視化を強化した上位プランとして提供予定です。</p>
+                            <button type="button" disabled class="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-400">公開待ち</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
+                        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+                            <div class="text-sm font-semibold text-slate-900">プラン説明</div>
+                            <div class="mt-3 space-y-2 text-sm text-slate-700">
+                                <div>Basic: 基礎プラン。店舗予約の運営に必要な標準機能を利用できます。</div>
+                                <div>Pro: データ分析付きプラン。今後、分析ダッシュボードや高度な運営支援を追加予定です。</div>
+                            </div>
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+                            <div class="text-sm font-semibold text-slate-900">契約情報</div>
+                            <div class="mt-3 space-y-2 text-sm text-slate-700">
+                                <div>Stripe Customer: <span class="font-mono text-xs">{{ stripe_customer_id|default:'-' }}</span></div>
+                                <div>Stripe Subscription: <span class="font-mono text-xs">{{ stripe_subscription_id|default:'-' }}</span></div>
+                                <div>Price ID: <span class="font-mono text-xs">{{ stripe_price_id|default:subscription_plan_code|default:'-' }}</span></div>
+                                <div>契約開始: <span class="font-semibold">{% if effective_subscription_started_at %}{{ effective_subscription_started_at|date:"Y/m/d H:i" }}{% else %}-{% endif %}</span></div>
+                                <div>契約終了: <span class="font-semibold">{% if effective_subscription_ends_at %}{{ effective_subscription_ends_at|date:"Y/m/d H:i" }}{% else %}-{% endif %}</span></div>
+                                <div>初月クレジット適用: <span class="font-semibold">{% if stripe_first_credit_applied_at %}{{ stripe_first_credit_applied_at|date:"Y/m/d H:i" }}{% else %}未適用{% endif %}</span></div>
+                                {% if subscription_is_overridden and subscription_override_note %}
+                                <div>上書きメモ: <span class="font-semibold">{{ subscription_override_note }}</span></div>
+                                {% endif %}
+                            </div>
+                            <form method="post" class="mt-4">
+                                {% csrf_token %}
+                                <input type="hidden" name="open_stripe_portal" value="true">
+                                <button type="submit" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">Billing Portal を開く</button>
+                            </form>
+                            <form id="subscription-sync-form" method="post" class="mt-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="sync_stripe_subscription" value="true">
+                                <button type="submit" class="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">手動でも同期する</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -414,7 +500,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="save_staff_batch" value="true">
 
-                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                        <div>
                             <table class="admin-table w-full">
                                 <thead>
                                     <tr>
@@ -445,16 +531,21 @@
                                             </select>
                                         </td>
                                         <td>
-                                            <label class="inline-flex items-center gap-2 whitespace-nowrap text-xs {% if row.platform_terms_agreed %}text-slate-700{% else %}text-slate-400{% endif %}"
-                                                {% if not row.platform_terms_agreed %}title="スタッフはプロフィール編集画面でプラットフォーム利用規約に同意すると、予約対象として有効化できます。"{% endif %}>
+                                            <label class="hover-note items-center gap-2 whitespace-nowrap text-xs {% if row.platform_terms_agreed %}text-slate-700{% else %}text-slate-400{% endif %}">
                                                 <input type="checkbox"
                                                     name="is_active__{{ row.user.id }}"
                                                     {% if row.user.is_active and row.platform_terms_agreed %}checked{% endif %}
                                                     data-original="{% if row.user.is_active and row.platform_terms_agreed %}1{% else %}0{% endif %}"
                                                     class="h-4 w-4 accent-indigo-600 {% if not row.platform_terms_agreed %}cursor-not-allowed accent-slate-300{% endif %}"
-                                                    {% if not row.platform_terms_agreed %}title="スタッフはプロフィール編集画面でプラットフォーム利用規約に同意すると、予約対象として有効化できます。"{% endif %}
                                                     {% if not row.platform_terms_agreed %}disabled{% endif %}>
                                                 予約対象として有効
+                                                <span class="hover-note-box">
+                                                    {% if row.platform_terms_agreed %}
+                                                    このスタッフは予約対象として公開できます。チェックを外すと公開予約ページから非表示になります。
+                                                    {% else %}
+                                                    スタッフはプロフィール編集画面でプラットフォーム利用規約に同意すると、予約対象として有効化できます。
+                                                    {% endif %}
+                                                </span>
                                             </label>
                                         </td>
                                     </tr>
@@ -474,12 +565,12 @@
 
             <section id="section-content" class="hidden-section">
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
-                    <div class="panel flex h-[640px] flex-col p-4">
+                        <div class="panel self-start p-4">
                         <div class="mb-3 flex items-center justify-between">
                             <h2 class="text-lg font-semibold text-slate-900">Cast List</h2>
                             <span class="text-[10px] uppercase tracking-widest text-slate-500">Select</span>
                         </div>
-                        <div id="cast-sortable-list" class="flex-1 space-y-2 pr-1">
+                        <div id="cast-sortable-list" class="space-y-2">
                             {% for cast in cast_rows %}
                             <div
                                 class="cast-item w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300"
@@ -1057,6 +1148,23 @@
         </div>
     </div>
 
+    <div id="core-time-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
+        <div class="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Core Time 営業時間設定</h3>
+                    <p class="mt-1 text-xs text-slate-500">曜日ごとに営業可能な時間帯を設定します。</p>
+                </div>
+                <button type="button" onclick="closeCoreTimeModal()" class="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50">閉じる</button>
+            </div>
+            <div id="core-time-week-rows" class="mt-4 space-y-3"></div>
+            <div class="mt-4 flex justify-end gap-2">
+                <button type="button" onclick="closeCoreTimeModal()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">キャンセル</button>
+                <button type="button" onclick="saveCoreTimeModal()" class="rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">この内容を反映</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let reportNotifications = [];
         try {
@@ -1082,6 +1190,138 @@
             if (fromDefault) return fromDefault[1];
             const hidden = document.querySelector('input[name="csrfmiddlewaretoken"]');
             return hidden ? (hidden.value || "") : "";
+        }
+
+        const coreTimeSeed = JSON.parse('{{ core_time_week_config_json|default:"{}"|escapejs }}');
+        const coreTimeDays = ['日', '月', '火', '水', '木', '金', '土'];
+
+        function displayCoreTimeValue(value) {
+            return value === '00:00' ? '24:00' : value;
+        }
+
+        function normalizeCoreTimeConfig(config) {
+            const normalized = {};
+            Object.keys(config || {}).forEach((dayKey) => {
+                const slots = Array.isArray(config[dayKey]) ? config[dayKey] : ((config[dayKey] || {}).slots || []);
+                const clean = slots
+                    .filter((slot) => slot && slot.start && slot.end)
+                    .map((slot) => ({ start: String(slot.start), end: String(slot.end) }));
+                if (clean.length) normalized[String(dayKey)] = clean;
+            });
+            return normalized;
+        }
+
+        function updateCoreTimeVisibility() {
+            const checked = document.querySelector('input[name="store_type"][value="CORE_TIME"]')?.checked;
+            const box = document.getElementById('core-time-config-box');
+            if (box) box.classList.toggle('hidden', !checked);
+        }
+
+        function renderCoreTimeSummary() {
+            const hidden = document.getElementById('core-time-week-config');
+            const summaryEl = document.getElementById('core-time-summary');
+            if (!hidden || !summaryEl) return;
+            let parsed = {};
+            try {
+                parsed = normalizeCoreTimeConfig(JSON.parse(hidden.value || '{}'));
+            } catch (_) {
+                parsed = {};
+            }
+            const parts = coreTimeDays.map((label, index) => {
+                const slots = parsed[String(index)] || [];
+                if (!slots.length) return '';
+                return `${label} ${slots.map((slot) => `${displayCoreTimeValue(slot.start)}-${displayCoreTimeValue(slot.end)}`).join(', ')}`;
+            }).filter(Boolean);
+            summaryEl.textContent = parts.length ? parts.join(' / ') : '未設定';
+        }
+
+        function buildCoreTimeRows() {
+            const wrap = document.getElementById('core-time-week-rows');
+            if (!wrap || wrap.childElementCount) return;
+            coreTimeDays.forEach((label, index) => {
+                const row = document.createElement('div');
+                row.className = 'rounded-lg border border-slate-200 bg-slate-50 p-3';
+                row.innerHTML = `
+                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <input type="checkbox" class="core-time-enabled" data-day="${index}">
+                        ${label}曜日
+                    </label>
+                    <div id="core-time-day-${index}" class="mt-3 space-y-2 opacity-50 pointer-events-none"></div>
+                    <button type="button" class="mt-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50" onclick="addCoreTimeSlot(${index})">時間帯を追加</button>
+                `;
+                wrap.appendChild(row);
+            });
+        }
+
+        function createCoreTimeSlotRow(dayIndex, start = '21:00', end = '00:00') {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2';
+            row.innerHTML = `
+                <input type="time" class="core-time-start w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${start}">
+                <span class="text-slate-500">~</span>
+                <input type="time" class="core-time-end w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${end}">
+                <button type="button" class="rounded-md border border-rose-200 bg-rose-50 px-2 py-2 text-[11px] font-semibold text-rose-700 hover:bg-rose-100" onclick="this.parentElement.remove()">削除</button>
+            `;
+            return row;
+        }
+
+        function addCoreTimeSlot(dayIndex, start = '21:00', end = '00:00') {
+            const container = document.getElementById(`core-time-day-${dayIndex}`);
+            if (!container) return;
+            container.appendChild(createCoreTimeSlotRow(dayIndex, start, end));
+        }
+
+        function openCoreTimeModal() {
+            buildCoreTimeRows();
+            let parsed = {};
+            try {
+                parsed = normalizeCoreTimeConfig(JSON.parse(document.getElementById('core-time-week-config')?.value || '{}'));
+            } catch (_) {
+                parsed = {};
+            }
+            coreTimeDays.forEach((_, index) => {
+                const checkbox = document.querySelector(`.core-time-enabled[data-day="${index}"]`);
+                const container = document.getElementById(`core-time-day-${index}`);
+                if (!checkbox || !container) return;
+                container.innerHTML = '';
+                const slots = parsed[String(index)] || [];
+                checkbox.checked = slots.length > 0;
+                container.classList.toggle('opacity-50', !checkbox.checked);
+                container.classList.toggle('pointer-events-none', !checkbox.checked);
+                (slots.length ? slots : [{ start: '21:00', end: '00:00' }]).forEach((slot) => addCoreTimeSlot(index, slot.start, slot.end));
+                checkbox.onchange = () => {
+                    container.classList.toggle('opacity-50', !checkbox.checked);
+                    container.classList.toggle('pointer-events-none', !checkbox.checked);
+                };
+            });
+            document.getElementById('core-time-modal')?.classList.remove('hidden');
+            document.getElementById('core-time-modal')?.classList.add('flex');
+        }
+
+        function closeCoreTimeModal() {
+            const modal = document.getElementById('core-time-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveCoreTimeModal() {
+            const payload = {};
+            for (let index = 0; index < coreTimeDays.length; index++) {
+                const checkbox = document.querySelector(`.core-time-enabled[data-day="${index}"]`);
+                const container = document.getElementById(`core-time-day-${index}`);
+                if (!checkbox || !container || !checkbox.checked) continue;
+                const rows = Array.from(container.querySelectorAll('div.flex'));
+                const slots = rows.map((row) => ({
+                    start: row.querySelector('.core-time-start')?.value || '',
+                    end: row.querySelector('.core-time-end')?.value || '',
+                })).filter((slot) => slot.start && slot.end);
+                if (slots.length) payload[String(index)] = slots;
+            }
+            const hidden = document.getElementById('core-time-week-config');
+            if (hidden) hidden.value = JSON.stringify(payload);
+            renderCoreTimeSummary();
+            closeCoreTimeModal();
         }
 
         function renderReportNotifications(items, unreadCount) {
@@ -1190,6 +1430,24 @@
             if (titleEl) titleEl.innerText = PAGE_TITLES[tabName] || "管理者ダッシュボード";
             const descEl = document.getElementById("page-description");
             if (descEl) descEl.innerText = MODULE_DESCRIPTIONS[tabName] || "";
+            if (tabName === "subscription") {
+                autoSyncSubscriptionTab();
+            }
+        }
+
+        function autoSyncSubscriptionTab() {
+            const form = document.getElementById("subscription-sync-form");
+            if (!form) return;
+            const tenantKey = "{{ selected_tenant_id|default:'' }}";
+            const syncKey = `subscription-auto-sync:${tenantKey}:${window.location.pathname}`;
+            try {
+                if (window.sessionStorage.getItem(syncKey) === "1") return;
+                window.sessionStorage.setItem(syncKey, "1");
+            } catch (_err) {
+                if (form.dataset.synced === "1") return;
+                form.dataset.synced = "1";
+            }
+            window.setTimeout(() => form.submit(), 120);
         }
 
         function filterUsers() {
@@ -2029,6 +2287,11 @@
             switchTemplateType("BOOKING_CONFIRMED");
             resetServicePresetForm();
             initializeAgreementEditor();
+            renderCoreTimeSummary();
+            updateCoreTimeVisibility();
+            document.querySelectorAll('input[name="store_type"]').forEach((radio) => {
+                radio.addEventListener('change', updateCoreTimeVisibility);
+            });
         });
     </script>
 </body>

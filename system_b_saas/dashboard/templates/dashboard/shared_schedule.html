@@ -102,9 +102,23 @@
         .fc-day-today {
             background: rgba(79, 70, 229, 0.06) !important;
         }
-        .fc-timegrid-col:nth-child(2n) {
-            background: rgba(248, 250, 252, 0.55);
+        .fc-timegrid-col:nth-child(odd) {
+            background: {% if is_core_time_store %}rgba(250, 251, 253, 0.72){% else %}rgba(247, 249, 252, 0.94){% endif %};
         }
+        .fc-timegrid-col:nth-child(even) {
+            background: {% if is_core_time_store %}rgba(244, 247, 251, 0.62){% else %}rgba(239, 243, 248, 0.98){% endif %};
+        }
+        .fc .fc-timegrid-slot-lane {
+            background: transparent;
+        }
+        {% if not is_core_time_store %}
+        .fc .fc-timegrid-slot:nth-child(2n) .fc-timegrid-slot-lane {
+            background: rgba(255, 255, 255, 0.16);
+        }
+        .fc .fc-timegrid-col-bg {
+            background: linear-gradient(180deg, rgba(255,255,255,0.24) 0%, rgba(241,245,249,0.16) 100%);
+        }
+        {% endif %}
         
         .fc-timegrid-slot-label-cushion { 
             color: #475569 !important;
@@ -151,11 +165,36 @@
         }
 
         #calendar {
-            min-height: 680px;
             border: 1px solid #dbe4ef;
             border-radius: 10px;
             padding: 0.25rem;
             background: #ffffff;
+        }
+        .fc .fc-timegrid-slot {
+            height: 1.05rem !important;
+        }
+        .fc .fc-timegrid-slot-minor {
+            height: 1.05rem !important;
+        }
+        .fc .fc-timegrid-slot-label {
+            font-size: 0.74rem !important;
+            line-height: 1 !important;
+        }
+        .fc .fc-timegrid-axis-frame,
+        .fc .fc-timegrid-slot-label-frame,
+        .fc .fc-timegrid-slot-frame {
+            min-height: 1.05rem !important;
+        }
+        .fc .fc-timegrid-axis-cushion,
+        .fc .fc-timegrid-slot-label-cushion {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }
+        .fc-non-business {
+            background: rgba(148, 163, 184, 0.28) !important;
+        }
+        .fc-timegrid-col.fc-day-today .fc-non-business {
+            background: rgba(148, 163, 184, 0.22) !important;
         }
     </style>
 </head>
@@ -203,6 +242,13 @@
             <a href="{% url 'tenant_dashboard' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">管理者ダッシュボード</a>
             {% endif %}
         </div>
+
+        {% if is_core_time_store %}
+        <div class="mb-5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div class="font-semibold">Core Time 営業時間</div>
+            <div class="mt-1 text-xs">{{ core_time_summary }}</div>
+        </div>
+        {% endif %}
 
         {% if not is_cast %}
             <div class="surface p-8 text-center">
@@ -265,6 +311,16 @@
                     周期シフト編集
                 </h2>
                 <form id="recurringForm" class="space-y-6">
+                    <div class="rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-800">
+                        <div class="font-semibold">初期設定</div>
+                        <div id="recurring-default-note" class="mt-1">
+                            {% if is_core_time_store %}
+                            Core Time 店舗のため、店舗で設定された営業時間を初期値として読み込みます。
+                            {% else %}
+                            自由排班の初期値は 22:00 - 25:00 です。
+                            {% endif %}
+                        </div>
+                    </div>
                     <div class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-md">
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="text-sm font-semibold text-slate-700">
@@ -315,6 +371,17 @@
     </div>
 
     <script>
+        const SHARED_SCHEDULE_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+        const SHARED_SCHEDULE_IS_CORE_TIME_STORE = {% if is_core_time_store %}true{% else %}false{% endif %};
+        const SHARED_SCHEDULE_CORE_TIME_CONFIG = JSON.parse('{{ core_time_week_config_json|escapejs }}');
+
+        function sharedGetDefaultCoreSlots(dayIndex) {
+            const daySlots = Array.isArray(SHARED_SCHEDULE_CORE_TIME_CONFIG[String(dayIndex)]) ? SHARED_SCHEDULE_CORE_TIME_CONFIG[String(dayIndex)] : [];
+            return daySlots
+                .filter((slot) => slot && slot.start && slot.end)
+                .map((slot) => ({ start: String(slot.start), end: String(slot.end) }));
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const menus = document.querySelectorAll('[data-user-menu]');
             menus.forEach(function (wrap) {
@@ -353,7 +420,79 @@
             var calendarEl = document.getElementById('calendar');
             if (!calendarEl) return;
 
-            const CURRENT_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+            const CURRENT_RESOURCE_ID = SHARED_SCHEDULE_RESOURCE_ID;
+            const IS_CORE_TIME_STORE = SHARED_SCHEDULE_IS_CORE_TIME_STORE;
+            const CORE_TIME_CONFIG = SHARED_SCHEDULE_CORE_TIME_CONFIG;
+
+            function getDefaultCoreSlots(dayIndex) {
+                const daySlots = Array.isArray(CORE_TIME_CONFIG[String(dayIndex)]) ? CORE_TIME_CONFIG[String(dayIndex)] : [];
+                return daySlots
+                    .filter((slot) => slot && slot.start && slot.end)
+                    .map((slot) => ({ start: String(slot.start), end: String(slot.end) }));
+            }
+
+            function jsDayKey(date) {
+                return String(date.getDay());
+            }
+
+            function getCoreTimeSlots(date) {
+                return (CORE_TIME_CONFIG[jsDayKey(date)] || []);
+            }
+
+            function slotContainsDate(date, slot) {
+                if (!slot || !slot.start || !slot.end) return false;
+                const [startH, startM] = slot.start.split(':').map(Number);
+                const [endH, endM] = slot.end.split(':').map(Number);
+                const candidate = new Date(date);
+                const dayStart = new Date(date);
+                dayStart.setHours(startH, startM, 0, 0);
+                const dayEnd = new Date(date);
+                dayEnd.setHours(endH, endM, 0, 0);
+                if (dayEnd <= dayStart) {
+                    dayEnd.setDate(dayEnd.getDate() + 1);
+                    if (candidate < dayStart) {
+                        candidate.setDate(candidate.getDate() + 1);
+                    }
+                }
+                return candidate >= dayStart && candidate < dayEnd;
+            }
+
+            function isDateInsideCoreTime(date) {
+                if (!IS_CORE_TIME_STORE) return true;
+                const todaySlots = getCoreTimeSlots(date);
+                const prev = new Date(date);
+                prev.setDate(prev.getDate() - 1);
+                const prevSlots = getCoreTimeSlots(prev).filter((slot) => slot.end <= slot.start);
+                return todaySlots.some((slot) => slotContainsDate(date, slot)) || prevSlots.some((slot) => slotContainsDate(date, slot));
+            }
+
+            function isRangeInsideCoreTime(start, end) {
+                if (!IS_CORE_TIME_STORE) return true;
+                const probe = new Date(start);
+                while (probe < end) {
+                    if (!isDateInsideCoreTime(probe)) return false;
+                    probe.setMinutes(probe.getMinutes() + 30);
+                }
+                const endProbe = new Date(end.getTime() - 60000);
+                return isDateInsideCoreTime(endProbe);
+            }
+
+            function buildCoreTimeBusinessHours() {
+                if (!IS_CORE_TIME_STORE) return false;
+                const hours = [];
+                Object.keys(CORE_TIME_CONFIG || {}).forEach((dayKey) => {
+                    const slots = Array.isArray(CORE_TIME_CONFIG[dayKey]) ? CORE_TIME_CONFIG[dayKey] : [];
+                    slots.forEach((slot) => {
+                        if (!slot || !slot.start || !slot.end) return;
+                        hours.push({
+                            daysOfWeek: [Number(dayKey)],
+                            startTime: slot.start,
+                            endTime: slot.end === '00:00' ? '24:00' : slot.end,
+                        });
+                    });
+                });
+                return hours.length ? hours : false;
+            }
 
             // ステータス表示
             var statusDot = document.getElementById('status-dot');
@@ -418,9 +557,10 @@
                 height: 'auto',
                 slotMinTime: '00:00:00',
                 scrollTime: '20:00:00',
-                slotDuration: '01:00:00', 
+                slotDuration: '00:30:00', 
                 nowIndicator: true,
                 locale: 'ja',
+                businessHours: buildCoreTimeBusinessHours(),
                 
                 // モバイル用にツールバーを簡略化
                 headerToolbar: isMobile 
@@ -476,6 +616,9 @@
                 selectable: true,
                 selectMirror: true,
                 longPressDelay: 300, 
+                selectAllow: function(selectInfo) {
+                    return isRangeInsideCoreTime(selectInfo.start, selectInfo.end);
+                },
 
                 // --- 1. シフト取得 ---
                 events: function(info, successCallback, failureCallback) {
@@ -547,6 +690,11 @@
                 // --- 2. シフト作成 ---
                 select: function(arg) {
                     let allEvents = window.calendar.getEvents();
+                    if (!isRangeInsideCoreTime(arg.start, arg.end)) {
+                        alert('Core Time の営業時間内のみ排班できます。');
+                        window.calendar.unselect();
+                        return;
+                    }
                     let isInvalid = allEvents.some(event => {
                         const overlap = arg.start < event.end && arg.end > event.start;
                         const touching = (arg.start.getTime() === event.end.getTime()) || 
@@ -631,6 +779,19 @@
         const days = ['日', '月', '火', '水', '木', '金', '土'];
         const weekRowsContainer = document.getElementById('week-rows');
 
+        function formatDateInput(date) {
+            const pad = (num) => String(num).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        }
+
+        function defaultPresetLabel(dayIndex) {
+            const coreSlots = sharedGetDefaultCoreSlots(dayIndex);
+            if (coreSlots.length) {
+                return `初期値 ${coreSlots.map((slot) => `${slot.start}-${slot.end === '00:00' ? '24:00' : slot.end}`).join(', ')}`;
+            }
+            return '初期値 22:00-25:00';
+        }
+
         function buildSlotRow(dayIndex, startVal = "", endVal = "", removable = false) {
             const row = document.createElement('div');
             row.className = "day-slot-row flex gap-2 items-center";
@@ -660,6 +821,11 @@
         function ensureDefaultSlot(dayIndex) {
             const slotsContainer = document.getElementById(`day-${dayIndex}-slots`);
             if (!slotsContainer || slotsContainer.children.length > 0) return;
+            const defaultSlots = sharedGetDefaultCoreSlots(dayIndex);
+            if (defaultSlots.length) {
+                defaultSlots.forEach((slot) => addSlotRow(dayIndex, slot.start, slot.end));
+                return;
+            }
             addSlotRow(dayIndex, "22:00", "01:00");
         }
 
@@ -701,6 +867,19 @@
             slots.forEach(slot => addSlotRow(dayIndex, slot.start, slot.end));
         }
 
+        function applyCoreTimeDefaults() {
+            for (let i = 0; i < 7; i++) {
+                const coreSlots = sharedGetDefaultCoreSlots(i);
+                if (coreSlots.length) {
+                    toggleDayRow(i, true);
+                    clearDaySlots(i);
+                    coreSlots.forEach((slot) => addSlotRow(i, slot.start, slot.end));
+                } else {
+                    toggleDayRow(i, false);
+                }
+            }
+        }
+
         function removeSlotRow(btn) {
             const row = btn.closest('.day-slot-row');
             if (row) row.remove();
@@ -714,7 +893,10 @@
                 row.innerHTML = `
                     <div class="flex items-center gap-3 w-full sm:w-auto mb-2 sm:mb-0">
                         <input type="checkbox" id="day-${index}-check" class="accent-indigo-600 w-5 h-5 cursor-pointer" onchange="toggleDayRow(${index})">
-                        <div class="text-sm text-slate-700 font-bold w-12">${day}曜日</div>
+                        <div>
+                            <div class="text-sm text-slate-700 font-bold w-12">${day}曜日</div>
+                            <div class="mt-1 text-[11px] text-slate-500">${defaultPresetLabel(index)}</div>
+                        </div>
                     </div>
                     
                     <div class="flex-1 flex flex-col gap-2 opacity-50 pointer-events-none transition-opacity w-full sm:w-auto" id="day-${index}-inputs">
@@ -745,15 +927,16 @@
         function openRecurringModal() {
             const modal = document.getElementById('recurringModal');
             modal.classList.remove('hidden');
-            const CURRENT_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+            const CURRENT_RESOURCE_ID = SHARED_SCHEDULE_RESOURCE_ID;
+            if (SHARED_SCHEDULE_IS_CORE_TIME_STORE) {
+                applyCoreTimeDefaults();
+            }
             
             const today = new Date();
-            const tomorrow = new Date(today);
-            tomorrow.setDate(today.getDate() + 1);
-            const nextWeek = new Date(tomorrow);
-            nextWeek.setDate(tomorrow.getDate() + 7);
-            const defaultStart = tomorrow.toISOString().split('T')[0];
-            const defaultEnd = nextWeek.toISOString().split('T')[0];
+            const oneMonthLater = new Date(today);
+            oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+            const defaultStart = formatDateInput(today);
+            const defaultEnd = formatDateInput(oneMonthLater);
             const startInput = document.querySelector('input[name="range_start"]');
             const endInput = document.querySelector('input[name="range_end"]');
             if (startInput) startInput.value = defaultStart;
@@ -777,7 +960,10 @@
                     if (startInput) startInput.value = range.start;
                     if (endInput) endInput.value = range.end;
                 }
-                if (config) {
+                if (SHARED_SCHEDULE_IS_CORE_TIME_STORE) {
+                    applyCoreTimeDefaults();
+                }
+                if (config && Object.keys(config).length) {
                     Object.keys(config).forEach(dayKey => {
                         const dayCfg = config[dayKey];
                         const dayIndex = parseInt(dayKey);
@@ -809,6 +995,40 @@
                     }
                 });
 
+                if (SHARED_SCHEDULE_IS_CORE_TIME_STORE) {
+                    const invalidDay = Object.keys(weekConfig).find((dayKey) => {
+                        const cfg = weekConfig[dayKey];
+                        if (!cfg || !cfg.enabled || !Array.isArray(cfg.slots)) return false;
+                        const allowed = SHARED_SCHEDULE_CORE_TIME_CONFIG[dayKey] || [];
+                        return cfg.slots.some((slot) => {
+                            const dummyDate = new Date();
+                            dummyDate.setDate(dummyDate.getDate() + ((Number(dayKey) - dummyDate.getDay() + 7) % 7));
+                            const start = new Date(dummyDate);
+                            const end = new Date(dummyDate);
+                            const [sh, sm] = slot.start.split(':').map(Number);
+                            const [eh, em] = slot.end.split(':').map(Number);
+                            start.setHours(sh, sm, 0, 0);
+                            end.setHours(eh, em, 0, 0);
+                            if (end <= start) end.setDate(end.getDate() + 1);
+                            const rangeOk = allowed.some((coreSlot) => {
+                                const cStart = new Date(dummyDate);
+                                const cEnd = new Date(dummyDate);
+                                const [csh, csm] = coreSlot.start.split(':').map(Number);
+                                const [ceh, cem] = coreSlot.end.split(':').map(Number);
+                                cStart.setHours(csh, csm, 0, 0);
+                                cEnd.setHours(ceh, cem, 0, 0);
+                                if (cEnd <= cStart) cEnd.setDate(cEnd.getDate() + 1);
+                                return start >= cStart && end <= cEnd;
+                            });
+                            return !rangeOk;
+                        });
+                    });
+                    if (invalidDay !== undefined) {
+                        alert('周期シフトは Core Time の営業時間内のみ設定できます。');
+                        return;
+                    }
+                }
+
                 if (confirm(`以下の期間でシフトを作成しますか？\n期間: ${rangeStart} ~ ${rangeEnd}\n(チェックを入れていない日の周期シフトは削除されます)`)) {
                     const btn = e.target.querySelector('button[type="submit"]');
                     const originalText = btn.innerText;
@@ -819,7 +1039,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                         body: JSON.stringify({
-                            resource_id: "{{ current_resource_id|default:'' }}",
+                            resource_id: SHARED_SCHEDULE_RESOURCE_ID,
                             range_start: rangeStart,
                             range_end: rangeEnd,
                             week_config: weekConfig
@@ -984,7 +1204,7 @@ function saveCurrentAsTemplate() {
         return;
     }
 
-    const CURRENT_RESOURCE_ID = "{{ current_resource_id|default:'' }}";
+    const CURRENT_RESOURCE_ID = SHARED_SCHEDULE_RESOURCE_ID;
     
     let weekConfig = {};
     let hasData = false;

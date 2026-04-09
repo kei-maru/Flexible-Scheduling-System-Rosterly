@@ -153,8 +153,7 @@
                 <label class="inline-flex items-start gap-2 text-sm text-slate-700">
                     <input type="checkbox" name="platform_terms_agreed" class="mt-1 h-4 w-4 accent-indigo-600" {% if profile_platform_terms_agreed %}checked{% endif %} required>
                     <span>
-                        <button type="button" id="open-terms-modal" class="text-indigo-700 underline hover:text-indigo-900">利用規約</button>
-                        に同意します。<span class="ml-1 text-xs text-rose-600">※同意しない場合は保存できません</span>
+                        私は使用するアイテムが全て商用利用可能であることを確認しました。<span class="ml-1 text-xs text-rose-600">※確認しない場合は保存・公開できません</span>
                     </span>
                 </label>
             </div>
@@ -167,15 +166,7 @@
     </section>
 </main>
 
-<div id="terms-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 px-4">
-    <div class="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
-        <div class="mb-3 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-slate-900">利用規約</h3>
-            <button type="button" id="close-terms-modal" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">閉じる</button>
-        </div>
-        <iframe src="{{ platform_terms_url }}" class="h-[65vh] w-full rounded-md border border-slate-200"></iframe>
-    </div>
-</div>
+
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

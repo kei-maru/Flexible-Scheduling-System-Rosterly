@@ -45,3 +45,13 @@ A_HEALTH_URL=https://your-a-domain/accounts/login/ B_HEALTH_URL=https://your-b-d
 ## Notes
 - Do not use `docker compose down -v` in production.
 - After `.env` changes, use recreate (`up -d --build` or `up -d --force-recreate`), not only `restart`.
+- For System B Stripe subscription features, ensure these env vars exist before release:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_PUBLISHABLE_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+  - `STRIPE_SUBSCRIPTION_PRICE_ID`
+  - `STRIPE_FIRST_MONTH_DISCOUNT_JPY`
+- Current admin/staff scheduling UX baseline:
+  - `CORE_TIME` stores preload recurring schedules from tenant core-time
+  - `FLEX_SHIFT` recurring default is `22:00-25:00`
+  - recurring date range defaults to `today -> +1 month`

@@ -5,16 +5,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Rosterly ログイン</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--discord:#5865F2;--discord-h:#4752C4;--dark:#111827;--err-bg:#fff1f2;--err:#be123c;--ok-bg:#ecfeff;--ok:#155e75}
-    *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 20% 15%,rgba(17,24,39,.06),transparent 38%),radial-gradient(circle at 80% 80%,rgba(30,64,175,.08),transparent 30%),var(--bg);color:var(--text)}
-    .wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
-    .card{width:min(700px,100%);background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 22px 60px -30px rgba(15,23,42,.35);padding:36px}
-    .actions{margin-top:18px;display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+    :root{--bg:#fbfcfe;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--discord:#5865F2;--discord-h:#4752C4;--dark:#111827;--accent:#0f766e;--accent-soft:#ecfeff;--err-bg:#fff1f2;--err:#be123c;--ok-bg:#ecfeff;--ok:#155e75}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:flex;flex-direction:column;font-family:"Outfit","Noto Sans JP",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:
+      radial-gradient(circle at 14% 16%,rgba(15,118,110,.07),transparent 28%),
+      radial-gradient(circle at 85% 12%,rgba(88,101,242,.08),transparent 26%),
+      linear-gradient(180deg,#fcfdff 0%,#f6f8fc 100%);color:var(--text)}
+    .wrap{flex:1;display:grid;place-items:center;padding:28px}
+    .shell{width:min(1080px,100%);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border:1px solid rgba(226,232,240,.9);border-radius:28px;box-shadow:0 28px 72px -48px rgba(15,23,42,.22);overflow:hidden}
+    .hero{padding:42px;background:
+      radial-gradient(circle at 80% 20%,rgba(255,255,255,.55),transparent 24%),
+      linear-gradient(145deg,#d9f4ef 0%,#ebf7f4 42%,#f3f7fd 100%);color:#0f172a;position:relative}
+    .hero:before{content:"";position:absolute;inset:auto -60px -100px auto;width:220px;height:220px;border-radius:999px;background:rgba(255,255,255,.16);filter:blur(6px)}
+    .hero-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(148,163,184,.45);background:rgba(255,255,255,.66);border-radius:999px;padding:10px 16px;font-size:14px;letter-spacing:.22em;font-weight:800;color:#334155}
+    .hero h1{margin:18px 0 10px;font-size:44px;line-height:1.05}
+    .hero p{margin:0;color:#475569;font-size:15px;line-height:1.8}
+    .panel{padding:40px 36px;background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88))}
+    .actions{margin-top:20px;display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
     .inline{margin:0}
-    .tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:11px;letter-spacing:.15em;color:var(--muted);font-weight:700}
-    h1{margin:14px 0 8px;font-size:34px;line-height:1.2}
-    p{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
+    .tag{display:inline-block;border:1px solid #bfdbfe;background:#eff6ff;border-radius:999px;padding:6px 11px;font-size:11px;letter-spacing:.16em;color:#1d4ed8;font-weight:800}
+    h2{margin:16px 0 8px;font-size:32px;line-height:1.15}
+    p{margin:0;color:var(--muted);font-size:14px;line-height:1.8}
     .btn{display:flex;align-items:center;justify-content:center;width:100%;padding:12px 14px;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;transition:.2s}
     .btn:disabled{cursor:not-allowed}
     .btn-discord{border:0;background:var(--discord);color:#fff}
@@ -25,20 +40,31 @@
     .alert{margin-top:16px;padding:12px 14px;border:1px solid #fecdd3;background:var(--err-bg);color:var(--err);border-radius:10px;font-size:14px}
     .warn{margin-top:18px;padding:12px 14px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;font-size:14px}
     .info{margin-top:18px;padding:12px 14px;border:1px solid #bae6fd;background:var(--ok-bg);color:var(--ok);border-radius:10px;font-size:14px}
-    .auth-box{margin-top:14px;border:1px dashed #94a3b8;border-radius:12px;padding:14px;background:#f8fafc}
+    .auth-box{margin-top:16px;border:1px dashed #94a3b8;border-radius:14px;padding:14px;background:#f8fafc}
     .auth-box h3{margin:0 0 6px;font-size:14px}
     .auth-box p{font-size:12px}
     .consent{margin-top:18px;display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--muted);line-height:1.6}
     .consent a{color:#0f172a;font-weight:700;text-decoration:none;border-bottom:1px solid #cbd5f5}
     .consent input{margin-top:2px}
-    @media (max-width: 760px){.actions{grid-template-columns:1fr}}
+    .section-title{margin:28px 0 10px;font-size:12px;letter-spacing:.18em;color:#475569;font-weight:800;text-transform:uppercase}
+    .page-footer{padding:18px 20px 22px;text-align:center;color:#94a3b8;font-size:12px;line-height:1.8}
+    .page-footer a{color:#94a3b8;text-decoration:none;border-bottom:1px solid #cbd5e1}
+    @media (max-width: 920px){.shell{grid-template-columns:1fr}.hero h1{font-size:34px}}
+    @media (max-width: 760px){.actions{grid-template-columns:1fr}.hero,.panel{padding:28px 22px}.law-table th,.law-table td{display:block;width:100%;padding-right:0}.law-table td{padding-top:0}}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <section class="card">
-      <span class="tag">VELUDO SYSTEM B</span>
-      <h1>Rosterly ログイン入口</h1>
+    <section class="shell">
+      <div class="hero">
+        <span class="hero-badge">ROSTERLY PLATFORM</span>
+        <h1>店舗予約管理システム</h1>
+        <p>针对VRC特别设计的风险管理，店铺个性化管理，便捷的排班UI</p>
+      </div>
+
+      <div class="panel">
+      <span class="tag">LOGIN PORTAL</span>
+      <h2>Rosterly ログイン</h2>
       <p>ログインは Discord OAuth を使用します。スタッフアカウントは店舗管理者の招待リンク経由でのみ作成可能です。</p>
 
       {% if discord_oauth_ready %}
@@ -81,8 +107,15 @@
       <div class="{% if 'success' in message.tags %}info{% elif 'warning' in message.tags %}warn{% elif 'error' in message.tags %}alert{% else %}alert{% endif %}">{{ message }}</div>
       {% endfor %}
       {% endif %}
+
+      </div>
     </section>
   </div>
+  <footer class="page-footer">
+    <a href="{% url 'dashboard_tokushoho' %}">特定商取引法に基づく表記</a>
+    <span> / </span>
+    <span>Made by KeimaruStudio</span>
+  </footer>
   <script>
     const agree = document.getElementById('agree-terms');
     const loginBtn = document.getElementById('discord-btn-login');

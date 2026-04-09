@@ -384,6 +384,7 @@
   const resourceGrid = document.getElementById('resource-grid');
   let currentMode = 'cast';
   let profileCloseHandler = null;
+  const pageEnterAt = Date.now();
 
   const serviceCatalog = Array.from((serviceSelect || {}).options || [])
     .filter((opt) => opt.value)
@@ -397,6 +398,37 @@
   let selectedSlot = null;
   let activeResourceId = '';
   let preferredStartIso = '';
+
+  function trackEvent(action, target = '', meta = {}, useBeacon = false) {
+    const payload = {
+      action,
+      target,
+      meta: {
+        ...meta,
+        tenant_slug: '{{ tenant.slug }}',
+        page_url: window.location.pathname,
+        page_title: document.title,
+        timestamp_client: new Date().toISOString(),
+      }
+    };
+
+    const body = JSON.stringify(payload);
+    if (useBeacon && navigator.sendBeacon) {
+      navigator.sendBeacon("{% url 'dashboard_tracking' %}", new Blob([body], { type: 'application/json' }));
+      return;
+    }
+
+    fetch("{% url 'dashboard_tracking' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}',
+      },
+      credentials: 'same-origin',
+      body,
+      keepalive: useBeacon,
+    }).catch(() => {});
+  }
 
   function selectedDurationMinutes() {
     const selected = document.querySelector('#service_id option:checked');
@@ -684,6 +716,9 @@
     }
     showProfile(resource);
     loadSlotsForResource(button.dataset.resourceId);
+    trackEvent('CLICK_CAST', resource ? resource.name : button.dataset.name || '', {
+      resource_id: button.dataset.resourceId || '',
+    });
   };
 
   window.switchMode = function (mode) {
@@ -915,6 +950,11 @@
     document.getElementById('confirm-summary').innerHTML = getSummaryText();
     confirmModal.classList.remove('hidden');
     confirmModal.classList.add('flex');
+    trackEvent('CLICK_RESERVATION_INFO', resourceInput.value || '', {
+      resource_id: resourceInput.value || '',
+      service_id: serviceSelect ? serviceSelect.value : '',
+      start_time: startSelect ? startSelect.value : '',
+    });
 
     const checks = document.querySelectorAll('.confirm-check');
     checks.forEach((c) => {
@@ -949,6 +989,12 @@
 
     closeConfirmModal();
     if (res.ok && data.ok) {
+      trackEvent('BOOKING_SUCCESS', resourceInput.value || '', {
+        resource_id: resourceInput.value || '',
+        service_id: serviceSelect ? serviceSelect.value : '',
+        booking_id: data.booking_id || '',
+        start_time: startSelect ? startSelect.value : '',
+      });
       result.textContent = '予約を受け付けました。確認メールを送信します。';
       result.className = 'mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700';
       form.reset();
@@ -970,6 +1016,13 @@
 
   populateTimeSelect();
   syncSearchService();
+  trackEvent('VIEW_PAGE', 'Public Booking');
+  window.addEventListener('pagehide', () => {
+    trackEvent('PAGE_DURATION', 'Public Booking', {
+      duration_seconds: Math.max(1, Math.round((Date.now() - pageEnterAt) / 1000)),
+      resource_id: resourceInput.value || '',
+    }, true);
+  });
   resources.forEach((r) => r.el.addEventListener('click', () => {}));
   if (profileSheet) profileSheet.style.display = 'none';
 })();

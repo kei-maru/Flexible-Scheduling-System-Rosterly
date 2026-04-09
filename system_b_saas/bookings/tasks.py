@@ -237,7 +237,7 @@ def _send_booking_emails_logic(booking):
 
     def _send_single(recipient_email, recipient_name, email_title, email_greeting, is_cast=False):
 
-        logo_src = "cid:shop_logo" if logo_fs_path else "https://via.placeholder.com/80x80/d4af37/ffffff?text=Veludo"
+        logo_src = "cid:shop_logo" if logo_fs_path else "https://via.placeholder.com/80x80/0f766e/ffffff?text=Rosterly"
 
         ctx = {
             'customer_name': recipient_name,

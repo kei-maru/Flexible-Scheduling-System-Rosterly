@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>特定商取引法に基づく表記 | Rosterly</title>
+  <style>
+    :root{--bg:#f7f8fc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--accent:#0f766e}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;background:radial-gradient(circle at 12% 10%,rgba(15,118,110,.08),transparent 24%),var(--bg);color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto;padding:32px 20px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:0 26px 70px -44px rgba(15,23,42,.38)}
+    .eyebrow{display:inline-block;border:1px solid #99f6e4;background:#f0fdfa;color:#115e59;border-radius:999px;padding:6px 12px;font-size:11px;font-weight:800;letter-spacing:.16em}
+    h1{margin:16px 0 8px;font-size:30px}
+    p{margin:0;color:var(--muted);font-size:14px;line-height:1.8}
+    table{width:100%;border-collapse:collapse;margin-top:18px}
+    th,td{padding:14px 0;border-top:1px solid #edf2f7;vertical-align:top;text-align:left;font-size:14px;line-height:1.8}
+    th{width:34%;padding-right:18px;color:#334155}
+    tr:first-child th,tr:first-child td{border-top:0}
+    .actions{margin-top:20px;display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;text-decoration:none}
+    .btn-main{background:#0f172a;color:#fff}
+    .btn-sub{border:1px solid var(--line);background:#fff;color:#0f172a}
+    @media (max-width:720px){th,td{display:block;width:100%;padding-right:0}td{padding-top:0}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <span class="eyebrow">ROSTERLY LEGAL</span>
+      <h1>特定商取引法に基づく表記</h1>
+      <p>Rosterly の提供条件と決済に関する法定表示です。</p>
+      <table>
+        <tr><th>事業者の名称</th><td>ご請求をいただいた場合、遅滞なく開示いたします。</td></tr>
+        <tr><th>運営責任者</th><td>ZHANG YIMIN</td></tr>
+        <tr><th>事業者の所在地</th><td>ご請求をいただいた場合、遅滞なく開示いたします。</td></tr>
+        <tr><th>事業者の連絡先（電話番号）</th><td>ご請求をいただいた場合、遅滞なく開示いたします。営業時間：10:00〜18:00（土日祝日を除く）</td></tr>
+        <tr><th>メールアドレス</th><td>m17621752319@gmail.com</td></tr>
+        <tr><th>販売価格</th><td>ダッシュボード内の各プラン購入ページに記載の金額（税込）。</td></tr>
+        <tr><th>追加手数料等の追加料金</th><td>なし。ただし、当サイトのページの閲覧、本サービスの利用等に必要となるインターネット接続料金、通信料金等はお客様のご負担となります。</td></tr>
+        <tr><th>利用可能な決済手段</th><td>クレジットカード決済（Stripe）</td></tr>
+        <tr><th>決済期間（代金の支払時期）</th><td>・初回：クレジットカード決済完了時 ・次回以降：毎月の契約更新日</td></tr>
+        <tr><th>配達時間（サービスの提供時期）</th><td>クレジットカード決済完了後、すぐにご利用いただけます。</td></tr>
+        <tr><th>交換および返品に関するポリシー（返品・キャンセルに関する特約）</th><td>＜お客様都合による返品・キャンセル＞ デジタルコンテンツというサービスの性質上、決済完了後の返品・キャンセル・返金には応じられません。サブスクリプションの解約は、ダッシュボードの「Profile」ページよりいつでも可能です。解約手続きを行われた場合、次回更新日をもってサービスの提供を終了し、以降の請求は発生いたしません。＜システムの不具合（不良品）について＞ システムの不具合等により正常にサービスが利用できない場合は、速やかに復旧および修正作業を行います。不具合に関するお問い合わせは、上記メールアドレスまたはDiscordのサポートサーバーまでご連絡ください。Discordサポートサーバー: https://discord.gg/DdjYVeRwFe</td></tr>
+      </table>
+      <div class="actions">
+        <a class="btn btn-main" href="{% url 'dashboard_login' %}">ログイン画面へ戻る</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

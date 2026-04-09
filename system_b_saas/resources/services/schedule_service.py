@@ -66,6 +66,8 @@ def _normalize_week_config(week_config: dict | None) -> dict[str, list[dict[str,
         return normalized
 
     for day_key, config in week_config.items():
+        if not isinstance(config, dict):
+            continue
         if not config or not config.get("enabled"):
             continue
 
@@ -82,6 +84,80 @@ def _normalize_week_config(week_config: dict | None) -> dict[str, list[dict[str,
             normalized[str(day_key)] = slots
 
     return normalized
+
+
+def normalize_core_time_config(week_config: dict | None) -> dict[str, list[dict[str, str]]]:
+    normalized = _normalize_week_config(week_config)
+    if normalized:
+        return normalized
+
+    direct: dict[str, list[dict[str, str]]] = {}
+    if not week_config:
+        return direct
+
+    for day_key, raw_value in week_config.items():
+        slots = raw_value if isinstance(raw_value, list) else []
+        clean = []
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            start = str(slot.get("start") or "").strip()
+            end = str(slot.get("end") or "").strip()
+            if start and end:
+                clean.append({"start": start, "end": end})
+        if clean:
+            direct[str(day_key)] = clean
+    return direct
+
+
+def summarize_core_time_config(week_config: dict | None) -> str:
+    normalized = normalize_core_time_config(week_config)
+    if not normalized:
+        return "未設定"
+
+    day_labels = ["日", "月", "火", "水", "木", "金", "土"]
+    parts: list[str] = []
+    for day_index in range(7):
+        slots = normalized.get(str(day_index), [])
+        if not slots:
+            continue
+        text = ", ".join(
+            f'{slot["start"]}-{"24:00" if slot["end"] == "00:00" else slot["end"]}'
+            for slot in slots
+        )
+        parts.append(f"{day_labels[day_index]} {text}")
+    return " / ".join(parts) if parts else "未設定"
+
+
+def _iter_core_time_windows_for_date(tenant, target_date):
+    normalized = normalize_core_time_config(getattr(tenant, "core_time_week_config", {}) or {})
+    py_weekday = target_date.weekday()
+    js_day_key = "0" if py_weekday == 6 else str(py_weekday + 1)
+    for slot in normalized.get(js_day_key, []):
+        start_time = datetime.strptime(slot["start"], "%H:%M").time()
+        end_time = datetime.strptime(slot["end"], "%H:%M").time()
+        window_start = _ensure_aware(datetime.combine(target_date, start_time))
+        window_end = _ensure_aware(datetime.combine(target_date, end_time))
+        if window_end <= window_start:
+            window_end += timedelta(days=1)
+        yield window_start, window_end
+
+
+def is_range_within_core_time(tenant, start_dt: datetime, end_dt: datetime) -> bool:
+    store_type = (getattr(tenant, "store_type", "FLEX_SHIFT") or "FLEX_SHIFT").upper()
+    if store_type != "CORE_TIME":
+        return True
+
+    normalized = normalize_core_time_config(getattr(tenant, "core_time_week_config", {}) or {})
+    if not normalized:
+        return False
+
+    candidate_dates = {start_dt.date(), end_dt.date(), (start_dt - timedelta(days=1)).date()}
+    for target_date in candidate_dates:
+        for window_start, window_end in _iter_core_time_windows_for_date(tenant, target_date):
+            if start_dt >= window_start and end_dt <= window_end:
+                return True
+    return False
 
 
 def resolve_resource(tenant, resource_id_raw: str | None) -> Resource:
@@ -257,6 +333,8 @@ def create_single_availability(tenant, resource_id_raw: str, start_str: str, end
 
     if start_dt >= end_dt:
         raise ScheduleValidationError("時間範囲が不正です")
+    if not is_range_within_core_time(tenant, start_dt, end_dt):
+        raise ScheduleValidationError("Core Time の営業時間内のみ排班できます")
 
     if start_dt < timezone.now() + timedelta(hours=24):
         raise ScheduleValidationError("新規シフトは24時間後から設定可能です。")
@@ -340,7 +418,9 @@ def create_recurring_availability(
                 if seg_end <= seg_start:
                     seg_end += timedelta(days=1)
 
-                if seg_start < generation_min_time:
+                if not is_range_within_core_time(tenant, seg_start, seg_end):
+                    stats["skipped_conflict"] += 1
+                elif seg_start < generation_min_time:
                     stats["skipped_24h"] += 1
                 elif _check_conflict(resource, seg_start, seg_end):
                     stats["skipped_conflict"] += 1
@@ -400,6 +480,15 @@ def get_recurring_config(tenant, resource_id_raw: str | None):
             if day_cfg.get("slots"):
                 day_cfg["start"] = day_cfg["slots"][0]["start"]
                 day_cfg["end"] = day_cfg["slots"][0]["end"]
+    elif (getattr(tenant, "store_type", "FLEX_SHIFT") or "").upper() == "CORE_TIME":
+        core_time_week = normalize_core_time_config(getattr(tenant, "core_time_week_config", {}) or {})
+        for day_key, slots in core_time_week.items():
+            config[str(day_key)] = {
+                "enabled": True,
+                "slots": slots,
+                "start": slots[0]["start"],
+                "end": slots[0]["end"],
+            }
 
     return {"range": range_info, "week_config": config}
 

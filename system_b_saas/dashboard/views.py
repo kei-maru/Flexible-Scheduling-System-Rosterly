@@ -27,15 +27,20 @@ from django.utils.dateparse import parse_datetime
 from django import forms
 from django.views import View
 from django.views.generic import TemplateView
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from django.db.models import Q
 from django.utils.text import slugify
 
 from bookings.models import Booking, BookingReport, REPORT_REASON_CHOICES
 from bookings.tasks import process_new_booking, send_cancellation_email_task
+from dashboard.models import UserBehaviorEvent
+from dashboard import stripe_service
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
 from resources.services.service_mapping import resolve_booking_service_name, resolve_service_by_duration
+from resources.services.schedule_service import normalize_core_time_config, summarize_core_time_config
 from tenants.models import SaaSUser, StaffInvite, Tenant
 
 
@@ -94,6 +99,15 @@ def _normalize_required_customer_fields(values):
 
 
 def _tenant_is_subscribed(tenant):
+    if getattr(tenant, "subscription_override_enabled", False):
+        status = (getattr(tenant, "subscription_override_status", "") or "").upper()
+        if status not in {"ACTIVE", "TRIAL"}:
+            return False
+        ends_at = getattr(tenant, "subscription_override_ends_at", None)
+        if ends_at and ends_at <= timezone.now():
+            return False
+        return True
+
     status = (getattr(tenant, "subscription_status", "") or "").upper()
     if status not in {"ACTIVE", "TRIAL"}:
         return False
@@ -105,6 +119,35 @@ def _tenant_is_subscribed(tenant):
 
 def _is_core_time_store(tenant):
     return (getattr(tenant, "store_type", "FLEX_SHIFT") or "FLEX_SHIFT").upper() == "CORE_TIME"
+
+
+def _effective_subscription_context(tenant):
+    override_enabled = bool(getattr(tenant, "subscription_override_enabled", False))
+    if override_enabled:
+        return {
+            "effective_subscription_status": (getattr(tenant, "subscription_override_status", "") or "NONE").upper(),
+            "effective_subscription_started_at": getattr(tenant, "subscription_override_started_at", None),
+            "effective_subscription_ends_at": getattr(tenant, "subscription_override_ends_at", None),
+            "subscription_is_overridden": True,
+            "subscription_override_note": (getattr(tenant, "subscription_override_note", "") or "").strip(),
+        }
+
+    return {
+        "effective_subscription_status": (getattr(tenant, "subscription_status", "") or "NONE").upper(),
+        "effective_subscription_started_at": getattr(tenant, "subscription_started_at", None),
+        "effective_subscription_ends_at": getattr(tenant, "subscription_ends_at", None),
+        "subscription_is_overridden": False,
+        "subscription_override_note": "",
+    }
+
+
+def _behavior_client_ip(request):
+    remote_addr = (request.META.get("REMOTE_ADDR") or "").strip()
+    trusted_proxies = set(getattr(settings, "TRUSTED_PROXY_IPS", set()) or set())
+    forwarded = (request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
+    if forwarded and remote_addr in trusted_proxies:
+        return forwarded.split(",")[0].strip()
+    return remote_addr or ""
 
 
 def _agreement_modules_for_template(raw_json, legacy_label="", legacy_body=""):
@@ -341,6 +384,14 @@ class DashboardShopSignupForm(forms.Form):
 class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
     template_name = "dashboard/shop_signup_form.html"
 
+    def _form_seed_context(self, request=None):
+        request = request or self.request
+        return {
+            "form_shop_name": (request.POST.get("shop_name") or "").strip(),
+            "form_owner_email": (request.POST.get("owner_email") or "").strip(),
+            "form_preset_services_json": (request.POST.get("preset_services_json") or "").strip(),
+        }
+
     def _is_shop_signup_session(self):
         return bool(self.request.session.get("allow_shop_signup"))
 
@@ -380,6 +431,7 @@ class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["default_shop_name"] = f"{(self.request.user.username or 'Rosterly')[:50]} Shop"
         context["default_owner_email"] = self.request.user.email or ""
+        context.update(self._form_seed_context())
         return context
 
     def post(self, request, *args, **kwargs):
@@ -395,7 +447,8 @@ class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
             for _field, errs in form.errors.items():
                 for err in errs:
                     messages.error(request, str(err))
-            return self.get(request, *args, **kwargs)
+            context = self.get_context_data()
+            return self.render_to_response(context)
 
         shop_name = form.cleaned_data["shop_name"].strip()
         owner_email = form.cleaned_data["owner_email"].strip()
@@ -476,10 +529,12 @@ class DashboardShopSignupFormView(LoginRequiredMixin, TemplateView):
                         is_active=True,
                         sort_order=max_order,
                     )
-        except Exception:
+        except Exception as exc:
             logger.exception('shop register failed for user_id=%s', getattr(request.user, 'id', None))
-            messages.error(request, "店舗登録に失敗しました。入力内容を確認して再試行してください。")
-            return self.get(request, *args, **kwargs)
+            debug = bool(getattr(settings, "DEBUG", False))
+            messages.error(request, f"店舗登録に失敗しました。{' ' + str(exc) if debug else '入力内容を確認して再試行してください。'}")
+            context = self.get_context_data()
+            return self.render_to_response(context)
 
         request.session.pop("allow_shop_signup", None)
         request.session.pop("shop_signup_provisional_user_id", None)
@@ -503,6 +558,10 @@ class DashboardInviteAcceptView(View):
 
 class DashboardTermsView(TemplateView):
     template_name = "dashboard/terms.html"
+
+
+class DashboardTokushohoView(TemplateView):
+    template_name = "dashboard/tokushoho.html"
 
 
 class DashboardPublicBookingView(TemplateView):
@@ -654,6 +713,102 @@ class DashboardPublicBookingAvailabilityApi(View):
         return JsonResponse({"slots": data, "booking_window_days": booking_window_days})
 
 
+class DashboardTrackingApi(View):
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            payload = json.loads(request.body or "{}")
+        except (TypeError, ValueError):
+            return JsonResponse({"status": "error", "message": "invalid_json"}, status=400)
+
+        event_type = (payload.get("action") or "").strip().upper()
+        if event_type not in {"VIEW_PAGE", "PAGE_DURATION", "CLICK_CAST", "CLICK_RESERVATION_INFO", "BOOKING_SUCCESS"}:
+            return JsonResponse({"status": "ignored"})
+
+        meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+        tenant_slug = (meta.get("tenant_slug") or payload.get("tenant_slug") or "").strip()
+        tenant = Tenant.objects.filter(slug=tenant_slug).first() if tenant_slug else None
+
+        booking = None
+        booking_id = (meta.get("booking_id") or "").strip()
+        if booking_id and tenant:
+            booking = Booking.objects.filter(id=booking_id, tenant=tenant).first()
+
+        visit_hour_jst = timezone.localtime(timezone.now()).hour
+        visit_bucket = f"{visit_hour_jst:02d}:00-{(visit_hour_jst + 1) % 24:02d}:00"
+        merged_meta = {
+            **meta,
+            "ip": _behavior_client_ip(request),
+            "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+            "visit_hour_jst": visit_hour_jst,
+            "visit_time_bucket_jst": visit_bucket,
+        }
+
+        if not request.session.session_key:
+            request.session.save()
+
+        UserBehaviorEvent.objects.create(
+            user=request.user if request.user.is_authenticated else None,
+            tenant=tenant,
+            booking=booking,
+            event_type=event_type,
+            target=(payload.get("target") or "")[:255],
+            page_url=(meta.get("page_url") or request.path)[:500],
+            session_key=request.session.session_key or "",
+            meta_data=merged_meta,
+        )
+        return JsonResponse({"status": "success"})
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class StripeWebhookView(View):
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            stripe_service.verify_webhook_signature(request.body, request.META.get("HTTP_STRIPE_SIGNATURE", ""))
+            event = json.loads(request.body.decode("utf-8"))
+        except stripe_service.StripeConfigError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+        except (ValueError, stripe_service.StripeApiError) as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+        event_type = (event.get("type") or "").strip()
+        data_object = (((event.get("data") or {}).get("object")) or {})
+        tenant = None
+
+        tenant_id = (((data_object.get("metadata") or {}).get("tenant_id")) or "").strip()
+        if tenant_id:
+            tenant = Tenant.objects.filter(id=tenant_id).first()
+
+        if tenant is None:
+            customer_id = (data_object.get("customer") or "").strip()
+            if customer_id:
+                tenant = Tenant.objects.filter(stripe_customer_id=customer_id).first()
+
+        if tenant is None:
+            return JsonResponse({"ok": True, "ignored": True})
+
+        if event_type == "checkout.session.completed":
+            subscription_id = (data_object.get("subscription") or "").strip()
+            customer_id = (data_object.get("customer") or "").strip()
+            update_fields = []
+            if customer_id and tenant.stripe_customer_id != customer_id:
+                tenant.stripe_customer_id = customer_id
+                update_fields.append("stripe_customer_id")
+            if subscription_id and tenant.stripe_subscription_id != subscription_id:
+                tenant.stripe_subscription_id = subscription_id
+                update_fields.append("stripe_subscription_id")
+            if update_fields:
+                tenant.save(update_fields=update_fields)
+
+        if event_type in {"checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"}:
+            stripe_service.sync_tenant_subscription(tenant)
+
+        return JsonResponse({"ok": True})
+
+
 class DashboardPublicBookingCreateApi(View):
     def _booking_resource_queryset(self, tenant):
         return (
@@ -783,6 +938,24 @@ class DashboardPublicBookingCreateApi(View):
                 status="CONFIRMED",
             )
             _ensure_booking_public_access(request, booking)
+            UserBehaviorEvent.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                tenant=tenant,
+                booking=booking,
+                event_type="BOOKING_SUCCESS",
+                target=resource.name,
+                page_url=request.path[:500],
+                session_key=request.session.session_key or "",
+                meta_data={
+                    "resource_id": str(resource.id),
+                    "service_id": str(selected_service.id) if selected_service else "",
+                    "service_name": selected_service_name,
+                    "start_time": start_time.isoformat(),
+                    "end_time": end_time.isoformat(),
+                    "visit_time_bucket_jst": f"{timezone.localtime(timezone.now()).hour:02d}:00-{(timezone.localtime(timezone.now()).hour + 1) % 24:02d}:00",
+                    "ip": _behavior_client_ip(request),
+                },
+            )
             transaction.on_commit(lambda: process_new_booking.delay(booking.id))
 
         return JsonResponse({"ok": True, "booking_id": str(booking.id), "public_detail_url": booking.public_detail_url})
@@ -1079,6 +1252,46 @@ class DashboardSuperGlobalView(SuperAdminRequiredMixin, TemplateView):
                 messages.warning(request, f"已封禁店铺 API: {tenant.name}")
             return redirect("dashboard_super_global")
 
+        if action == "save_subscription_override":
+            tenant_id = (request.POST.get("tenant_id") or "").strip()
+            tenant = Tenant.objects.filter(id=tenant_id).first()
+            if not tenant:
+                messages.error(request, "店铺不存在。")
+                return redirect("dashboard_super_global")
+
+            enabled = request.POST.get("override_enabled") == "on"
+            status = (request.POST.get("override_status") or "NONE").strip().upper()
+            started_raw = (request.POST.get("override_started_at") or "").strip()
+            ends_raw = (request.POST.get("override_ends_at") or "").strip()
+            note = (request.POST.get("override_note") or "").strip()
+            if status not in {"ACTIVE", "TRIAL", "CANCELED", "NONE"}:
+                messages.error(request, "手动订阅状态不合法。")
+                return redirect("dashboard_super_global")
+
+            started_at = parse_datetime(started_raw) if started_raw else None
+            ends_at = parse_datetime(ends_raw) if ends_raw else None
+            if started_at and timezone.is_naive(started_at):
+                started_at = timezone.make_aware(started_at, timezone.get_current_timezone())
+            if ends_at and timezone.is_naive(ends_at):
+                ends_at = timezone.make_aware(ends_at, timezone.get_current_timezone())
+
+            tenant.subscription_override_enabled = enabled
+            tenant.subscription_override_status = status if enabled else ""
+            tenant.subscription_override_started_at = started_at if enabled else None
+            tenant.subscription_override_ends_at = ends_at if enabled else None
+            tenant.subscription_override_note = note if enabled else ""
+            tenant.save(
+                update_fields=[
+                    "subscription_override_enabled",
+                    "subscription_override_status",
+                    "subscription_override_started_at",
+                    "subscription_override_ends_at",
+                    "subscription_override_note",
+                ]
+            )
+            messages.success(request, f"已更新店铺订阅手动覆盖: {tenant.name}")
+            return redirect("dashboard_super_global")
+
         messages.error(request, "未识别的操作。")
         return redirect("dashboard_super_global")
 
@@ -1108,6 +1321,12 @@ class DashboardSuperGlobalView(SuperAdminRequiredMixin, TemplateView):
                     "slug": tenant.slug,
                     "contact_email": tenant.contact_email or "",
                     "subscription_status": (tenant.subscription_status or "NONE").upper(),
+                    "effective_subscription_status": _effective_subscription_context(tenant)["effective_subscription_status"],
+                    "subscription_override_enabled": bool(getattr(tenant, "subscription_override_enabled", False)),
+                    "subscription_override_status": (getattr(tenant, "subscription_override_status", "") or "").upper(),
+                    "subscription_override_started_at": getattr(tenant, "subscription_override_started_at", None),
+                    "subscription_override_ends_at": getattr(tenant, "subscription_override_ends_at", None),
+                    "subscription_override_note": (getattr(tenant, "subscription_override_note", "") or "").strip(),
                     "is_api_enabled": bool(getattr(tenant, "is_api_enabled", True)),
                     "api_ban_reason_label": _tenant_api_ban_reason_label(getattr(tenant, "api_ban_reason", "")),
                     "api_ban_note": (getattr(tenant, "api_ban_note", "") or "").strip(),
@@ -1253,6 +1472,11 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         custom_agreements = _normalize_agreement_modules(custom_agreements_json)
         custom_terms_label = custom_agreements[0]["title"] if custom_agreements else ""
         custom_terms_body = json.dumps(custom_agreements, ensure_ascii=False)
+        core_time_week_config_raw = (request.POST.get("core_time_week_config") or "").strip()
+        try:
+            core_time_week_config = normalize_core_time_config(json.loads(core_time_week_config_raw or "{}"))
+        except (TypeError, ValueError):
+            raise ValueError("Core Time 設定の形式が不正です")
 
         if not name:
             raise ValueError("店舗名は必須です")
@@ -1267,6 +1491,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             raise ValueError("この slug は既に使用されています")
         if store_type not in {"CORE_TIME", "FLEX_SHIFT"}:
             raise ValueError("店舗タイプが不正です")
+        if store_type == "CORE_TIME" and not core_time_week_config:
+            raise ValueError("Core Time の営業時間を最低1枠設定してください")
         if not store_contract_label:
             raise ValueError("店舗契約は必須です")
         try:
@@ -1319,6 +1545,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         if (tenant.custom_terms_body or "") != custom_terms_body:
             tenant.custom_terms_body = custom_terms_body
             update_fields.append("custom_terms_body")
+        if (tenant.core_time_week_config or {}) != core_time_week_config:
+            tenant.core_time_week_config = core_time_week_config
+            update_fields.append("core_time_week_config")
         if request.FILES.get("tenant_logo"):
             tenant.logo = request.FILES["tenant_logo"]
             update_fields.append("logo")
@@ -1358,6 +1587,20 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
         if update_fields:
             tenant.save(update_fields=update_fields)
+
+    def _create_stripe_checkout(self, tenant):
+        success_url = self._absolute_public_url(f"{reverse('tenant_dashboard')}?tab=subscription")
+        cancel_url = self._absolute_public_url(f"{reverse('tenant_dashboard')}?tab=subscription")
+        session = stripe_service.create_checkout_session(tenant, success_url=success_url, cancel_url=cancel_url)
+        return session.get("url") or ""
+
+    def _open_stripe_portal(self, tenant):
+        return_url = self._absolute_public_url(f"{reverse('tenant_dashboard')}?tab=subscription")
+        session = stripe_service.create_billing_portal_session(tenant, return_url=return_url)
+        return session.get("url") or ""
+
+    def _sync_stripe_subscription(self, tenant):
+        return stripe_service.sync_tenant_subscription(tenant)
 
     def _save_core_time_order(self, request, tenant):
         if not _is_core_time_store(tenant):
@@ -1741,9 +1984,21 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 self._save_tenant_settings(request, tenant)
                 messages.success(request, "店舗設定を保存しました。")
                 target_tab = "shop"
-            elif request.POST.get("save_subscription_settings") == "true":
-                self._save_subscription_settings(request, tenant)
-                messages.success(request, "サブスクリプション設定を保存しました。")
+            elif request.POST.get("create_stripe_checkout") == "true":
+                target_tab = "subscription"
+                checkout_url = self._create_stripe_checkout(tenant)
+                if checkout_url:
+                    return redirect(checkout_url)
+                messages.error(request, "Stripe Checkout URL の生成に失敗しました。")
+            elif request.POST.get("open_stripe_portal") == "true":
+                target_tab = "subscription"
+                portal_url = self._open_stripe_portal(tenant)
+                if portal_url:
+                    return redirect(portal_url)
+                messages.error(request, "Stripe Billing Portal URL の生成に失敗しました。")
+            elif request.POST.get("sync_stripe_subscription") == "true":
+                self._sync_stripe_subscription(tenant)
+                messages.success(request, "Stripe の契約情報を同期しました。")
                 target_tab = "subscription"
             elif request.POST.get("save_core_time_order") == "true":
                 self._save_core_time_order(request, tenant)
@@ -1767,6 +2022,10 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             messages.error(request, "スタッフユーザーが見つかりません。")
         except ServicePreset.DoesNotExist:
             messages.error(request, "サービスプリセットが見つかりません。")
+        except stripe_service.StripeConfigError as exc:
+            messages.error(request, str(exc))
+        except stripe_service.StripeApiError as exc:
+            messages.error(request, f"Stripe 連携に失敗しました: {exc}")
         except Exception:
             logger.exception('tenant dashboard operation failed tenant_id=%s', getattr(tenant, 'id', None))
             messages.error(request, "処理中にエラーが発生しました。時間をおいて再試行してください。")
@@ -1989,10 +2248,21 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "tenant_contact_email": tenant.contact_email if tenant else "",
                 "store_type": (tenant.store_type if tenant else "FLEX_SHIFT"),
                 "is_core_time_store": _is_core_time_store(tenant) if tenant else False,
+                "core_time_week_config_json": json.dumps(normalize_core_time_config(getattr(tenant, "core_time_week_config", {}) if tenant else {}), ensure_ascii=False),
+                "core_time_summary": summarize_core_time_config(getattr(tenant, "core_time_week_config", {}) if tenant else {}),
                 "subscription_status": (tenant.subscription_status if tenant else "ACTIVE"),
                 "subscription_plan_code": (tenant.subscription_plan_code if tenant else ""),
                 "subscription_started_at": (tenant.subscription_started_at if tenant else None),
                 "subscription_ends_at": (tenant.subscription_ends_at if tenant else None),
+                "stripe_customer_id": (tenant.stripe_customer_id if tenant else ""),
+                "stripe_subscription_id": (tenant.stripe_subscription_id if tenant else ""),
+                "stripe_price_id": (tenant.stripe_price_id if tenant else ""),
+                "stripe_first_credit_amount": getattr(tenant, "stripe_first_credit_amount", getattr(settings, "STRIPE_FIRST_MONTH_DISCOUNT_JPY", 2000)) if tenant else getattr(settings, "STRIPE_FIRST_MONTH_DISCOUNT_JPY", 2000),
+                "stripe_first_credit_applied_at": (tenant.stripe_first_credit_applied_at if tenant else None),
+                "stripe_publishable_key": (getattr(settings, "STRIPE_PUBLISHABLE_KEY", "") or "").strip(),
+                "stripe_basic_price_display": getattr(settings, "STRIPE_BASIC_MONTHLY_PRICE_JPY", 5000),
+                "stripe_checkout_ready": stripe_service.stripe_checkout_ready(),
+                "stripe_subscription_price_id": (getattr(settings, "STRIPE_SUBSCRIPTION_PRICE_ID", "") or "").strip(),
                 "booking_window_days": tenant.booking_window_days if tenant else 14,
                 "cancellation_window_hours": tenant.cancellation_window_hours if tenant else 2,
                 "booking_detail_redirect_url": tenant.booking_detail_redirect_url if tenant else "",
@@ -2018,6 +2288,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "is_super_admin": bool(self.request.user.is_superuser),
                 "selected_tenant_id": str(tenant.id) if tenant else "",
                 **_tenant_api_ban_banner_context(tenant),
+                **(_effective_subscription_context(tenant) if tenant else {}),
                 "system_admin_contact_url": (getattr(settings, "SYSTEM_ADMIN_CONTACT_URL", "") or "mailto:support@rosterlyreverse.com").strip(),
             }
         )

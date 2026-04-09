@@ -87,12 +87,12 @@ class SaaSDiscordSocialAdapter(DefaultSocialAccountAdapter):
         return invite
 
     def _public_sso_tenant_slug(self) -> str:
-        return str(getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_SLUG", "Veludo") or "Veludo").strip()
+        return str(getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_SLUG", "rosterly") or "rosterly").strip()
 
     def _public_sso_tenant_name(self) -> str:
         return str(
-            getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_NAME", "VR ASMR Salon Veludo")
-            or "VR ASMR Salon Veludo"
+            getattr(settings, "SYSTEM_B_PUBLIC_SSO_TENANT_NAME", "Rosterly")
+            or "Rosterly"
         ).strip()
 
     def _resolve_public_sso_tenant(self):

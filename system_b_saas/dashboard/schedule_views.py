@@ -335,6 +335,9 @@ class SharedScheduleView(SharedBaseMixin, TemplateView):
         context["is_cast"] = bool(resource)
         context["current_resource_id"] = str(resource.id) if resource else ""
         context["initial_focus_date"] = initial_focus_date
+        context["is_core_time_store"] = bool(tenant and (getattr(tenant, "store_type", "FLEX_SHIFT") or "").upper() == "CORE_TIME")
+        context["core_time_week_config_json"] = json.dumps(schedule_service.normalize_core_time_config(getattr(tenant, "core_time_week_config", {}) if tenant else {}), ensure_ascii=False)
+        context["core_time_summary"] = schedule_service.summarize_core_time_config(getattr(tenant, "core_time_week_config", {}) if tenant else {})
         context.update(self._base_nav_context())
         return context
 

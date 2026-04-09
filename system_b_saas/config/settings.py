@@ -189,6 +189,12 @@ EMAIL_HOST_USER = (os.environ.get('EMAIL_HOST_USER') or '').strip()
 EMAIL_HOST_PASSWORD = (os.environ.get('EMAIL_HOST_PASSWORD') or '').strip()
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+STRIPE_SECRET_KEY = (os.environ.get('STRIPE_SECRET_KEY') or '').strip()
+STRIPE_PUBLISHABLE_KEY = (os.environ.get('STRIPE_PUBLISHABLE_KEY') or '').strip()
+STRIPE_WEBHOOK_SECRET = (os.environ.get('STRIPE_WEBHOOK_SECRET') or '').strip()
+STRIPE_SUBSCRIPTION_PRICE_ID = (os.environ.get('STRIPE_SUBSCRIPTION_PRICE_ID') or '').strip()
+STRIPE_FIRST_MONTH_DISCOUNT_JPY = int((os.environ.get('STRIPE_FIRST_MONTH_DISCOUNT_JPY') or '2000').strip() or '2000')
+
 
 # ====================================
 # Auth & Redirect Settings

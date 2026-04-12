@@ -30,6 +30,7 @@ class Tenant(models.Model):
     stripe_checkout_session_id = models.CharField(max_length=128, blank=True, default='')
     stripe_first_credit_applied_at = models.DateTimeField(blank=True, null=True)
     stripe_first_credit_amount = models.IntegerField(default=2000)
+    stripe_synced_at = models.DateTimeField(blank=True, null=True)
     subscription_override_enabled = models.BooleanField(default=False)
     subscription_override_status = models.CharField(max_length=20, blank=True, default='')
     subscription_override_started_at = models.DateTimeField(blank=True, null=True)

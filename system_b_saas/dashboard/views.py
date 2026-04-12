@@ -656,6 +656,8 @@ class DashboardPublicBookingView(TemplateView):
                 "store_contract_url_effective": store_contract_url_effective,
                 "store_contract_items": store_contract_items,
                 "tenant_is_subscribed": _tenant_is_subscribed(tenant),
+                "is_core_time_store": _is_core_time_store(tenant),
+                "core_time_summary": summarize_core_time_config(getattr(tenant, "core_time_week_config", {})),
                 "subscription_status": (tenant.subscription_status or "").upper() or "NONE",
                 "required_customer_fields": _normalize_required_customer_fields(
                     getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])
@@ -1997,9 +1999,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     return redirect(portal_url)
                 messages.error(request, "Stripe Billing Portal URL の生成に失敗しました。")
             elif request.POST.get("sync_stripe_subscription") == "true":
+                target_tab = "subscription"
                 self._sync_stripe_subscription(tenant)
                 messages.success(request, "Stripe の契約情報を同期しました。")
-                target_tab = "subscription"
             elif request.POST.get("save_core_time_order") == "true":
                 self._save_core_time_order(request, tenant)
                 messages.success(request, "コアタイム注文を保存しました。")
@@ -2038,6 +2040,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tenant = self._resolve_tenant()
+        requested_tab = (self.request.GET.get("tab") or "").strip().lower()
 
         orders = Booking.objects.none()
         resources = Resource.objects.none()
@@ -2053,6 +2056,13 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
         report_notifications = []
 
         if tenant:
+            if requested_tab == "subscription":
+                try:
+                    stripe_service.sync_tenant_subscription(tenant)
+                    tenant.refresh_from_db()
+                except (stripe_service.StripeConfigError, stripe_service.StripeApiError):
+                    logger.warning("stripe subscription auto-sync skipped tenant_id=%s", tenant.id, exc_info=True)
+
             now = timezone.now()
             staff_users = list(
                 SaaSUser.objects.filter(
@@ -2259,6 +2269,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "stripe_price_id": (tenant.stripe_price_id if tenant else ""),
                 "stripe_first_credit_amount": getattr(tenant, "stripe_first_credit_amount", getattr(settings, "STRIPE_FIRST_MONTH_DISCOUNT_JPY", 2000)) if tenant else getattr(settings, "STRIPE_FIRST_MONTH_DISCOUNT_JPY", 2000),
                 "stripe_first_credit_applied_at": (tenant.stripe_first_credit_applied_at if tenant else None),
+                "stripe_synced_at": (tenant.stripe_synced_at if tenant else None),
                 "stripe_publishable_key": (getattr(settings, "STRIPE_PUBLISHABLE_KEY", "") or "").strip(),
                 "stripe_basic_price_display": getattr(settings, "STRIPE_BASIC_MONTHLY_PRICE_JPY", 5000),
                 "stripe_checkout_ready": stripe_service.stripe_checkout_ready(),

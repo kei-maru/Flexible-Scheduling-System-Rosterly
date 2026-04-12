@@ -218,6 +218,9 @@
 - 新增历史数据修正命令 `backfill_a_sso_users`，支持 dry-run / apply。
 - 生产实操补充：当 B 侧不可见 A `core_user` 时进入 fallback，只批量修 tenant，角色需手动 `--admin-ids/--staff-ids`。
 - 员工端前台统一改造：`/home|/profile|/schedule|/bookings` 对齐同一 Header 设计语言。
+
+---
+
 - 员工资料页接入 `ResourceProfile` 扩展字段保存，`Discord ID` 改为只读并在后端禁改。
 - 修复头像菜单 hover 丢失导致的 logout 下拉消失问题，改为点击展开模式。
 - `STAFF` 账号注册/登录时自动绑定 `Resource`，确保员工可直接被预约与管理排班。
@@ -230,6 +233,32 @@
 阶段结论：
 - 角色语义从“仅区分消费者/员工”升级为“与 A 组织角色一致映射”，并形成可回放的历史数据修正路径。
 - 员工端交互与资料维护闭环完成，管理员运营面板与服务配置链路同步收敛。
+
+---
+
+## 5. 2026-04-12 追加更新：Stripe 订阅稳定化与 Core-Time 体验修复
+
+关键内容：
+- Stripe / Subscription：
+  - 新增 Webhook + 手动同步双通道的状态回写稳定化。
+  - 修复 Django 6 时间处理兼容问题（避免同步时报错）。
+  - 增加 `checkout_session_id -> subscription` 兜底回查，避免支付成功后状态延迟。
+  - 当 Stripe 返回 `current_period_start/end` 为空时，回退 `start_date/billing_cycle_anchor` 并结合 recurring 推导周期结束。
+  - 管理台订阅卡片新增“最終同期”时间展示。
+- Subscription UI：
+  - 已订阅时展示明显提示，`Basic` 申込按钮灰化禁用。
+  - 增加小字链接“解約はこちら”直达 Billing Portal。
+- Core-Time 店铺设置：
+  - 修复时间表编辑区域“内容过长不可滚动”问题（弹窗内部滚动）。
+  - 编辑完成点击反映后自动触发一次店铺设置保存。
+- 排班日历粒度：
+  - System B 员工排班日历改为“1 小时一格显示 + 30 分钟拖拽颗粒度”。
+- 公开预约页：
+  - `CORE_TIME` 店铺在页面顶部展示营业时间摘要，降低顾客理解成本。
+
+阶段结论：
+- 支付成功但后台状态未刷新、同步 500、契约时间空白等问题形成闭环修复。
+- Core-Time 配置与公开预约信息一致性提升，后台与前台的时间语义对齐。
 
 ---
 

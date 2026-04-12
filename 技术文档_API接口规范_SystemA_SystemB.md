@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-04-09  
+**最后更新**: 2026-04-12  
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 1. 认证与约定
@@ -237,6 +237,15 @@
 - 当前 Basic plan 展示价：
   - `5000 JPY / month`
 
+补充（2026-04-12）：
+- 订阅状态同步增加 `checkout_session_id -> subscription` 兜底回查，避免 webhook 到达顺序导致 `stripe_subscription_id` 暂时为空时无法同步。
+- 订阅周期时间同步策略：
+  - 优先读取 Stripe `current_period_start/current_period_end`
+  - 若为空，回退读取 `start_date/billing_cycle_anchor`
+  - `current_period_end` 为空时按 price recurring（month/week/day/year + interval_count）推导本周期结束时间
+- 管理台订阅页新增字段展示：`最終同期`（`Tenant.stripe_synced_at`）。
+- 管理台订阅页交互：已订阅时 `Basic` 按钮禁用并显示“契約済み”，附“解約はこちら”入口（Billing Portal）。
+
 ### 3.1 资源同步
 
 #### `POST /api/v1/integration/resources/`
@@ -347,6 +356,12 @@
 ```
 
 - 关键规则：创建排班需满足 24h 限制
+
+补充（2026-04-12）：
+- 员工排班日历（System B shared schedule）时间栅格调整为：
+  - `slotDuration=01:00:00`（视觉上 1 小时一格）
+  - `snapDuration=00:30:00`（拖拽/选择按 30 分钟吸附）
+  - `slotLabelInterval=01:00:00`
 
 #### `DELETE /api/v1/integration/availability/<availability_id>/`
 

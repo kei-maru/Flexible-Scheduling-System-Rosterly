@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone as dt_timezone
+from datetime import timedelta
 import hashlib
 import hmac
 import time
@@ -28,8 +30,8 @@ class StripeSubscriptionSnapshot:
     subscription_id: str = ""
     price_id: str = ""
     status: str = ""
-    current_period_start = None
-    current_period_end = None
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
 
 
 def _get_secret_key() -> str:
@@ -58,7 +60,36 @@ def _api_request(method: str, path: str, data=None, params=None):
 def _to_datetime(value):
     if not value:
         return None
-    return timezone.datetime.fromtimestamp(int(value), tz=timezone.utc)
+    return datetime.fromtimestamp(int(value), tz=dt_timezone.utc)
+
+
+def _add_months_utc(source: datetime, months: int) -> datetime:
+    month_index = (source.month - 1) + months
+    year = source.year + (month_index // 12)
+    month = (month_index % 12) + 1
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1, tzinfo=dt_timezone.utc)
+    else:
+        next_month = datetime(year, month + 1, 1, tzinfo=dt_timezone.utc)
+    last_day = (next_month - timedelta(days=1)).day
+    day = min(source.day, last_day)
+    return source.replace(year=year, month=month, day=day)
+
+
+def _derive_period_end(start_dt: datetime | None, recurring: dict | None) -> datetime | None:
+    if not start_dt or not isinstance(recurring, dict):
+        return None
+    interval = str(recurring.get("interval") or "month").strip().lower()
+    interval_count = int(recurring.get("interval_count") or 1)
+    interval_count = max(1, interval_count)
+
+    if interval == "day":
+        return start_dt + timedelta(days=interval_count)
+    if interval == "week":
+        return start_dt + timedelta(weeks=interval_count)
+    if interval == "year":
+        return _add_months_utc(start_dt, 12 * interval_count)
+    return _add_months_utc(start_dt, interval_count)
 
 
 def verify_webhook_signature(payload: bytes, signature_header: str, tolerance: int = 300):
@@ -102,10 +133,23 @@ def ensure_customer_for_tenant(tenant):
     return tenant.stripe_customer_id
 
 
+def _resolve_first_month_credit_amount(tenant) -> int:
+    try:
+        amount = int((getattr(settings, "STRIPE_FIRST_MONTH_DISCOUNT_JPY", 2000) or 2000))
+    except (TypeError, ValueError):
+        amount = 2000
+    amount = max(0, amount)
+
+    if getattr(tenant, "stripe_first_credit_amount", None) != amount:
+        tenant.stripe_first_credit_amount = amount
+        tenant.save(update_fields=["stripe_first_credit_amount"])
+    return amount
+
+
 def apply_first_month_credit_if_needed(tenant):
     if getattr(tenant, "stripe_first_credit_applied_at", None):
         return False
-    amount = int(getattr(tenant, "stripe_first_credit_amount", 2000) or 0)
+    amount = _resolve_first_month_credit_amount(tenant)
     if amount <= 0:
         return False
 
@@ -138,6 +182,8 @@ def create_checkout_session(tenant, success_url: str, cancel_url: str):
         "customer": customer_id,
         "success_url": success_url,
         "cancel_url": cancel_url,
+        "payment_method_collection": "always",
+        "payment_method_types[0]": "card",
         "line_items[0][price]": price_id,
         "line_items[0][quantity]": 1,
         "allow_promotion_codes": "true",
@@ -171,11 +217,16 @@ def create_billing_portal_session(tenant, return_url: str):
 def fetch_subscription_snapshot(tenant) -> StripeSubscriptionSnapshot:
     customer_id = (getattr(tenant, "stripe_customer_id", "") or "").strip()
     subscription_id = (getattr(tenant, "stripe_subscription_id", "") or "").strip()
-    if not customer_id and not subscription_id:
+    checkout_session_id = (getattr(tenant, "stripe_checkout_session_id", "") or "").strip()
+    if not customer_id and not subscription_id and not checkout_session_id:
         return StripeSubscriptionSnapshot()
 
+    subscription = {}
     if subscription_id:
-        subscription = _api_request("GET", f"/subscriptions/{subscription_id}", params={"expand[]": "items.data.price"})
+        try:
+            subscription = _api_request("GET", f"/subscriptions/{subscription_id}", params={"expand[]": "items.data.price"})
+        except StripeApiError:
+            subscription = {}
     else:
         subscriptions = _api_request(
             "GET",
@@ -185,18 +236,45 @@ def fetch_subscription_snapshot(tenant) -> StripeSubscriptionSnapshot:
         rows = subscriptions.get("data") or []
         subscription = rows[0] if rows else {}
 
+    if not subscription and checkout_session_id:
+        session = _api_request(
+            "GET",
+            f"/checkout/sessions/{checkout_session_id}",
+            params={"expand[]": "subscription.items.data.price"},
+        )
+        session_subscription = (session or {}).get("subscription")
+        if isinstance(session_subscription, dict):
+            subscription = session_subscription
+        elif isinstance(session_subscription, str) and session_subscription:
+            subscription = _api_request("GET", f"/subscriptions/{session_subscription}", params={"expand[]": "items.data.price"})
+
     items = ((subscription or {}).get("items") or {}).get("data") or []
     price_id = ""
+    recurring = None
     if items:
-        price_id = ((items[0] or {}).get("price") or {}).get("id") or ""
+        price_payload = ((items[0] or {}).get("price") or {})
+        price_id = price_payload.get("id") or ""
+        recurring = price_payload.get("recurring") if isinstance(price_payload, dict) else None
+    snapshot_customer_id = customer_id or ((subscription or {}).get("customer") or "")
+    period_start_dt = _to_datetime(
+        (subscription or {}).get("current_period_start")
+        or (subscription or {}).get("start_date")
+        or (subscription or {}).get("billing_cycle_anchor")
+    )
+    period_end_dt = _to_datetime(
+        (subscription or {}).get("current_period_end")
+        or (subscription or {}).get("cancel_at")
+    )
+    if period_end_dt is None:
+        period_end_dt = _derive_period_end(period_start_dt, recurring)
 
     return StripeSubscriptionSnapshot(
-        customer_id=customer_id,
+        customer_id=snapshot_customer_id,
         subscription_id=(subscription or {}).get("id", "") or subscription_id,
         price_id=price_id,
         status=((subscription or {}).get("status") or "").upper(),
-        current_period_start=_to_datetime((subscription or {}).get("current_period_start")),
-        current_period_end=_to_datetime((subscription or {}).get("current_period_end")),
+        current_period_start=period_start_dt,
+        current_period_end=period_end_dt,
     )
 
 
@@ -220,6 +298,7 @@ def sync_tenant_subscription(tenant):
         "subscription_started_at": snapshot.current_period_start,
         "subscription_ends_at": snapshot.current_period_end,
         "subscription_plan_code": snapshot.price_id or (getattr(tenant, "subscription_plan_code", "") or ""),
+        "stripe_synced_at": timezone.now(),
     }
     for field, value in values.items():
         if getattr(tenant, field) != value:

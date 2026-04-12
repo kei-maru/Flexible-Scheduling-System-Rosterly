@@ -579,6 +579,8 @@ class DashboardPublicBookingView(TemplateView):
         context = super().get_context_data(**kwargs)
         tenant_slug = kwargs.get("tenant_slug")
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
+        if tenant and getattr(tenant, "deleted_at", None):
+            tenant = None
         if not tenant:
             context.update({"tenant": None, "resources": [], "services": []})
             return context
@@ -680,6 +682,8 @@ class DashboardPublicBookingAvailabilityApi(View):
 
     def get(self, request, tenant_slug, *args, **kwargs):
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
+        if tenant and getattr(tenant, "deleted_at", None):
+            tenant = None
         if not tenant:
             return JsonResponse({"error": "Tenant not found"}, status=404)
 
@@ -821,6 +825,8 @@ class DashboardPublicBookingCreateApi(View):
 
     def post(self, request, tenant_slug, *args, **kwargs):
         tenant = Tenant.objects.filter(slug=tenant_slug).first()
+        if tenant and getattr(tenant, "deleted_at", None):
+            tenant = None
         if not tenant:
             return JsonResponse({"error": "Tenant not found"}, status=404)
         # Honeypot trap: bots often fill hidden fields.
@@ -1967,6 +1973,53 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             raise ValueError("Missing service_id")
         ServicePreset.objects.filter(id=service_id, tenant=tenant).delete()
 
+    def _request_tenant_deletion(self, request, tenant):
+        confirm_text = (request.POST.get("tenant_delete_confirm") or "").strip().upper()
+        if confirm_text != "DELETE":
+            raise ValueError("削除確認テキストが一致しません。DELETE を入力してください。")
+        if getattr(tenant, "deleted_at", None):
+            raise ValueError("この店舗はすでに削除申請済みです。")
+
+        now = timezone.now()
+        tenant.deleted_at = now
+        tenant.recoverable_until = now + timedelta(days=30)
+        tenant.deletion_requested_by = request.user
+        tenant.enable_saas_dashboard = False
+        tenant.is_api_enabled = False
+        tenant.save(
+            update_fields=[
+                "deleted_at",
+                "recoverable_until",
+                "deletion_requested_by",
+                "enable_saas_dashboard",
+                "is_api_enabled",
+            ]
+        )
+        StaffInvite.objects.filter(tenant=tenant, is_active=True).update(is_active=False)
+
+    def _recover_tenant_deletion(self, tenant):
+        deleted_at = getattr(tenant, "deleted_at", None)
+        recoverable_until = getattr(tenant, "recoverable_until", None)
+        if not deleted_at:
+            raise ValueError("この店舗は削除申請されていません。")
+        if not recoverable_until or recoverable_until < timezone.now():
+            raise ValueError("復元可能期間（30日）を過ぎています。")
+
+        tenant.deleted_at = None
+        tenant.recoverable_until = None
+        tenant.deletion_requested_by = None
+        tenant.enable_saas_dashboard = True
+        tenant.is_api_enabled = True
+        tenant.save(
+            update_fields=[
+                "deleted_at",
+                "recoverable_until",
+                "deletion_requested_by",
+                "enable_saas_dashboard",
+                "is_api_enabled",
+            ]
+        )
+
     def post(self, request, *args, **kwargs):
         tenant = self._resolve_tenant()
         target_tab = "shop"
@@ -2062,6 +2115,14 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             elif request.POST.get("deactivate_staff_invite") == "true":
                 self._deactivate_staff_invite(request, tenant)
                 messages.success(request, "招待リンクを削除しました。")
+                target_tab = "shop"
+            elif request.POST.get("request_tenant_deletion") == "true":
+                self._request_tenant_deletion(request, tenant)
+                messages.success(request, "店舗の削除申請を受け付けました。30日以内であれば復元できます。")
+                target_tab = "shop"
+            elif request.POST.get("recover_tenant_deletion") == "true":
+                self._recover_tenant_deletion(tenant)
+                messages.success(request, "店舗を復元しました。")
                 target_tab = "shop"
             else:
                 messages.error(request, "未対応のダッシュボード操作です。")
@@ -2285,6 +2346,12 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             except Exception:
                 tenant_logo_url = ""
 
+        tenant_deleted_at = getattr(tenant, "deleted_at", None) if tenant else None
+        tenant_recoverable_until = getattr(tenant, "recoverable_until", None) if tenant else None
+        tenant_can_recover = bool(
+            tenant_deleted_at and tenant_recoverable_until and tenant_recoverable_until >= timezone.now()
+        )
+
         context.update(
             {
                 "orders": orders,
@@ -2336,6 +2403,9 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                     ensure_ascii=False,
                 ),
                 "tenant_logo_url": tenant_logo_url,
+                "tenant_deleted_at": tenant_deleted_at,
+                "tenant_recoverable_until": tenant_recoverable_until,
+                "tenant_can_recover": tenant_can_recover,
                 "public_booking_url": self._public_booking_url(tenant),
                 "recent_invites": recent_invites,
                 "core_time_orders": core_time_orders,

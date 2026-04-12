@@ -56,6 +56,16 @@ class Tenant(models.Model):
         blank=True,
         related_name='api_banned_tenants',
     )
+
+    deleted_at = models.DateTimeField(blank=True, null=True)
+    recoverable_until = models.DateTimeField(blank=True, null=True)
+    deletion_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deleted_tenants',
+    )
     
     enable_saas_dashboard = models.BooleanField(default=False)
 

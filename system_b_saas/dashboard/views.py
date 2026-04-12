@@ -35,7 +35,7 @@ from django.utils.text import slugify
 
 from bookings.models import Booking, BookingReport, REPORT_REASON_CHOICES
 from bookings.tasks import process_new_booking, send_cancellation_email_task
-from dashboard.models import UserBehaviorEvent
+from dashboard.models import GlobalAnnouncement, UserBehaviorEvent
 from dashboard import stripe_service
 from resources.models import Availability, EmailTemplate, Resource, ResourceProfile, ServicePreset
 from resources.services.binding_service import ensure_staff_resource_binding, normalize_profile_text
@@ -1173,6 +1173,44 @@ class DashboardSuperGlobalView(SuperAdminRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         action = (request.POST.get("action") or "").strip()
+        if action == "create_global_announcement":
+            title = (request.POST.get("announcement_title") or "").strip()
+            body = (request.POST.get("announcement_body") or "").strip()
+            link_url = (request.POST.get("announcement_link_url") or "").strip()
+            is_pinned = request.POST.get("announcement_is_pinned") == "on"
+            image = request.FILES.get("announcement_image")
+
+            if not title:
+                messages.error(request, "公告タイトルは必須です。")
+                return redirect("dashboard_super_global")
+            if link_url and not _is_http_url(link_url):
+                messages.error(request, "リンクは http(s) 形式で入力してください。")
+                return redirect("dashboard_super_global")
+
+            GlobalAnnouncement.objects.create(
+                title=title,
+                body=body,
+                link_url=link_url,
+                image=image,
+                is_pinned=is_pinned,
+                is_active=True,
+                created_by=request.user,
+            )
+            messages.success(request, "全体公告を送信しました。")
+            return redirect("dashboard_super_global")
+
+        if action == "deactivate_global_announcement":
+            announcement_id = (request.POST.get("announcement_id") or "").strip()
+            announcement = GlobalAnnouncement.objects.filter(id=announcement_id).first()
+            if not announcement:
+                messages.error(request, "公告が見つかりません。")
+                return redirect("dashboard_super_global")
+            if announcement.is_active:
+                announcement.is_active = False
+                announcement.save(update_fields=["is_active"])
+            messages.success(request, "公告を停止しました。")
+            return redirect("dashboard_super_global")
+
         if action == "create_debug_tenant":
             shop_name = (request.POST.get("shop_name") or "").strip() or "Debug Shop"
             contact_email = (request.POST.get("contact_email") or request.user.email or "").strip()
@@ -1312,6 +1350,11 @@ class DashboardSuperGlobalView(SuperAdminRequiredMixin, TemplateView):
         today_bookings = Booking.objects.filter(start_time__date=today).count()
         upcoming_24h_bookings = Booking.objects.filter(start_time__gte=now, start_time__lte=now + timedelta(hours=24)).count()
         unread_reports_global = BookingReport.objects.filter(is_read_by_admin=False).count()
+        active_announcements = list(
+            GlobalAnnouncement.objects.filter(is_active=True)
+            .select_related("created_by")
+            .order_by("-is_pinned", "-created_at")[:20]
+        )
 
         tenant_rows = []
         tenants = Tenant.objects.all().order_by("name")
@@ -1353,6 +1396,8 @@ class DashboardSuperGlobalView(SuperAdminRequiredMixin, TemplateView):
                 "today_bookings": today_bookings,
                 "upcoming_24h_bookings": upcoming_24h_bookings,
                 "unread_reports_global": unread_reports_global,
+                "active_announcement_count": len(active_announcements),
+                "active_announcements": active_announcements,
                 "tenant_rows": tenant_rows,
                 "ban_reason_choices": TENANT_API_BAN_REASON_CHOICES,
             }
@@ -2301,6 +2346,184 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 **_tenant_api_ban_banner_context(tenant),
                 **(_effective_subscription_context(tenant) if tenant else {}),
                 "system_admin_contact_url": (getattr(settings, "SYSTEM_ADMIN_CONTACT_URL", "") or "mailto:support@rosterlyreverse.com").strip(),
+            }
+        )
+        return context
+
+
+class TenantMessageCenterView(AdminDashboardRequiredMixin, TemplateView):
+    template_name = "dashboard/tenant_messages.html"
+
+    def _resolve_tenant(self):
+        if self.request.user.is_superuser:
+            requested_tenant_id = (self.request.GET.get("tenant_id") or "").strip()
+            if requested_tenant_id:
+                scoped_tenant = Tenant.objects.filter(id=requested_tenant_id).first()
+                if scoped_tenant:
+                    return scoped_tenant
+        tenant = getattr(self.request.user, "tenant", None)
+        if tenant:
+            return tenant
+        return Tenant.objects.first()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        tenant = self._resolve_tenant()
+        announcements = list(
+            GlobalAnnouncement.objects.filter(is_active=True)
+            .select_related("created_by")
+            .order_by("-is_pinned", "-created_at")[:50]
+        )
+        report_qs = BookingReport.objects.none()
+        unread_report_count = 0
+        if tenant:
+            report_qs = (
+                BookingReport.objects.filter(tenant=tenant)
+                .select_related("booking", "booking__resource")
+                .order_by("-created_at")[:80]
+            )
+            unread_report_count = BookingReport.objects.filter(tenant=tenant, is_read_by_admin=False).count()
+
+        reason_labels = dict(REPORT_REASON_CHOICES)
+        message_items = []
+
+        for item in announcements:
+            message_items.append(
+                {
+                    "item_type": "announcement",
+                    "item_id": item.id,
+                    "is_pinned": bool(item.is_pinned),
+                    "is_read": True,
+                    "title": item.title,
+                    "summary": (item.body or "").strip()[:120],
+                    "created_at": item.created_at,
+                }
+            )
+
+        for report in report_qs:
+            reason_label = reason_labels.get(report.reason, report.reason)
+            message_items.append(
+                {
+                    "item_type": "report",
+                    "item_id": report.id,
+                    "is_pinned": False,
+                    "is_read": bool(report.is_read_by_admin),
+                    "title": f"通報 / {reason_label}",
+                    "summary": (report.detail or "").strip()[:120],
+                    "created_at": report.created_at,
+                }
+            )
+
+        message_items.sort(
+            key=lambda row: (
+                0 if (row["item_type"] == "announcement" and row.get("is_pinned")) else 1,
+                -row["created_at"].timestamp(),
+            ),
+        )
+
+        tenant_logo_url = ""
+        if tenant and getattr(tenant, "logo", None):
+            try:
+                tenant_logo_url = tenant.logo.url
+            except Exception:
+                tenant_logo_url = ""
+
+        context.update(
+            {
+                "tenant": tenant,
+                "tenant_name": tenant.name if tenant else "未設定店舗",
+                "tenant_logo_url": tenant_logo_url,
+                "message_items": message_items,
+                "active_announcement_count": len(announcements),
+                "report_unread_count": unread_report_count,
+                "is_super_admin": bool(self.request.user.is_superuser),
+                "selected_tenant_id": str(tenant.id) if tenant else "",
+            }
+        )
+        return context
+
+
+class TenantMessageDetailView(AdminDashboardRequiredMixin, TemplateView):
+    template_name = "dashboard/tenant_message_detail.html"
+
+    def _resolve_tenant(self):
+        if self.request.user.is_superuser:
+            requested_tenant_id = (self.request.GET.get("tenant_id") or "").strip()
+            if requested_tenant_id:
+                scoped_tenant = Tenant.objects.filter(id=requested_tenant_id).first()
+                if scoped_tenant:
+                    return scoped_tenant
+        tenant = getattr(self.request.user, "tenant", None)
+        if tenant:
+            return tenant
+        return Tenant.objects.first()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        tenant = self._resolve_tenant()
+        message_type = (self.kwargs.get("message_type") or "").strip().lower()
+        message_id = self.kwargs.get("message_id")
+        detail = None
+
+        if message_type == "announcement":
+            announcement = GlobalAnnouncement.objects.filter(id=message_id, is_active=True).select_related("created_by").first()
+            if not announcement:
+                messages.error(self.request, "お知らせが見つからないか、公開終了しました。")
+                return redirect("dashboard_tenant_messages")
+            detail = {
+                "item_type": "announcement",
+                "title": announcement.title,
+                "created_at": announcement.created_at,
+                "body": announcement.body,
+                "link_url": announcement.link_url,
+                "image_url": announcement.image.url if announcement.image else "",
+                "is_pinned": bool(announcement.is_pinned),
+                "creator": announcement.created_by.username if announcement.created_by else "",
+            }
+        elif message_type == "report":
+            report = (
+                BookingReport.objects.filter(id=message_id, tenant=tenant)
+                .select_related("booking", "booking__resource")
+                .first()
+            )
+            if not report:
+                messages.error(self.request, "通報が見つかりません。")
+                return redirect("dashboard_tenant_messages")
+            if not report.is_read_by_admin:
+                report.is_read_by_admin = True
+                report.save(update_fields=["is_read_by_admin"])
+            reason_label = dict(REPORT_REASON_CHOICES).get(report.reason, report.reason)
+            detail = {
+                "item_type": "report",
+                "title": f"通報 / {reason_label}",
+                "created_at": report.created_at,
+                "body": report.detail or "",
+                "reporter_name": report.reporter_name or "-",
+                "reporter_role": report.reporter_role,
+                "booking_id": str(report.booking_id),
+                "booking_short": str(report.booking_id)[:8],
+                "resource_name": report.booking.resource.name if report.booking and report.booking.resource else "-",
+                "media_url": report.media.url if report.media else "",
+            }
+        else:
+            messages.error(self.request, "メッセージ種別が不正です。")
+            return redirect("dashboard_tenant_messages")
+
+        tenant_logo_url = ""
+        if tenant and getattr(tenant, "logo", None):
+            try:
+                tenant_logo_url = tenant.logo.url
+            except Exception:
+                tenant_logo_url = ""
+
+        context.update(
+            {
+                "tenant": tenant,
+                "tenant_name": tenant.name if tenant else "未設定店舗",
+                "tenant_logo_url": tenant_logo_url,
+                "detail": detail,
+                "is_super_admin": bool(self.request.user.is_superuser),
+                "selected_tenant_id": str(tenant.id) if tenant else "",
             }
         )
         return context

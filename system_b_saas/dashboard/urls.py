@@ -1,6 +1,8 @@
 from django.urls import path
 from .views import (
     TenantDashboardView,
+    TenantMessageCenterView,
+    TenantMessageDetailView,
     DashboardLoginView,
     DashboardSuperAdminLoginView,
     DashboardSuperGlobalView,
@@ -51,6 +53,9 @@ urlpatterns = [
     path('logout/', dashboard_logout, name='logout'),
 
     path('', TenantDashboardView.as_view(), name='tenant_dashboard'),
+    path('messages/', TenantMessageCenterView.as_view(), name='dashboard_tenant_messages'),
+    path('messages/<str:message_type>/<int:message_id>/', TenantMessageDetailView.as_view(), name='dashboard_tenant_message_detail'),
+    path('announcements/', TenantMessageCenterView.as_view(), name='dashboard_tenant_announcements'),
     path('api/schedule/events/', DashboardScheduleEventsApi.as_view(), name='dashboard_schedule_events'),
     path('api/schedule/availability/', DashboardScheduleAvailabilityApi.as_view(), name='dashboard_schedule_availability'),
     path('api/schedule/recurring-config/', DashboardScheduleRecurringConfigApi.as_view(), name='dashboard_schedule_recurring_config'),

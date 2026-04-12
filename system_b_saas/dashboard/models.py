@@ -44,3 +44,26 @@ class UserBehaviorEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type}<{self.target or self.page_url}>"
+
+
+class GlobalAnnouncement(models.Model):
+    title = models.CharField(max_length=160)
+    body = models.TextField(blank=True, default="")
+    link_url = models.URLField(blank=True, default="")
+    image = models.ImageField(upload_to="announcements/%Y/%m/%d/", null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    is_pinned = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_global_announcements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_pinned", "-created_at"]
+
+    def __str__(self):
+        return self.title

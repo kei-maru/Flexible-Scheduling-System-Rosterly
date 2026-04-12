@@ -40,6 +40,66 @@
       <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">未来24小时预约</p><p class="mt-1 text-2xl font-bold">{{ upcoming_24h_bookings }}</p><p class="text-xs text-rose-600">全域未读通报 {{ unread_reports_global }}</p></div>
     </section>
 
+    <section class="mt-6 grid gap-4 lg:grid-cols-2">
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold">全体通知发送模块</h2>
+            <p class="text-xs text-slate-500">在此发送给所有店铺管理员的系统通知。</p>
+          </div>
+          <span class="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">配信中 {{ active_announcement_count|default:0 }}</span>
+        </div>
+        <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_global_announcement">
+          <input type="text" name="announcement_title" required maxlength="160" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="公告タイトル（必須）">
+          <textarea name="announcement_body" rows="4" class="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="本文（任意）"></textarea>
+          <input type="url" name="announcement_link_url" class="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="リンク（任意 / https://...）">
+          <input type="file" name="announcement_image" accept="image/*" class="mt-2 w-full text-xs text-slate-600 file:mr-2 file:rounded-full file:border-0 file:bg-indigo-100 file:px-3 file:py-1.5 file:font-semibold file:text-indigo-700 hover:file:bg-indigo-200">
+          <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-700">
+            <input type="checkbox" name="announcement_is_pinned"> 上位固定（Pinned）
+          </label>
+          <button type="submit" class="mt-2 w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">发送全体通知</button>
+        </form>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-lg font-semibold">当前公告</h2>
+          <span class="text-xs text-slate-500">仅显示生效中的公告</span>
+        </div>
+        <div class="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+          {% for item in active_announcements %}
+          <article class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="text-sm font-semibold text-slate-900">{% if item.is_pinned %}[PINNED] {% endif %}{{ item.title }}</div>
+                <div class="mt-1 text-[11px] text-slate-500">{{ item.created_at|date:"Y/m/d H:i" }}{% if item.created_by %} · {{ item.created_by.username }}{% endif %}</div>
+              </div>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="deactivate_global_announcement">
+                <input type="hidden" name="announcement_id" value="{{ item.id }}">
+                <button type="submit" class="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100">停止</button>
+              </form>
+            </div>
+            {% if item.body %}
+            <div class="mt-2 whitespace-pre-wrap text-sm text-slate-700">{{ item.body|linebreaksbr }}</div>
+            {% endif %}
+            {% if item.image %}
+            <img src="{{ item.image.url }}" alt="announcement" class="mt-2 max-h-44 w-full rounded-md border border-slate-200 object-contain bg-slate-50">
+            {% endif %}
+            {% if item.link_url %}
+            <a href="{{ item.link_url }}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center text-xs font-semibold text-indigo-700 underline hover:text-indigo-900">链接を開く</a>
+            {% endif %}
+          </article>
+          {% empty %}
+          <div class="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">当前没有生效中的公告。</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
     <section class="mt-6 rounded-xl border border-slate-200 bg-white p-4">
       <div class="mb-3 flex items-center justify-between">
         <h2 class="text-lg font-semibold">调试店铺快速创建</h2>

@@ -109,22 +109,17 @@
                         <i class="fa-solid fa-globe"></i> 全域コンソール
                     </a>
                     {% endif %}
-                    <div class="relative">
-                        <button id="report-bell-btn" type="button" class="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
-                            <i class="fa-regular fa-bell"></i>
-                            <span id="report-unread-dot" class="{% if not report_unread_count %}hidden {% endif %}absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500"></span>
-                        </button>
-                        <div id="report-popover" class="hidden absolute right-0 mt-2 w-[360px] max-w-[90vw] rounded-lg border border-slate-200 bg-white p-3 shadow-xl z-40">
-                            <div class="mb-2 flex items-center justify-between">
-                                <div class="text-xs font-semibold tracking-widest text-slate-700">REPORT NOTIFICATIONS</div>
-                                <div class="flex items-center gap-2">
-                                    <button id="report-mark-read-btn" type="button" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50">すべて既読</button>
-                                    <span id="report-unread-label" class="text-[11px] text-rose-600">未読 {{ report_unread_count|default:0 }}</span>
-                                </div>
-                            </div>
-                            <div id="report-message-list" class="max-h-72 space-y-2 overflow-y-auto"></div>
-                        </div>
-                    </div>
+                    {% if is_super_admin and selected_tenant_id %}
+                    <a href="{% url 'dashboard_tenant_messages' %}?tenant_id={{ selected_tenant_id }}" class="inline-flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100">
+                        <i class="fa-solid fa-inbox"></i> メッセージ
+                        <span class="rounded-full bg-white px-1.5 py-0.5 text-[11px] text-rose-700">{{ report_unread_count|default:0 }}</span>
+                    </a>
+                    {% else %}
+                    <a href="{% url 'dashboard_tenant_messages' %}" class="inline-flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100">
+                        <i class="fa-solid fa-inbox"></i> メッセージ
+                        <span class="rounded-full bg-white px-1.5 py-0.5 text-[11px] text-rose-700">{{ report_unread_count|default:0 }}</span>
+                    </a>
+                    {% endif %}
                     <button onclick="switchTab('subscription')" class="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
                         <i class="fa-solid fa-credit-card"></i> サブスクリプション管理
                     </button>
@@ -2107,52 +2102,6 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
-            const initialUnreadCount = parseInt('{{ report_unread_count|default:"0" }}', 10) || 0;
-            renderReportNotifications(reportNotifications, initialUnreadCount);
-
-            const bellBtn = document.getElementById("report-bell-btn");
-            const popover = document.getElementById("report-popover");
-            if (bellBtn && popover) {
-                bellBtn.addEventListener("click", function (event) {
-                    event.stopPropagation();
-                    const opening = popover.classList.contains("hidden");
-                    popover.classList.toggle("hidden", !opening);
-                    if (opening) {
-                        markReportNotificationsRead();
-                    }
-                });
-
-                document.addEventListener("click", function (event) {
-                    if (!popover.contains(event.target) && !bellBtn.contains(event.target)) {
-                        popover.classList.add("hidden");
-                    }
-                });
-            }
-
-            const markReadBtn = document.getElementById("report-mark-read-btn");
-            if (markReadBtn) {
-                markReadBtn.addEventListener("click", async function (event) {
-                    event.preventDefault();
-                    markReadBtn.disabled = true;
-                    const ok = await markReportNotificationsRead();
-                    if (!ok) {
-                        const label = document.getElementById("report-unread-label");
-                        if (label) label.innerText = "既読更新に失敗";
-                        await refreshReportNotifications();
-                    }
-                    markReadBtn.disabled = false;
-                });
-            }
-
-            document.addEventListener("click", async function (event) {
-                const link = event.target.closest(".report-open-order-link");
-                if (!link) return;
-                // Ensure unread state is persisted server-side before navigation.
-                await markReportNotificationsRead();
-            });
-
-            window.setInterval(refreshReportNotifications, 20000);
-
             const params = new URLSearchParams(window.location.search);
             const initialTab = params.get("tab") || "shop";
             switchTab(initialTab);

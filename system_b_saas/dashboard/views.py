@@ -22,6 +22,7 @@ from django.shortcuts import redirect
 from django.http import JsonResponse
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.crypto import constant_time_compare
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django import forms
@@ -45,6 +46,34 @@ from tenants.models import SaaSUser, StaffInvite, Tenant
 
 
 logger = logging.getLogger(__name__)
+
+
+def _demo_admin_autologin_enabled() -> bool:
+    return bool(getattr(settings, "SYSTEM_B_DEMO_ADMIN_AUTOLOGIN_ENABLED", False))
+
+
+def _demo_admin_username() -> str:
+    return (getattr(settings, "SYSTEM_B_DEMO_ADMIN_USERNAME", "demo_admin") or "demo_admin").strip()
+
+
+def _demo_admin_access_token() -> str:
+    return (getattr(settings, "SYSTEM_B_DEMO_ADMIN_ACCESS_TOKEN", "") or "").strip()
+
+
+def _is_demo_admin_resource(resource) -> bool:
+    linked_user = getattr(resource, "linked_user", None)
+    if not linked_user:
+        return False
+    target_username = _demo_admin_username().lower()
+    current_username = (getattr(linked_user, "username", "") or "").strip().lower()
+    return bool(target_username) and current_username == target_username
+
+
+def _exclude_demo_admin_resources(queryset):
+    target_username = _demo_admin_username()
+    if not target_username:
+        return queryset
+    return queryset.exclude(linked_user__username__iexact=target_username)
 
 
 def _is_http_url(value):
@@ -350,6 +379,71 @@ class DashboardLoginView(TemplateView):
         return context
 
 
+class DashboardAdminDemoLoginView(View):
+    def get(self, request, access_token, *args, **kwargs):
+        if not _demo_admin_autologin_enabled():
+            return JsonResponse({"error": "not_found"}, status=404)
+
+        expected_token = _demo_admin_access_token()
+        if not expected_token or not constant_time_compare(str(access_token or ""), expected_token):
+            return JsonResponse({"error": "not_found"}, status=404)
+
+        tenant_slug = (getattr(settings, "SYSTEM_B_DEMO_ADMIN_TENANT_SLUG", "rosterly") or "rosterly").strip()
+        tenant = Tenant.objects.filter(slug=tenant_slug).first() or Tenant.objects.filter(slug__iexact=tenant_slug).first()
+        if not tenant:
+            tenant = Tenant.objects.create(
+                name=(getattr(settings, "SYSTEM_B_DEMO_ADMIN_TENANT_NAME", "Demo Shop") or "Demo Shop").strip(),
+                slug=tenant_slug,
+                contact_email=(getattr(settings, "SYSTEM_B_DEMO_ADMIN_EMAIL", "") or "").strip() or None,
+                api_key=secrets.token_urlsafe(24)[:32],
+                api_secret=secrets.token_urlsafe(32),
+                is_api_enabled=True,
+                enable_saas_dashboard=True,
+            )
+
+        username = _demo_admin_username()
+        email = (getattr(settings, "SYSTEM_B_DEMO_ADMIN_EMAIL", "") or "").strip()
+        user, created = SaaSUser.objects.get_or_create(
+            username=username,
+            defaults={
+                "email": email,
+                "role": "ADMIN",
+                "is_staff": True,
+                "is_active": True,
+                "tenant": tenant,
+            },
+        )
+
+        update_fields = []
+        if user.role != "ADMIN":
+            user.role = "ADMIN"
+            update_fields.append("role")
+        if not user.is_staff:
+            user.is_staff = True
+            update_fields.append("is_staff")
+        if not user.is_active:
+            user.is_active = True
+            update_fields.append("is_active")
+        if user.tenant_id != tenant.id:
+            user.tenant = tenant
+            update_fields.append("tenant")
+        if email and (user.email or "") != email:
+            user.email = email
+            update_fields.append("email")
+        if update_fields:
+            user.save(update_fields=update_fields)
+        if created:
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
+
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+
+        redirect_path = (getattr(settings, "SYSTEM_B_DEMO_ADMIN_REDIRECT_PATH", "/dashboard/") or "/dashboard/").strip()
+        if not redirect_path.startswith("/"):
+            redirect_path = f"/{redirect_path}"
+        return redirect(redirect_path)
+
+
 class DashboardRegisterShopRedirectView(View):
     def get(self, request, *args, **kwargs):
         next_url = request.GET.get("next", "")
@@ -569,7 +663,7 @@ class DashboardPublicBookingView(TemplateView):
 
     def _booking_resource_queryset(self, tenant):
         # Bookable resources must be active; linked staff must be active and agree to platform terms.
-        return (
+        return _exclude_demo_admin_resources(
             Resource.objects.filter(tenant=tenant, is_active=True)
             .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
             .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
@@ -674,7 +768,7 @@ class DashboardPublicBookingView(TemplateView):
 
 class DashboardPublicBookingAvailabilityApi(View):
     def _booking_resource_queryset(self, tenant):
-        return (
+        return _exclude_demo_admin_resources(
             Resource.objects.filter(tenant=tenant, is_active=True)
             .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
             .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
@@ -817,7 +911,7 @@ class StripeWebhookView(View):
 
 class DashboardPublicBookingCreateApi(View):
     def _booking_resource_queryset(self, tenant):
-        return (
+        return _exclude_demo_admin_resources(
             Resource.objects.filter(tenant=tenant, is_active=True)
             .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
             .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
@@ -895,6 +989,8 @@ class DashboardPublicBookingCreateApi(View):
             resource = self._booking_resource_queryset(tenant).get(id=resource_id)
         except Resource.DoesNotExist:
             return JsonResponse({"error": "Resource is not bookable"}, status=404)
+        if _is_demo_admin_resource(resource):
+            return JsonResponse({"error": "Resource is not bookable"}, status=403)
 
         selected_service = None
         duration_minutes = 60

@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
+from django.conf import settings
 
 from resources.models import Resource, ResourceProfile, ResourceMedia
 from resources.services.binding_service import normalize_profile_text
@@ -21,6 +22,19 @@ PROFILE_FIELDS = {
     "allow_120_min",
     "metadata",
 }
+
+
+def _demo_admin_username() -> str:
+    return (getattr(settings, "SYSTEM_B_DEMO_ADMIN_USERNAME", "demo_admin") or "demo_admin").strip()
+
+
+def _is_demo_admin_resource(resource) -> bool:
+    linked_user = getattr(resource, "linked_user", None)
+    if not linked_user:
+        return False
+    target_username = _demo_admin_username().lower()
+    current_username = (getattr(linked_user, "username", "") or "").strip().lower()
+    return bool(target_username) and current_username == target_username
 
 
 def _coerce_bool(value):
@@ -96,6 +110,10 @@ class IntegrationAvailabilityView(APIView):
         end_str = request.query_params.get("end")
 
         try:
+            resource = schedule_service.resolve_resource(request.tenant, resource_id_raw)
+            if _is_demo_admin_resource(resource):
+                return Response([], status=200)
+
             events = schedule_service.list_events(
                 tenant=request.tenant,
                 resource_id_raw=resource_id_raw,
@@ -203,6 +221,7 @@ class IntegrationResourceView(APIView):
         queryset = (
             Resource.objects
             .filter(tenant=request.tenant)
+            .exclude(linked_user__username__iexact=_demo_admin_username())
             .select_related("profile")
             .prefetch_related("profile__medias")
             .order_by("name")

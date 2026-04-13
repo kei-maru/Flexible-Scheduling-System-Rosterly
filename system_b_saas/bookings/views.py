@@ -32,6 +32,19 @@ from bookings.models import Booking
 logger = logging.getLogger(__name__)
 
 
+def _demo_admin_username() -> str:
+    return (getattr(settings, "SYSTEM_B_DEMO_ADMIN_USERNAME", "demo_admin") or "demo_admin").strip()
+
+
+def _is_demo_admin_resource(resource) -> bool:
+    linked_user = getattr(resource, "linked_user", None)
+    if not linked_user:
+        return False
+    target_username = _demo_admin_username().lower()
+    current_username = (getattr(linked_user, "username", "") or "").strip().lower()
+    return bool(target_username) and current_username == target_username
+
+
 def _is_http_url(value):
     text = (value or "").strip()
     if not text:
@@ -120,6 +133,9 @@ class IntegrationBookingView(APIView):
                 resource.save()
         except Resource.DoesNotExist:
             return Response({'error': 'Resource not found.'}, status=404)
+
+        if _is_demo_admin_resource(resource):
+            return Response({'error': 'Resource is not bookable.'}, status=403)
 
         BUFFER = timedelta(minutes=30)
         conflicting_booking = Booking.objects.filter(

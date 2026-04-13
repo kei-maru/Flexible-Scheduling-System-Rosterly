@@ -254,6 +254,12 @@ SAAS_SIGNATURE_REPLAY_TTL_SECONDS = int(os.environ.get('SAAS_SIGNATURE_REPLAY_TT
 SYSTEM_B_SSO_EXCHANGE_IP_LIMIT_PER_MIN = int(os.environ.get('SYSTEM_B_SSO_EXCHANGE_IP_LIMIT_PER_MIN', '60'))
 SYSTEM_B_SSO_CLIENTS = {}
 SYSTEM_B_PUBLIC_BASE_URL = os.environ.get('SYSTEM_B_PUBLIC_BASE_URL', '').strip()
+SYSTEM_B_DEMO_ADMIN_AUTOLOGIN_ENABLED = (os.environ.get('SYSTEM_B_DEMO_ADMIN_AUTOLOGIN_ENABLED', 'False') == 'True')
+SYSTEM_B_DEMO_ADMIN_ACCESS_TOKEN = os.environ.get('SYSTEM_B_DEMO_ADMIN_ACCESS_TOKEN', '').strip()
+SYSTEM_B_DEMO_ADMIN_USERNAME = os.environ.get('SYSTEM_B_DEMO_ADMIN_USERNAME', 'demo_admin').strip() or 'demo_admin'
+SYSTEM_B_DEMO_ADMIN_EMAIL = os.environ.get('SYSTEM_B_DEMO_ADMIN_EMAIL', '').strip()
+SYSTEM_B_DEMO_ADMIN_TENANT_SLUG = os.environ.get('SYSTEM_B_DEMO_ADMIN_TENANT_SLUG', 'rosterly').strip() or 'rosterly'
+SYSTEM_B_DEMO_ADMIN_REDIRECT_PATH = os.environ.get('SYSTEM_B_DEMO_ADMIN_REDIRECT_PATH', '/dashboard/').strip() or '/dashboard/'
 
 _sso_clients_raw = os.environ.get('SYSTEM_B_SSO_CLIENTS', '').strip()
 if _sso_clients_raw:

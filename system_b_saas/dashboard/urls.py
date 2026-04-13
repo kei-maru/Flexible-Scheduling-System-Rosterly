@@ -18,6 +18,7 @@ from .views import (
     DashboardPublicBookingCancelApi,
     DashboardPublicBookingReportApi,
     DashboardAdminReportNotificationsApi,
+    DashboardAdminDemoLoginView,
     DashboardTrackingApi,
     StripeWebhookView,
     dashboard_logout,
@@ -32,6 +33,7 @@ from .schedule_views import (
 )
 
 urlpatterns = [
+    path('demo/admin/<str:access_token>/', DashboardAdminDemoLoginView.as_view(), name='dashboard_demo_admin_login'),
     path('login/', DashboardLoginView.as_view(), name='dashboard_login'),
     path('super/login/', DashboardSuperAdminLoginView.as_view(), name='dashboard_super_login'),
     path('super/global/', DashboardSuperGlobalView.as_view(), name='dashboard_super_global'),

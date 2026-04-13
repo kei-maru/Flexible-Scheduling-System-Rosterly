@@ -19,6 +19,13 @@
 3. 利用規約页面更新
 - `dashboard/terms` 已替换为最新版 `Rosterly 利用規約` 全文，登录页同意勾选逻辑保持不变。
 
+4. 管理员演示直达链接（免登录）
+- 新增：`GET /dashboard/demo/admin/<access_token>/`
+- 用途：点击后直接进入管理员登录态（用于功能演示）。
+- 生效条件：`SYSTEM_B_DEMO_ADMIN_AUTOLOGIN_ENABLED=True` 且 token 匹配。
+- 失败口径：未启用或 token 不匹配返回 `404`。
+- 约束：该演示账号对应资源不可被预约（公开预约、A→B预约创建、可用性查询均已排除）。
+
 ## 1. 认证与约定
 
 ### 1.3 Discord 身份字段术语（重要）

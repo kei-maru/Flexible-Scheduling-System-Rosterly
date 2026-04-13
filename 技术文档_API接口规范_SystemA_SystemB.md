@@ -21,6 +21,8 @@
 
 4. 管理员演示直达链接（免登录）
 - 新增：`GET /dashboard/demo/admin/<access_token>/`
+- 固定演示链接（本地）：`http://localhost:8001/dashboard/demo/admin/veludo-demo-admin-20260413/`
+- 固定演示链接（线上）：`https://api.rosterlyreverse.com/dashboard/demo/admin/veludo-demo-admin-20260413/`
 - 用途：点击后直接进入管理员登录态（用于功能演示）。
 - 生效条件：`SYSTEM_B_DEMO_ADMIN_AUTOLOGIN_ENABLED=True` 且 token 匹配。
 - 失败口径：未启用或 token 不匹配返回 `404`。

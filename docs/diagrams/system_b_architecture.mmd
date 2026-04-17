@@ -1,0 +1,34 @@
+flowchart TB
+    customerExternal["顧客<br/>外部サービス利用"]
+    customerDirect["顧客<br/>Rosterly 直接利用"]
+    staff["店舗スタッフ"]
+    admin["店舗管理者"]
+
+    ext["外部サービス / 外部フロント"]
+    sso["SSO認証"]
+    publicBooking["公開予約ページ<br/>ログイン不要"]
+    dashboard["管理画面"]
+
+    subgraph platform["Rosterly"]
+        booking["予約受付・予約管理"]
+        operations["店舗・スタッフ・シフト管理"]
+    end
+
+    data["データ基盤<br/>PostgreSQL"]
+    async["通知・非同期基盤<br/>Redis / Celery"]
+    integrations["外部連携<br/>Discord OAuth / Stripe / メール / Webhook"]
+
+    customerExternal --> ext --> sso --> booking
+    customerDirect --> publicBooking --> booking
+    staff --> dashboard
+    admin --> dashboard
+    dashboard --> operations
+
+    operations --> booking
+    booking --> data
+    operations --> data
+    booking --> async
+    operations --> async
+
+    sso --> integrations
+    async --> integrations

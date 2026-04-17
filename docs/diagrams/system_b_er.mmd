@@ -1,0 +1,73 @@
+erDiagram
+    Tenant {
+        uuid id PK
+        string 店舗名
+        string 店舗種別
+        string 契約状態
+    }
+
+    SaaSUser {
+        int id PK
+        uuid tenant_id FK
+        string ユーザー名
+        string 権限
+        string メール
+    }
+
+    Resource {
+        uuid id PK
+        uuid tenant_id FK
+        int linked_user_id FK
+        string 氏名
+        string メール
+        boolean 有効
+    }
+
+    ResourceProfile {
+        int id PK
+        uuid resource_id FK
+        text 紹介
+        string 画像
+        int 順序
+    }
+
+    Availability {
+        uuid id PK
+        uuid resource_id FK
+        datetime 開始
+        datetime 終了
+        boolean 予約済み
+    }
+
+    ServicePreset {
+        int id PK
+        uuid tenant_id FK
+        string 名称
+        int 時間_分
+        decimal 価格
+        boolean 有効
+    }
+
+    Booking {
+        uuid id PK
+        uuid tenant_id FK
+        uuid resource_id FK
+        int selected_service_id FK
+        string 顧客名
+        string メール
+        datetime 開始
+        datetime 終了
+        string 状態
+    }
+
+    Tenant ||--o{ SaaSUser : "店舗ユーザー"
+    Tenant ||--o{ Resource : "スタッフ管理"
+    Tenant ||--o{ ServicePreset : "サービス定義"
+    Tenant ||--o{ Booking : "予約管理"
+
+    SaaSUser o|--o| Resource : "スタッフ紐付け"
+    Resource ||--|| ResourceProfile : "プロフィール"
+    Resource ||--o{ Availability : "シフト"
+    Resource ||--o{ Booking : "担当スタッフ予約"
+
+    ServicePreset o|--o{ Booking : "予約サービス"

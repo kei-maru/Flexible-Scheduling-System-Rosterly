@@ -263,14 +263,14 @@
               <input type="text" name="website" value="" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
                 {% if 'VRCID' in required_customer_fields %}
                 <div>
-                  <label class="mb-1 block text-xs text-slate-500">VRCID <span class="text-rose-500">*</span></label>
-                  <input id="customer_vrcid" name="customer_vrcid" placeholder="例: user_vrcid" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+                  <label class="mb-1 block text-xs text-slate-500">お名前 <span class="text-rose-500">*</span></label>
+                  <input id="customer_vrcid" name="customer_vrcid" placeholder="例: username_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 </div>
                 {% endif %}
                 {% if 'DISCORDID' in required_customer_fields %}
                 <div>
                   <label class="mb-1 block text-xs text-slate-500">DiscordID <span class="text-rose-500">*</span></label>
-                  <input id="customer_discord_id" name="customer_discord_id" placeholder="例: username#1234" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+                  <input id="customer_discord_id" name="customer_discord_id" placeholder="例: username" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 </div>
                 {% endif %}
                 {% if 'EMAIL' in required_customer_fields %}

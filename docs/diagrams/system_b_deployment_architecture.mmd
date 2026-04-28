@@ -1,0 +1,42 @@
+flowchart LR
+    User["利用者\n顧客 / スタッフ / 管理者"]
+
+    subgraph Internet["🌐 公開インターネット"]
+        direction TB
+        Ingress["Nginx\nReverse Proxy / TLS Termination\n🔒 SSL/TLS 443"]
+    end
+
+    subgraph VPC["🛡️ Oracle Cloud - Virtual Private Cloud (VPC)"]
+        direction LR
+
+        subgraph PublicSubnet["Public Subnet"]
+            direction TB
+            AppDocker["Docker Container\nDjango App (Gunicorn)"]
+            RBAC["RBAC (Role-Based Access Control)\nADMIN / STAFF / CONSUMER\nAPI認可 + オブジェクト単位の越権防止"]
+        end
+
+        subgraph PrivateSubnet["Private Subnet"]
+            direction TB
+            DB["Docker Container\nPostgreSQL"]
+            DBNote["全主要テーブルに tenant_id を付与し、ORM層（Custom Manager）での論理データ隔離を実装。"]
+            CacheWorker["Docker Container\nRedis / Celery"]
+        end
+    end
+
+    User --> Ingress
+    Ingress --> AppDocker
+    AppDocker -->|"悲観ロック: select_for_update()"| DB
+    AppDocker --> CacheWorker
+
+    DB -.-> DBNote
+    AppDocker -.認可制御.-> RBAC
+
+    classDef edge fill:#eef6ff,stroke:#5b8def,stroke-width:1.5px,color:#0f2b46;
+    classDef app fill:#e8fff3,stroke:#19a463,stroke-width:1.5px,color:#0e3b25;
+    classDef db fill:#fff2e8,stroke:#d17a22,stroke-width:1.5px,color:#4d2a00;
+    classDef note fill:#fffbe6,stroke:#bfa000,stroke-width:1px,color:#4a3f00;
+
+    class Ingress edge;
+    class AppDocker,RBAC app;
+    class DB,CacheWorker db;
+    class DBNote note;

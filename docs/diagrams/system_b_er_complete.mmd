@@ -1,0 +1,181 @@
+erDiagram
+    %% ===== 租户与权限管理 =====
+    Tenant {
+        uuid id PK
+        string slug UK
+        string 店舗名
+        string store_type
+        string subscription_status
+        string api_key
+        string api_secret
+        boolean is_api_enabled
+        datetime deleted_at
+    }
+
+    SaaSUser {
+        int id PK
+        uuid tenant_id FK
+        string username
+        string email
+        string 権限
+        string discord_id
+    }
+
+    SSOAuthCode {
+        int id PK
+        int user_id FK
+        uuid tenant_id FK
+        string code_hash
+        datetime expires_at
+        datetime used_at
+    }
+
+    StaffInvite {
+        int id PK
+        uuid tenant_id FK
+        int created_by_id FK
+        string token
+        string role
+        datetime expires_at
+        boolean is_active
+    }
+
+    %% ===== リソース・スタッフ管理 =====
+    Resource {
+        uuid id PK
+        uuid tenant_id FK
+        int linked_user_id FK
+        string name
+        string email
+        string external_id
+        boolean is_active
+    }
+
+    ResourceProfile {
+        int id PK
+        uuid resource_id FK
+        text intro
+        string avatar_url
+        string youtube_url
+        int display_order
+        boolean allow_30_min
+        boolean allow_60_min
+        boolean allow_120_min
+    }
+
+    ResourceMedia {
+        int id PK
+        int profile_id FK
+        string title
+        string media_type
+        string image_url
+        string video_url
+        int order
+        boolean is_active
+    }
+
+    %% ===== シフト・排班管理 =====
+    Availability {
+        uuid id PK
+        uuid resource_id FK
+        datetime start_time
+        datetime end_time
+        boolean is_booked
+        boolean is_recurring
+    }
+
+    RecurringPattern {
+        uuid id PK
+        uuid resource_id FK
+        int day_of_week
+        time start_time
+        time end_time
+        date valid_from
+        date valid_until
+    }
+
+    ScheduleTemplate {
+        uuid id PK
+        uuid resource_id FK
+        string name
+        json week_config
+    }
+
+    %% ===== サービス・予約管理 =====
+    ServicePreset {
+        int id PK
+        uuid tenant_id FK
+        string 名称
+        string 説明
+        decimal 価格
+        int duration_minutes
+        boolean is_active
+        int sort_order
+    }
+
+    Booking {
+        uuid id PK
+        uuid tenant_id FK
+        uuid resource_id FK
+        int selected_service_id FK
+        string 顧客名
+        string 顧客メール
+        string customer_id
+        datetime start_time
+        datetime end_time
+        string status
+        string booking_type
+    }
+
+    BookingReport {
+        int id PK
+        uuid booking_id FK
+        uuid tenant_id FK
+        string reporter_role
+        string reason
+        text detail
+        boolean is_read_by_admin
+    }
+
+    %% ===== メール・通知管理 =====
+    EmailTemplate {
+        int id PK
+        uuid tenant_id FK
+        string event_type
+        string email_title
+        string service_name
+        boolean send_to_customer
+        boolean send_to_cast
+    }
+
+    %% ===== リレーション定義 =====
+    
+    %% Tenant relationships
+    Tenant ||--o{ SaaSUser : "ユーザー"
+    Tenant ||--o{ StaffInvite : "邀请"
+    Tenant ||--o{ Resource : "スタッフ"
+    Tenant ||--o{ ServicePreset : "サービス"
+    Tenant ||--o{ Booking : "予約"
+    Tenant ||--o{ BookingReport : "报告"
+    Tenant ||--o{ EmailTemplate : "メール"
+    Tenant ||--o{ SSOAuthCode : "SSO"
+
+    %% User relationships
+    SaaSUser |o--o| Resource : "linked (1対1 optional)"
+    SaaSUser o|--o{ SSOAuthCode : "作成"
+    SaaSUser o|--o{ StaffInvite : "作成"
+
+    %% Resource relationships
+    Resource ||--|| ResourceProfile : "プロフィール"
+    ResourceProfile ||--o{ ResourceMedia : "メディア"
+    Resource ||--o{ Availability : "シフト"
+    Resource ||--o{ RecurringPattern : "周期設定"
+    Resource ||--o{ ScheduleTemplate : "テンプレート"
+    Resource ||--o{ Booking : "担当"
+
+    %% Booking relationships
+    ServicePreset o|--o{ Booking : "選択"
+    Booking ||--o{ BookingReport : "報告"
+
+    %% Django's AbstractUser base (implicit)
+    %% SaaSUser extends auth_user through Django ORM inheritance

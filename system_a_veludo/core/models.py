@@ -99,3 +99,38 @@ class BlockedIP(models.Model):
         if self.banned_until is None:
             return True
         return self.banned_until > timezone.now()
+
+
+class SiteFooterCredit(models.Model):
+    title = models.TextField(
+        "フッター説明文",
+        default="ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、\nVRChat公認の商用利用店舗です。",
+    )
+    credit_text = models.TextField(
+        "クレジット表記",
+        default=(
+            "©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant\n"
+            "©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ\n"
+            "ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri\n"
+            "Lys　Mister Pink　Nanaha　Ornament Corpse　PetiDoll　snowlight0102　Today cloth\n"
+            "VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん"
+        ),
+    )
+    copyright_text = models.CharField(
+        "コピーライト",
+        max_length=200,
+        default="© 2024 ASMR Salon Velode. All rights reserved.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "サイトフッタークレジット"
+        verbose_name_plural = "サイトフッタークレジット"
+
+    def __str__(self):
+        return "Site footer credit"
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

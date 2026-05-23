@@ -282,6 +282,38 @@
 
 ---
 
+## 5.2 2026-05-23 追加更新：System A 运营面板与公开展示口径修复
+
+关键内容：
+- Cast 显示状态同步：
+  - System A 的“サイトに公開する”勾选状态同步到 System B `Resource.is_active`。
+  - System A 前台继续只读取 `active_only=true` 的公开 Cast。
+  - System A 管理员 Cast CMS 改为读取 `active_only=false`，隐藏对象仍显示在运营列表中，并以 `Hidden` 标识区分。
+- 管理员编辑入口修复：
+  - System B `resources` API 增加 `linked_user_id / linked_user_discord_id`。
+  - System A 管理员面板按 `external_id / saas_user_id / discord_uid / discord_id` 反查本地用户，自动补齐 A 侧编辑链接，避免出现 `EDITOR UNAVAILABLE`。
+- 公开预约 demo 资源规则：
+  - demo 管理员资源可显示为展示对象。
+  - demo 管理员资源不可预约，不加载可预约空档，不进入时间搜索结果，也不能提交预约。
+- System A Footer 数据库化：
+  - 新增 `core.SiteFooterCredit` 单例表，统一管理前台クレジット表記。
+  - `index / service / cast / access` footer 改为共用 partial，从数据库读取内容。
+  - System A 管理员面板新增独立 `Footer` tab，位于 `Analytics` 左侧。
+  - Footer 默认显示框与后台编辑框加宽/加高，以承接长版权表记。
+- Access 页面媒体区域：
+  - 新增“サイト解説動画はこちら”预留视频播放区。
+  - 点击视频或全屏按钮可进入全屏播放。
+- 文档同步：
+  - `需求文档_SystemA定制SystemB_预约与登录.md` 补充 Cast CMS 显示全部、Footer 独立管理、demo 预约对象与 Access 视频口径。
+  - `技术文档_API接口规范_SystemA_SystemB.md` 补充 `is_active` 同步、resources API 新字段、公开预约 demo 行为与 Footer 数据库化说明。
+
+阶段结论：
+- “隐藏显示”与“员工离职/删除”语义完成拆分，运营后台可持续管理隐藏 Cast。
+- System A 前台、System A 管理面板、System B Resource 主数据之间的展示状态口径进一步对齐。
+- 页面底部版权表记从硬编码转为数据库配置，降低后续运营调整成本。
+
+---
+
 ## 4.11 Phase 10：映射修复与员工视角收口（2026-03-26）
 
 关键内容：

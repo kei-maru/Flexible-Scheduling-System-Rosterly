@@ -251,28 +251,28 @@
                 </div>
             </div>
 
+            <section class="mt-24 reveal-on-scroll" aria-labelledby="site-guide-video-title">
+                <div class="text-center mb-12">
+                    <h3 id="site-guide-video-title" class="font-english italic text-3xl text-veludo-header mb-2">Guide Movie</h3>
+                    <p class="text-xs text-gray-400 tracking-widest font-japanese">サイト解説動画はこちら</p>
+                </div>
+                <div class="max-w-4xl mx-auto">
+                    <div class="relative bg-white p-3 md:p-4 shadow-xl border-t-4 border-veludo-accent-gold rounded-sm">
+                        <video id="access-guide-video" class="w-full aspect-video bg-black object-cover cursor-pointer" controls preload="metadata" poster="{% static 'images/access/s-297x170_8d11f870-c3d5-4fac-9773-b8bcd665c441.png' %}">
+                            <source src="{% static 'videos/site-guide-placeholder.mp4' %}" type="video/mp4">
+                        </video>
+                        <button type="button" id="access-guide-fullscreen" class="absolute right-6 bottom-6 inline-flex items-center gap-2 bg-black/70 px-4 py-2 text-xs tracking-[0.2em] text-white hover:bg-veludo-header transition-colors">
+                            <i class="fa-solid fa-expand"></i>
+                            FULLSCREEN
+                        </button>
+                    </div>
+                </div>
+            </section>
+
         </div>
     </main>
 
-    <footer class="site-footer">
-        <div class="max-w-2xl mx-auto px-6 flex flex-col items-center reveal-on-scroll">
-            <div class="mb-10 flex justify-center">
-                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-12 w-auto object-contain">
-            </div>
-            
-            <div class="text-[12px] md:text-xs leading-loose opacity-80 font-light mb-12 space-y-4 font-japanese text-white text-center">
-                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br>VRChat公認の商用利用店舗です。</p>
-                <p class="text-[11px] text-white/60">
-                    ©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant<br>
-                    ©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ<br>
-                    ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri<br>
-                    Lys　Mister Pink　Nanaha　Ornament Corpse　PetiDoll　snowlight0102　Today cloth<br>
-                    VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん
-                </p>
-            </div>
-            <div class="text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
-        </div>
-    </footer>
+    {% include "partials/site_footer.html" with footer_inner_extra_class="reveal-on-scroll" %}
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -302,6 +302,17 @@
 
             const elements = document.querySelectorAll('.reveal-on-scroll, .slide-in-left');
             elements.forEach(el => observer.observe(el));
+
+            const guideVideo = document.getElementById('access-guide-video');
+            const guideFullscreen = document.getElementById('access-guide-fullscreen');
+            function openGuideFullscreen() {
+                if (!guideVideo) return;
+                if (guideVideo.requestFullscreen) guideVideo.requestFullscreen();
+                else if (guideVideo.webkitRequestFullscreen) guideVideo.webkitRequestFullscreen();
+                guideVideo.play().catch(() => {});
+            }
+            if (guideVideo) guideVideo.addEventListener('click', openGuideFullscreen);
+            if (guideFullscreen) guideFullscreen.addEventListener('click', openGuideFullscreen);
         });
     </script>
 </body>

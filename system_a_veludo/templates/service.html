@@ -253,25 +253,7 @@
         </section>
     </main>
 
-    <footer class="site-footer">
-        <div class="max-w-2xl mx-auto px-6 flex flex-col items-center reveal-on-scroll">
-            <div class="mb-10 flex justify-center">
-                <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-12 w-auto object-contain">
-            </div>
-            
-            <div class="text-[12px] md:text-xs leading-loose opacity-80 font-light mb-12 space-y-4 font-japanese text-white text-center">
-                <p>ASMR Salon Veludo-ビロード-は、VRChatクリエイターエコノミーセラーとして認定された、<br>VRChat公認の商用利用店舗です。</p>
-                <p class="text-[11px] text-white/60">
-                    ©Add+Re:collection　©ALICE　©Chocolate_rice　©HB_shop　©JOE　©P_Store　©SilverSpace　©Vagrant<br>
-                    ©#Ene_Collection　©あまとうさぎ　©かじや / kajiya　©さやぴ。　©ジンゴ　©ヤァ<br>
-                    ANMNMM　Atelier Astra　Eliya Workshop　EXTENSIONCLOTHING　FLASTORE　GLAYUnknown　KitsuZuri<br>
-                    Lys　Mister Pink　Nanaha　Ornament Corpse　PetiDoll　snowlight0102　Today cloth<br>
-                    VAGRANT・Fermata Shop　YM STORE　ストレイ・ラム　にゃわて荘　はまのしす -hamanosis-　鴉屋さん
-                </p>
-            </div>
-            <div class="text-[10px] tracking-[0.2em] opacity-50 text-white text-center">© 2024 ASMR Salon Velode. All rights reserved.</div>
-        </div>
-    </footer>
+    {% include "partials/site_footer.html" with footer_inner_extra_class="reveal-on-scroll" %}
 
     <script>
         function handleReservationClick(event) {

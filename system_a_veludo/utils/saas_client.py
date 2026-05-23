@@ -413,7 +413,7 @@ class SaaSClient:
     # Resource (资源同步)
     # ========================================================
 
-    def sync_cast_to_saas(self, user_id, name, email, profile=None, medias=None):
+    def sync_cast_to_saas(self, user_id, name, email, is_active=None, profile=None, medias=None):
         """同步 Cast 资料"""
         url = f"{self.api_base_url}/resources/"
         data = {
@@ -421,6 +421,8 @@ class SaaSClient:
             'name': name,
             'email': email
         }
+        if is_active is not None:
+            data['is_active'] = bool(is_active)
         if profile is not None:
             data['profile'] = profile
         if medias is not None:

@@ -75,6 +75,9 @@
             <button onclick="switchTab('shifts')" id="tab-shifts" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
                 <i class="fa-solid fa-calendar-check mr-2"></i> Shifts & Orders
             </button>
+            <button onclick="switchTab('footer')" id="tab-footer" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
+                <i class="fa-solid fa-copyright mr-2"></i> Footer
+            </button>
             <button onclick="switchTab('analytics')" id="tab-analytics" class="tab-btn pb-4 text-sm tracking-widest uppercase transition-colors hover:text-white text-gray-500">
                 <i class="fa-solid fa-chart-line mr-2"></i> Analytics
             </button>
@@ -187,8 +190,13 @@
                             </div>
                             
                             <div class="overflow-hidden flex-grow select-none">
-                                <div class="text-veludo-gold font-bold font-english truncate text-sm">
-                                    {{ cast.user.vrc_id|default:cast.user.username|default:cast.name }}
+                                <div class="flex items-center gap-2">
+                                    <div class="text-veludo-gold font-bold font-english truncate text-sm">
+                                        {{ cast.user.vrc_id|default:cast.user.username|default:cast.name }}
+                                    </div>
+                                    {% if not cast.is_active %}
+                                    <span class="shrink-0 rounded-full border border-gray-600 bg-gray-800 px-2 py-0.5 text-[9px] uppercase tracking-wider text-gray-400">Hidden</span>
+                                    {% endif %}
                                 </div>
                                 <div class="text-[10px] text-gray-500 uppercase tracking-widest truncate">
                                     @{{ cast.user.username }}
@@ -248,6 +256,35 @@
                     </div>
                 </div>
             </div>
+
+        </div>
+
+        <div id="section-footer" class="hidden-section">
+            <form method="post" class="glass-panel p-8 rounded-sm">
+                {% csrf_token %}
+                <input type="hidden" name="update_footer_credit" value="true">
+                <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+                    <div>
+                        <h3 class="text-2xl font-english italic text-white">Footer Credit</h3>
+                        <p class="text-[10px] text-gray-500 uppercase tracking-[0.25em] mt-1">System A database driven</p>
+                    </div>
+                    <button type="submit" class="bg-veludo-gold text-black px-5 py-2 text-xs font-bold tracking-widest hover:bg-white transition-colors">SAVE FOOTER</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <label class="block">
+                        <span class="block text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-2">説明文</span>
+                        <textarea name="footer_title" rows="8" class="w-full bg-black/30 border border-white/10 text-white px-4 py-3 text-xs leading-6 focus:border-veludo-gold outline-none">{{ footer_credit.title }}</textarea>
+                    </label>
+                    <label class="block">
+                        <span class="block text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-2">クレジット表記</span>
+                        <textarea name="footer_credit_text" rows="8" class="w-full bg-black/30 border border-white/10 text-white px-4 py-3 text-xs leading-6 focus:border-veludo-gold outline-none">{{ footer_credit.credit_text }}</textarea>
+                    </label>
+                </div>
+                <label class="block mt-4">
+                    <span class="block text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-2">コピーライト</span>
+                    <input name="footer_copyright_text" value="{{ footer_credit.copyright_text }}" class="w-full bg-black/30 border border-white/10 text-white px-4 py-3 text-xs focus:border-veludo-gold outline-none">
+                </label>
+            </form>
         </div>
 
         <div id="section-shifts" class="hidden-section">
@@ -586,7 +623,7 @@
         }
         // Tab Logic
         function switchTab(tabName) {
-            ['users', 'content', 'shifts', 'analytics'].forEach(t => {
+            ['users', 'content', 'shifts', 'footer', 'analytics'].forEach(t => {
                 const section = document.getElementById('section-' + t);
                 const tab = document.getElementById('tab-' + t);
                 

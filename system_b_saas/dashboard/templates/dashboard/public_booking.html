@@ -106,6 +106,14 @@
           background: #eef2ff;
         }
         .confirm-check { accent-color: #d4af37; }
+        .resource-card[data-bookable="false"] {
+          border-style: dashed;
+          background: #f8fafc;
+        }
+        .resource-card[data-bookable="false"]:hover {
+          border-color: #cbd5e1;
+          background: #f8fafc;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
@@ -184,6 +192,7 @@
                       data-intro="{% if r.profile %}{{ r.profile.intro|default:''|escapejs }}{% endif %}"
                       data-youtube="{% if r.profile %}{{ r.profile.youtube_url|default:''|escapejs }}{% endif %}"
                       data-service-ids="{% if r.profile and r.profile.metadata and r.profile.metadata.service_preset_ids %}{{ r.profile.metadata.service_preset_ids|join:',' }}{% endif %}"
+                      data-bookable="{{ r.is_publicly_bookable|yesno:'true,false' }}"
                       class="resource-card rounded-lg border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
                       onclick="pickResource(this)">
                       <div class="flex items-center gap-3">
@@ -192,7 +201,10 @@
                         {% else %}
                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{{ r.name|slice:':1'|upper }}</span>
                         {% endif %}
-                        <span class="text-sm font-semibold text-slate-800">{{ r.name }}</span>
+                        <span class="min-w-0 flex-1 text-sm font-semibold text-slate-800">{{ r.name }}</span>
+                        {% if not r.is_publicly_bookable %}
+                        <span class="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">予約不可</span>
+                        {% endif %}
                       </div>
                     </button>
                     {% empty %}
@@ -365,6 +377,7 @@
     intro: el.dataset.intro || '',
     youtube: el.dataset.youtube || '',
     serviceIds: (el.dataset.serviceIds || '').split(',').filter(Boolean),
+    bookable: el.dataset.bookable !== 'false',
     el,
   }));
 
@@ -629,6 +642,17 @@
     selectedSlot = null;
     if (slotLockHint) slotLockHint.classList.add('hidden');
 
+    const resource = resources.find((r) => r.id === resourceId);
+    if (resource && !resource.bookable) {
+      currentSlots = [];
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'この担当者は予約できません';
+      startSelect.appendChild(opt);
+      slotsEmpty && slotsEmpty.classList.remove('hidden');
+      return;
+    }
+
     const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resourceId);
     const res = await fetch(url, { credentials: 'same-origin' });
     const data = await res.json();
@@ -711,20 +735,38 @@
   window.pickResource = function (button) {
     resources.forEach((r) => r.el.classList.remove('border-indigo-400', 'bg-indigo-50'));
     button.classList.add('border-indigo-400', 'bg-indigo-50');
-    resourceInput.value = button.dataset.resourceId;
 
     const resource = resources.find((r) => r.id === button.dataset.resourceId);
-    renderServiceOptions(serviceSelect, resource ? resource.serviceIds : []);
-    renderServiceOptions(searchServiceSelect, resource ? resource.serviceIds : []);
-    syncSearchService();
+    if (resource && !resource.bookable) {
+      resourceInput.value = '';
+      renderServiceOptions(serviceSelect, []);
+      renderServiceOptions(searchServiceSelect, []);
+      currentSlots = [];
+      selectedSlot = null;
+      if (slotsBox) slotsBox.innerHTML = '';
+      if (startSelect) {
+        startSelect.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'この担当者は予約できません';
+        startSelect.appendChild(opt);
+      }
+      slotsEmpty && slotsEmpty.classList.remove('hidden');
+    } else {
+      resourceInput.value = button.dataset.resourceId;
+      renderServiceOptions(serviceSelect, resource ? resource.serviceIds : []);
+      renderServiceOptions(searchServiceSelect, resource ? resource.serviceIds : []);
+      syncSearchService();
+    }
     if (profileSheet && button.parentNode) {
       button.insertAdjacentElement('afterend', profileSheet);
       profileSheet.style.gridColumn = '1 / -1';
     }
     showProfile(resource);
-    loadSlotsForResource(button.dataset.resourceId);
+    if (resource && resource.bookable) loadSlotsForResource(button.dataset.resourceId);
     trackEvent('CLICK_CAST', resource ? resource.name : button.dataset.name || '', {
       resource_id: button.dataset.resourceId || '',
+      bookable: resource ? resource.bookable : true,
     });
   };
 
@@ -798,6 +840,7 @@
 
     const matched = [];
     for (const resource of resources) {
+      if (!resource.bookable) continue;
       const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resource.id);
       const res = await fetch(url, { credentials: 'same-origin' });
       const data = await res.json();
@@ -935,7 +978,7 @@
   window.openConfirmModal = function () {
     result.classList.add('hidden');
     if (!resourceInput.value) {
-      result.textContent = '担当者を選択してください。';
+      result.textContent = '予約可能な担当者を選択してください。';
       result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
       result.classList.remove('hidden');
       return;

@@ -669,6 +669,13 @@ class DashboardPublicBookingView(TemplateView):
             .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
         )
 
+    def _display_resource_queryset(self, tenant):
+        return (
+            Resource.objects.filter(tenant=tenant, is_active=True)
+            .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
+            .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tenant_slug = kwargs.get("tenant_slug")
@@ -679,11 +686,13 @@ class DashboardPublicBookingView(TemplateView):
             context.update({"tenant": None, "resources": [], "services": []})
             return context
 
-        resources = (
-            self._booking_resource_queryset(tenant)
+        resources = list(
+            self._display_resource_queryset(tenant)
             .select_related("profile")
             .order_by("profile__display_order", "name")
         )
+        for resource in resources:
+            resource.is_publicly_bookable = not _is_demo_admin_resource(resource)
         services = ServicePreset.objects.filter(tenant=tenant, is_active=True).order_by("sort_order", "id")
         agreement_modules = _agreement_modules_for_template(
             tenant.custom_terms_body,

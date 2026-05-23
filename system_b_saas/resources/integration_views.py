@@ -54,6 +54,7 @@ def _coerce_bool(value):
 
 def _serialize_resource(resource):
     profile = getattr(resource, "profile", None)
+    linked_user = getattr(resource, "linked_user", None)
     medias = []
     if profile:
         medias = [
@@ -74,6 +75,8 @@ def _serialize_resource(resource):
     return {
         "id": str(resource.id),
         "external_id": resource.external_id,
+        "linked_user_id": str(linked_user.id) if linked_user else "",
+        "linked_user_discord_id": getattr(linked_user, "discord_id", "") if linked_user else "",
         "name": resource.name,
         "email": resource.email,
         "is_active": resource.is_active,

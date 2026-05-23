@@ -63,6 +63,8 @@ class RemoteCastAdapter:
 
         self.id = str(row.get("id") or "")
         self.external_id = str(row.get("external_id") or "")
+        self.linked_user_id = str(row.get("linked_user_id") or "")
+        self.linked_user_discord_id = str(row.get("linked_user_discord_id") or "")
         self.name = row.get("name") or ""
         self.rank = (profile.get("metadata") or {}).get("rank", "REGULAR")
         self.intro = profile.get("intro") or ""
@@ -117,18 +119,21 @@ class RemoteCastAdapter:
         self.edit_url = reverse("edit_cast_profile", args=[local_profile.user.id])
 
 
-def get_local_casts_queryset():
-    return CastProfile.objects.filter(is_active=True).order_by("display_order").prefetch_related("medias")
+def get_local_casts_queryset(active_only=True):
+    queryset = CastProfile.objects.all()
+    if active_only:
+        queryset = queryset.filter(is_active=True)
+    return queryset.order_by("display_order").prefetch_related("medias")
 
 
-def get_public_casts():
+def get_public_casts(active_only=True):
     """
     Default source for user-facing pages. Reads System B first, then falls back.
     """
     if use_remote_cast_source():
         try:
             client = SaaSClient()
-            rows = client.get_resources(active_only=True)
+            rows = client.get_resources(active_only=active_only)
             casts = []
             for row in rows:
                 if not row.get("id"):
@@ -169,7 +174,7 @@ def get_public_casts():
         if not allow_local_fallback():
             return []
 
-    return list(get_local_casts_queryset())
+    return list(get_local_casts_queryset(active_only=active_only))
 
 
 def build_cast_profile_payload(cast_profile):
@@ -229,6 +234,7 @@ def sync_cast_profile_to_system_b(cast_profile):
         user_id=user.id,
         name=display_name,
         email=user.email or "",
+        is_active=bool(cast_profile.is_active),
         profile=build_cast_profile_payload(cast_profile),
         medias=build_cast_medias_payload(cast_profile),
     )

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, UserActivity, BlockedIP
+
+from .models import BlockedIP, SiteFooterCredit, User, UserActivity
 
 # 安全注销 User 模型，防止 AlreadyRegistered 错误
 if admin.site.is_registered(User):
@@ -52,3 +53,8 @@ class BlockedIPAdmin(admin.ModelAdmin):
     list_display = ('ip', 'is_active', 'hit_count', 'reason', 'last_detected_at', 'banned_until')
     list_filter = ('is_active', 'last_detected_at')
     search_fields = ('ip', 'reason')
+
+
+@admin.register(SiteFooterCredit)
+class SiteFooterCreditAdmin(admin.ModelAdmin):
+    fields = ("title", "credit_text", "copyright_text")

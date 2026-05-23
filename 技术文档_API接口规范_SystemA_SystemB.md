@@ -1,6 +1,6 @@
 # Veludo API 文档（System A + System B）
 
-**最后更新**: 2026-04-12  
+**最后更新**: 2026-05-23
 **说明**: 本文档基于当前代码实现整理，优先用于前后端联调与接口排障。本文档是当前项目中最权威的接口基线说明。
 
 ## 0. 2026-04-12 追加变更（重要）
@@ -27,6 +27,26 @@
 - 生效条件：`SYSTEM_B_DEMO_ADMIN_AUTOLOGIN_ENABLED=True` 且 token 匹配。
 - 失败口径：未启用或 token 不匹配返回 `404`。
 - 约束：该演示账号对应资源不可被预约（公开预约、A→B预约创建、可用性查询均已排除）。
+
+## 0.1 2026-05-23 追加变更（重要）
+
+1. System A Cast 显示状态同步
+- System A 编辑 CastProfile 时会把 `is_active` 作为 `Resource.is_active` 同步到 System B。
+- System A 前台页面默认通过 `GET /api/v1/integration/resources/?active_only=true` 读取公开 Cast。
+- System A 管理员 Cast CMS 使用 `active_only=false` 读取全部 Cast/Resource；`is_active=false` 的对象仍显示在运营列表中，并在 UI 上标记为 `Hidden`。
+
+2. System B demo 预约对象展示规则
+- demo 管理员资源可以在公开预约页展示为介绍对象。
+- demo 管理员资源不可预约：availability API 返回空，公开预约 create 接口继续拒绝该资源。
+
+3. System A Footer Credit 数据库化
+- System A 新增 `core.SiteFooterCredit` 单例配置。
+- `index/service/cast/access` 等前台页面通过共用 footer partial 从 System A 数据库读取クレジット表記。
+- System A 管理员面板新增独立 `Footer` tab，位于 `Analytics` 左侧，用于编辑说明文、クレジット表記、コピーライト。
+
+4. System A Access 视频区域
+- Access 页面新增“サイト解説動画はこちら”预留视频播放区。
+- 点击视频或全屏按钮进入全屏播放。
 
 ## 1. 认证与约定
 
@@ -287,6 +307,7 @@
   "external_id": "123",
   "name": "CastName",
   "email": "cast@example.com",
+  "is_active": true,
   "profile": {
     "intro": "自己紹介",
     "tags": ["癒し", "ロールプレイ"],
@@ -316,6 +337,9 @@
 
 - 同步补充规则（2026-03-26）：
   - 当 payload 仅携带 `allow_30_min / allow_60_min / allow_120_min` 时，System B 会按时长自动映射到 `ServicePreset`，并写入 `profile.metadata.service_preset_ids`（每个时长取排序最前的有效预设）。
+- 显示状态同步规则（2026-05-23）：
+  - `is_active` 由 System A 的“サイトに公開する”勾选同步到 System B `Resource.is_active`。
+  - `is_active=false` 表示不在 System A 前台/主页显示，不表示员工离职或删除。
 
 #### `GET /api/v1/integration/resources/`
 
@@ -323,6 +347,12 @@
 - Query：
   - `active_only=true|false`（可选）
   - `external_id=<system_a_user_id>`（可选）
+- 响应补充字段（2026-05-23）：
+  - `linked_user_id`：当 Resource 绑定了 System B `SaaSUser` 时返回其 ID，用于 System A 管理员面板反查本地 `saas_user_id` 并生成编辑链接。
+  - `linked_user_discord_id`：当 Resource 绑定了 System B `SaaSUser` 时返回其 Discord 映射字段，用于 System A 管理员面板 fallback 匹配。
+- 使用口径：
+  - System A 前台页面使用 `active_only=true`。
+  - System A 管理员 Cast CMS 使用 `active_only=false`，以保证取消公开显示的 Cast 仍可运营编辑。
 - 公开预约页展示约定（2026-03-28 补充）：
   - `profile.avatar_url`：作为 Cast 卡片头像与介绍卡 `poster` 图片来源。
   - `profile.tags`：用于介绍卡标签区展示（位于展示名与介绍文之间）。
@@ -750,6 +780,7 @@
   - 功能：店铺公开预约页面（System B 原生页面，Rosterly 设计语言）。
   - 说明：Store Settings 中“预约链接（自动生成）”已切换为该路由，不再依赖 `localhost:8000` 的 System A 页面。
   - 数据隔离：仅展示当前 `tenant_slug` 对应店铺的 Resource 与 ServicePreset。
+  - Demo 资源口径（2026-05-23）：demo 管理员资源可显示为展示对象，但 UI 标记为 `予約不可`，不进入时间搜索结果，不可打开确认/提交预约。
   - 反刷保护：页面包含 honeypot 字段 `website`（正常用户不可见）。
   - 预约确认同意项（2026-04-03）：
     - 固定项：VRC 利用規約、Rosterly 利用規約。
@@ -757,6 +788,7 @@
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
   - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
+  - Demo 管理员资源返回空 slots。
 
 - `POST /dashboard/book/<tenant_slug>/api/create/`
   - 功能：提交公开预约。
@@ -768,6 +800,7 @@
     - 保持前后 30 分钟冲突检测规则
     - 反刷限流：同店铺同 IP 有 10 分钟与 1 小时窗口限制；同指纹短时重复提交会被限制
     - 蜜罐拦截：若 `website` 有值则判定为机器人请求并拒绝
+    - demo 管理员资源不可预约，接口返回不可预约错误。
   - 失败码补充：`429`（访问频率过高）
 
 - `GET /dashboard/book/detail/<access_token>/`

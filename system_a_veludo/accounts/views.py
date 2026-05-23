@@ -49,7 +49,7 @@ from casts.source import (
     build_cast_medias_payload,
     sync_cast_profile_to_system_b,
 )
-from core.models import UserActivity
+from core.models import SiteFooterCredit, UserActivity
 from .forms import CastProfileForm, CastMediaFormSet
 
 # [关键修复] 获取 User 模型并赋值给全局变量
@@ -395,6 +395,66 @@ def _is_local_admin_user(user) -> bool:
     if getattr(user, 'is_superuser', False) and not is_cast:
         return True
     return bool(getattr(user, 'is_staff', False) and not is_cast)
+
+
+def _attach_admin_edit_links_to_casts(casts):
+    """
+    Remote System B resources can appear in the A-side dashboard before a local
+    CastProfile has been created. If a resource still carries the A-side user id
+    in external_id, link/create that local profile so admins can open the editor.
+    """
+    for cast in casts:
+        if getattr(cast, "edit_url", ""):
+            continue
+
+        external_id = str(getattr(cast, "external_id", "") or "").strip()
+        linked_user_id = str(getattr(cast, "linked_user_id", "") or "").strip()
+        linked_discord_id = str(getattr(cast, "linked_user_discord_id", "") or "").strip()
+
+        user = None
+        if external_id.isdigit():
+            user = User.objects.filter(id=int(external_id)).first()
+        if user is None and linked_user_id:
+            user = User.objects.filter(saas_user_id=linked_user_id).first()
+        if user is None and linked_discord_id:
+            user = (
+                User.objects.filter(discord_uid=linked_discord_id).first()
+                or User.objects.filter(discord_id=linked_discord_id).first()
+            )
+        if not user:
+            continue
+
+        display_name = (
+            getattr(cast, "name", "")
+            or getattr(user, "vrc_id", "")
+            or getattr(user, "username", "")
+            or "cast"
+        )
+        profile, _ = CastProfile.objects.get_or_create(
+            user=user,
+            defaults={"name": display_name},
+        )
+
+        update_fields = []
+        saas_resource_id = str(getattr(cast, "saas_resource_id", "") or "").strip()
+        should_bind_saas_resource = (
+            saas_resource_id
+            and profile.saas_resource_id != saas_resource_id
+            and (not profile.saas_resource_id or external_id == str(user.id))
+        )
+        if should_bind_saas_resource:
+            profile.saas_resource_id = saas_resource_id
+            update_fields.append("saas_resource_id")
+        if not profile.name and display_name:
+            profile.name = display_name
+            update_fields.append("name")
+        if update_fields:
+            profile.save(update_fields=update_fields)
+
+        if hasattr(cast, "attach_local_profile"):
+            cast.attach_local_profile(profile)
+        else:
+            cast.edit_url = reverse("edit_cast_profile", args=[user.id])
 
 
 def _upsert_shadow_user(identity_payload: dict):
@@ -1350,7 +1410,8 @@ def admin_dashboard(request):
     # 2. 获取本地数据 (Users & Casts)
     # --------------------------------------------------------
     users = User.objects.all().order_by('-date_joined')
-    casts = list(get_public_casts())
+    casts = list(get_public_casts(active_only=False))
+    _attach_admin_edit_links_to_casts(casts)
 
     # --------------------------------------------------------
     # 3. 获取 SaaS 数据 (Shifts & Orders)
@@ -1665,6 +1726,7 @@ def admin_dashboard(request):
     # --------------------------------------------------------
     role_form = UserRoleForm()
     cms_form = CastCMSForm()
+    footer_credit = SiteFooterCredit.get_solo()
 
     if request.method == 'POST':
         # --- 情况 A: 修改用户权限 ---
@@ -1766,6 +1828,7 @@ def admin_dashboard(request):
                             user_id=target_user.id,
                             name=display_name,
                             email=target_user.email,
+                            is_active=bool(cast_profile.is_active),
                             profile=build_cast_profile_payload(cast_profile),
                             medias=build_cast_medias_payload(cast_profile),
                         )
@@ -1784,6 +1847,13 @@ def admin_dashboard(request):
                 saved_cast = form.save()
                 sync_cast_profile_to_system_b(saved_cast)
                 return redirect('admin_dashboard')
+        elif 'update_footer_credit' in request.POST:
+            footer_credit.title = (request.POST.get('footer_title') or '').strip()
+            footer_credit.credit_text = (request.POST.get('footer_credit_text') or '').strip()
+            footer_credit.copyright_text = (request.POST.get('footer_copyright_text') or '').strip()
+            footer_credit.save(update_fields=['title', 'credit_text', 'copyright_text', 'updated_at'])
+            messages.success(request, 'フッターのクレジット表記を更新しました。')
+            return redirect(f"{reverse('admin_dashboard')}?tab=footer")
 
     # --------------------------------------------------------
     # 6. 渲染页面
@@ -1793,6 +1863,7 @@ def admin_dashboard(request):
         'casts': casts,
         'role_form': role_form,
         'cms_form': cms_form,
+        'footer_credit': footer_credit,
         # 新增列表，包含了 cast_id 供前端 JS 筛选使用
         'shifts': processed_shifts,
         'orders': processed_orders,

@@ -1,0 +1,14 @@
+{% load static %}
+<footer class="site-footer{% if footer_extra_class %} {{ footer_extra_class }}{% endif %}">
+    <div class="w-full max-w-7xl mx-auto px-3 sm:px-5 lg:px-8 flex flex-col items-center{% if footer_inner_extra_class %} {{ footer_inner_extra_class }}{% endif %}">
+        <div class="mb-8 md:mb-10 flex justify-center">
+            <img src="{% static 'images/All/s-1000x469_v-fs_webp_9f89f37d-b454-4ce0-9c0b-fc8b52a3a4b9.png' %}" alt="Veludo Logo" class="h-10 md:h-12 w-auto object-contain">
+        </div>
+
+        <div class="w-full text-[10px] md:text-xs leading-loose opacity-80 font-light mb-8 md:mb-12 space-y-4 font-japanese text-white text-center">
+            <p class="mx-auto max-w-5xl whitespace-pre-line break-words">{{ site_footer_credit.title }}</p>
+            <p class="mx-auto max-w-full whitespace-pre-line break-words text-[9px] md:text-[11px] text-white/60 [overflow-wrap:anywhere]">{{ site_footer_credit.credit_text }}</p>
+        </div>
+        <div class="max-w-full break-words text-[9px] md:text-[10px] tracking-[0.2em] opacity-50 text-white text-center [overflow-wrap:anywhere]">{{ site_footer_credit.copyright_text }}</div>
+    </div>
+</footer>

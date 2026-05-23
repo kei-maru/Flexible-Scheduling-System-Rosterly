@@ -744,3 +744,15 @@ git log --reverse --pretty=format:'%ad|%h|%s' --date=short --all
 阶段结论：
 - 安全能力从“局部修补”升级为“请求入口、身份交换、配置管理、运行时权限、回归测试”五层联动防线。
 - 上线后排查证明：多数业务异常（登录/角色/排班）与 A/B 凭据或环境覆盖相关，配置一致性成为生产稳定第一优先级。
+
+---
+
+## 21. Phase 21：上传链路修复与权限收敛（2026-05-11）
+
+关键内容：
+- A 端上传失败定位为 Nginx body size 限制残留，统一 HTTP/HTTPS server block 的 `client_max_body_size`。
+- B 端头像写入失败修复：`/app/media/resource_avatars` 目录权限调整为 `uid=999` 可写。
+- A 端媒体目录权限收敛：`/var/www/Veludo_Saas/media` 统一为容器用户可写，消除 500。
+
+阶段结论：
+- 上传 500 从“网关限制 + 文件权限”收敛为稳定可写，A/B 上传链路恢复正常。

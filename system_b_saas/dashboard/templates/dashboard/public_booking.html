@@ -249,7 +249,7 @@
                     </div>
                     <div>
                       <label class="mb-1 block text-xs text-slate-500">サービス</label>
-                      <select id="search-service" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" onchange="syncSearchService()">
+                      <select id="search-service" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" onchange="syncSearchService(); refreshStartOptions()">
                         {% for s in services %}
                         <option value="{{ s.id }}" data-minutes="{{ s.duration_minutes }}">{{ s.name }}（{{ s.duration_minutes }}分）</option>
                         {% empty %}
@@ -720,6 +720,7 @@
       startSelect.selectedIndex = 0;
     }
   }
+  window.refreshStartOptions = refreshStartOptions;
 
   window.pickResource = function (button) {
     resources.forEach((r) => r.el.classList.remove('border-indigo-400', 'bg-indigo-50'));

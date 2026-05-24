@@ -777,7 +777,7 @@ class DashboardPublicBookingView(TemplateView):
 
 class DashboardPublicBookingAvailabilityApi(View):
     def _booking_resource_queryset(self, tenant):
-        return _exclude_demo_admin_resources(
+        return (
             Resource.objects.filter(tenant=tenant, is_active=True)
             .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
             .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))
@@ -920,7 +920,7 @@ class StripeWebhookView(View):
 
 class DashboardPublicBookingCreateApi(View):
     def _booking_resource_queryset(self, tenant):
-        return _exclude_demo_admin_resources(
+        return (
             Resource.objects.filter(tenant=tenant, is_active=True)
             .filter(Q(linked_user__isnull=True) | Q(linked_user__is_active=True))
             .filter(Q(linked_user__isnull=True) | Q(profile__platform_terms_agreed=True))

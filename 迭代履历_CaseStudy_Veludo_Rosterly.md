@@ -294,7 +294,8 @@
   - System A 管理员面板按 `external_id / saas_user_id / discord_uid / discord_id` 反查本地用户，自动补齐 A 侧编辑链接，避免出现 `EDITOR UNAVAILABLE`。
 - 公开预约 demo 资源规则：
   - demo 管理员资源可显示为展示对象。
-  - demo 管理员资源不可预约，不加载可预约空档，不进入时间搜索结果，也不能提交预约。
+  - demo 管理员资源可正常展示 course、可预约空档，并允许进入预约确认页面。
+  - demo 管理员资源不可最终预约：确认弹窗的提交按钮保持不可点击，后端 create API 继续拒绝提交。
 - System A Footer 数据库化：
   - 新增 `core.SiteFooterCredit` 单例表，统一管理前台クレジット表記。
   - `index / service / cast / access` footer 改为共用 partial，从数据库读取内容。

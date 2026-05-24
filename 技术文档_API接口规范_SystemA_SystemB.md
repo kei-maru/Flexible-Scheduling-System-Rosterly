@@ -37,7 +37,8 @@
 
 2. System B demo 预约对象展示规则
 - demo 管理员资源可以在公开预约页展示为介绍对象。
-- demo 管理员资源不可预约：availability API 返回空，公开预约 create 接口继续拒绝该资源。
+- demo 管理员资源允许查询 availability，并可进入预约确认页面，用于展示 course 与可预约时间。
+- demo 管理员资源不可最终预约：确认弹窗的提交按钮保持不可点击，公开预约 create 接口继续拒绝该资源。
 
 3. System A Footer Credit 数据库化
 - System A 新增 `core.SiteFooterCredit` 单例配置。
@@ -780,7 +781,7 @@
   - 功能：店铺公开预约页面（System B 原生页面，Rosterly 设计语言）。
   - 说明：Store Settings 中“预约链接（自动生成）”已切换为该路由，不再依赖 `localhost:8000` 的 System A 页面。
   - 数据隔离：仅展示当前 `tenant_slug` 对应店铺的 Resource 与 ServicePreset。
-  - Demo 资源口径（2026-05-23）：demo 管理员资源可显示为展示对象，但 UI 标记为 `予約不可`，不进入时间搜索结果，不可打开确认/提交预约。
+  - Demo 资源口径（2026-05-24）：demo 管理员资源可显示为展示对象，允许展示 course、空档与确认页面，但最终确认按钮不可点击，create API 继续拒绝提交。
   - 反刷保护：页面包含 honeypot 字段 `website`（正常用户不可见）。
   - 预约确认同意项（2026-04-03）：
     - 固定项：VRC 利用規約、Rosterly 利用規約。
@@ -788,7 +789,7 @@
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
   - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
-  - Demo 管理员资源返回空 slots。
+  - Demo 管理员资源也可返回真实 slots，用于 demo 预约界面展示。
 
 - `POST /dashboard/book/<tenant_slug>/api/create/`
   - 功能：提交公开预约。

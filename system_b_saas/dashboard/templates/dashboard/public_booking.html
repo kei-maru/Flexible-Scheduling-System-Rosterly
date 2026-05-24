@@ -642,17 +642,6 @@
     selectedSlot = null;
     if (slotLockHint) slotLockHint.classList.add('hidden');
 
-    const resource = resources.find((r) => r.id === resourceId);
-    if (resource && !resource.bookable) {
-      currentSlots = [];
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'この担当者は予約できません';
-      startSelect.appendChild(opt);
-      slotsEmpty && slotsEmpty.classList.remove('hidden');
-      return;
-    }
-
     const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resourceId);
     const res = await fetch(url, { credentials: 'same-origin' });
     const data = await res.json();
@@ -737,33 +726,16 @@
     button.classList.add('border-indigo-400', 'bg-indigo-50');
 
     const resource = resources.find((r) => r.id === button.dataset.resourceId);
-    if (resource && !resource.bookable) {
-      resourceInput.value = '';
-      renderServiceOptions(serviceSelect, []);
-      renderServiceOptions(searchServiceSelect, []);
-      currentSlots = [];
-      selectedSlot = null;
-      if (slotsBox) slotsBox.innerHTML = '';
-      if (startSelect) {
-        startSelect.innerHTML = '';
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'この担当者は予約できません';
-        startSelect.appendChild(opt);
-      }
-      slotsEmpty && slotsEmpty.classList.remove('hidden');
-    } else {
-      resourceInput.value = button.dataset.resourceId;
-      renderServiceOptions(serviceSelect, resource ? resource.serviceIds : []);
-      renderServiceOptions(searchServiceSelect, resource ? resource.serviceIds : []);
-      syncSearchService();
-    }
+    resourceInput.value = button.dataset.resourceId;
+    renderServiceOptions(serviceSelect, resource ? resource.serviceIds : []);
+    renderServiceOptions(searchServiceSelect, resource ? resource.serviceIds : []);
+    syncSearchService();
     if (profileSheet && button.parentNode) {
       button.insertAdjacentElement('afterend', profileSheet);
       profileSheet.style.gridColumn = '1 / -1';
     }
     showProfile(resource);
-    if (resource && resource.bookable) loadSlotsForResource(button.dataset.resourceId);
+    loadSlotsForResource(button.dataset.resourceId);
     trackEvent('CLICK_CAST', resource ? resource.name : button.dataset.name || '', {
       resource_id: button.dataset.resourceId || '',
       bookable: resource ? resource.bookable : true,
@@ -840,7 +812,6 @@
 
     const matched = [];
     for (const resource of resources) {
-      if (!resource.bookable) continue;
       const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resource.id);
       const res = await fetch(url, { credentials: 'same-origin' });
       const data = await res.json();
@@ -936,6 +907,9 @@
     const avatarUrl = (selectedResource.avatar || '').replace(/"/g, '&quot;');
     const resourceName = selectedResource.name || '-';
     const serviceName = serviceOption ? serviceOption.textContent : '-';
+    const nonBookableNotice = selectedResource.bookable === false
+      ? '<div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">この担当者はデモ表示用のため、予約確定はできません。</div>'
+      : '';
     const identityRows = rows.length
       ? rows
           .map(([k, v]) => `<div class="confirm-summary-item"><div class="confirm-summary-key">${escapeHtml(k)}</div><div class="confirm-summary-val">${escapeHtml(v || '-')}</div></div>`)
@@ -943,6 +917,7 @@
       : '<div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">入力情報はありません。</div>';
 
     return `
+      ${nonBookableNotice}
       <div class="confirm-section">
         <div class="confirm-section-title">担当者とサービス</div>
         <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -975,10 +950,21 @@
     `;
   }
 
+  function selectedResourceIsBookable() {
+    const selectedResource = resources.find((r) => r.id === resourceInput.value);
+    return !selectedResource || selectedResource.bookable !== false;
+  }
+
+  function updateConfirmSubmitState() {
+    const checks = Array.from(document.querySelectorAll('.confirm-check'));
+    const allChecked = checks.length > 0 && checks.every((c) => c.checked);
+    confirmSubmitBtn.disabled = !allChecked || !selectedResourceIsBookable();
+  }
+
   window.openConfirmModal = function () {
     result.classList.add('hidden');
     if (!resourceInput.value) {
-      result.textContent = '予約可能な担当者を選択してください。';
+      result.textContent = '担当者を選択してください。';
       result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
       result.classList.remove('hidden');
       return;
@@ -998,6 +984,7 @@
     if (!form.reportValidity()) return;
 
     document.getElementById('confirm-summary').innerHTML = getSummaryText();
+    confirmSubmitBtn.textContent = selectedResourceIsBookable() ? '同意して予約確定' : 'デモのため予約確定不可';
     confirmModal.classList.remove('hidden');
     confirmModal.classList.add('flex');
     trackEvent('CLICK_RESERVATION_INFO', resourceInput.value || '', {
@@ -1012,7 +999,7 @@
       const row = c.closest('.confirm-policy');
       if (row) row.classList.remove('checked');
     });
-    confirmSubmitBtn.disabled = true;
+    updateConfirmSubmitState();
   };
 
   window.closeConfirmModal = function () {
@@ -1024,11 +1011,11 @@
     if (!e.target.classList.contains('confirm-check')) return;
     const row = e.target.closest('.confirm-policy');
     if (row) row.classList.toggle('checked', e.target.checked);
-    const checks = Array.from(document.querySelectorAll('.confirm-check'));
-    confirmSubmitBtn.disabled = checks.some((c) => !c.checked);
+    updateConfirmSubmitState();
   });
 
   window.submitBooking = async function () {
+    if (!selectedResourceIsBookable()) return;
     const formData = new FormData(form);
     const res = await fetch(form.action, {
       method: 'POST',

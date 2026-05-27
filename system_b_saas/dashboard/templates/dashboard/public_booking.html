@@ -13,7 +13,7 @@
         .mode-track { display: flex; width: 200%; transition: transform .7s ease; }
         .mode-track.show-time { transform: translateX(-50%); }
         .mode-pane { flex: 0 0 50%; width: 50%; padding-right: 16px; }
-        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height .8s ease, opacity .8s ease, transform .8s ease, margin-top .8s ease, border-width .8s ease; }
+        .profile-sheet { max-height: 0; opacity: 0; overflow: hidden; transform: translateX(-12px); margin-top: 0; border-width: 0; padding: 0; transition: max-height .36s ease, opacity .28s ease, transform .28s ease, margin-top .36s ease, border-width .36s ease; }
         .profile-sheet.open { max-height: 900px; opacity: 1; transform: translateX(0); margin-top: 12px; border-width: 1px; }
         .booking-panel { position: sticky; top: 24px; align-self: flex-start; max-height: calc(100vh - 140px); overflow: auto; }
         .profile-poster-wrap { opacity: 0; transform: translateX(-12px); transition: opacity .45s ease, transform .45s ease; }
@@ -404,6 +404,7 @@
   const resourceGrid = document.getElementById('resource-grid');
   let currentMode = 'cast';
   let profileCloseHandler = null;
+  let profileSwitchTimer = null;
   const pageEnterAt = Date.now();
 
   const serviceCatalog = Array.from((serviceSelect || {}).options || [])
@@ -418,6 +419,30 @@
   let selectedSlot = null;
   let activeResourceId = '';
   let preferredStartIso = '';
+
+  function gridColumnCount(grid) {
+    if (!grid) return 1;
+    const columns = window.getComputedStyle(grid).gridTemplateColumns || '';
+    const count = columns.split(' ').filter(Boolean).length;
+    return Math.max(1, count || 1);
+  }
+
+  function moveProfileSheetAfterCardRow(button) {
+    if (!profileSheet || !button || !button.parentElement) return;
+    const parent = button.parentElement;
+    const visibleCards = Array.from(parent.querySelectorAll('.resource-card'));
+    const cardIndex = visibleCards.indexOf(button);
+    if (cardIndex === -1) {
+      button.insertAdjacentElement('afterend', profileSheet);
+      profileSheet.style.gridColumn = '1 / -1';
+      return;
+    }
+
+    const columns = parent === resourceGrid ? gridColumnCount(parent) : 1;
+    const rowEndIndex = Math.min(visibleCards.length - 1, Math.floor(cardIndex / columns) * columns + columns - 1);
+    visibleCards[rowEndIndex].insertAdjacentElement('afterend', profileSheet);
+    profileSheet.style.gridColumn = '1 / -1';
+  }
 
   function trackEvent(action, target = '', meta = {}, useBeacon = false) {
     const payload = {
@@ -540,6 +565,10 @@
       profileSheet.removeEventListener('transitionend', profileCloseHandler);
       profileCloseHandler = null;
     }
+    if (profileSwitchTimer) {
+      window.clearTimeout(profileSwitchTimer);
+      profileSwitchTimer = null;
+    }
 
     profileSheet.style.display = 'block';
     profileSheet.style.maxHeight = `${profileSheet.scrollHeight}px`;
@@ -568,17 +597,8 @@
     profileSheet.addEventListener('transitionend', profileCloseHandler);
   }
 
-  function showProfile(resource) {
+  function renderProfileContent(resource) {
     if (!profileSheet || !resource) return;
-    const alreadyOpen = profileSheet.classList.contains('open');
-    if (alreadyOpen && activeResourceId === resource.id) {
-      closeProfileSheet();
-      return;
-    }
-    if (profileCloseHandler) {
-      profileSheet.removeEventListener('transitionend', profileCloseHandler);
-      profileCloseHandler = null;
-    }
     activeResourceId = resource.id;
     profileName.textContent = normalizeName(resource.name) || '--';
     if (profileTags) {
@@ -618,6 +638,10 @@
         profileYoutube.classList.add('hidden');
       }
     }
+  }
+
+  function openProfileSheet() {
+    if (!profileSheet) return;
     profileSheet.style.display = 'block';
     requestAnimationFrame(() => {
       profileSheet.classList.remove('open');
@@ -632,6 +656,61 @@
         slotsSection.classList.remove('hidden');
       }
     });
+  }
+
+  function showProfile(resource, button) {
+    if (!profileSheet || !resource) return;
+    const alreadyOpen = profileSheet.classList.contains('open');
+    if (alreadyOpen && activeResourceId === resource.id) {
+      closeProfileSheet();
+      return;
+    }
+    if (profileCloseHandler) {
+      profileSheet.removeEventListener('transitionend', profileCloseHandler);
+      profileCloseHandler = null;
+    }
+    if (profileSwitchTimer) {
+      window.clearTimeout(profileSwitchTimer);
+      profileSwitchTimer = null;
+    }
+
+    if (!alreadyOpen) {
+      moveProfileSheetAfterCardRow(button);
+      renderProfileContent(resource);
+      openProfileSheet();
+      return;
+    }
+
+    profileSheet.style.display = 'block';
+    profileSheet.style.maxHeight = `${profileSheet.scrollHeight}px`;
+    profileSheet.classList.remove('open');
+
+    let didSwitch = false;
+    const finishSwitch = () => {
+      if (didSwitch) return;
+      didSwitch = true;
+      if (profileCloseHandler) {
+        profileSheet.removeEventListener('transitionend', profileCloseHandler);
+        profileCloseHandler = null;
+      }
+      if (profileSwitchTimer) {
+        window.clearTimeout(profileSwitchTimer);
+        profileSwitchTimer = null;
+      }
+      moveProfileSheetAfterCardRow(button);
+      renderProfileContent(resource);
+      openProfileSheet();
+    };
+
+    profileCloseHandler = (event) => {
+      if (event.propertyName !== 'max-height') return;
+      finishSwitch();
+    };
+    profileSheet.addEventListener('transitionend', profileCloseHandler);
+    requestAnimationFrame(() => {
+      profileSheet.style.maxHeight = '0px';
+    });
+    profileSwitchTimer = window.setTimeout(finishSwitch, 430);
   }
 
   async function loadSlotsForResource(resourceId) {
@@ -731,11 +810,7 @@
     renderServiceOptions(serviceSelect, resource ? resource.serviceIds : []);
     renderServiceOptions(searchServiceSelect, resource ? resource.serviceIds : []);
     syncSearchService();
-    if (profileSheet && button.parentNode) {
-      button.insertAdjacentElement('afterend', profileSheet);
-      profileSheet.style.gridColumn = '1 / -1';
-    }
-    showProfile(resource);
+    showProfile(resource, button);
     loadSlotsForResource(button.dataset.resourceId);
     trackEvent('CLICK_CAST', resource ? resource.name : button.dataset.name || '', {
       resource_id: button.dataset.resourceId || '',

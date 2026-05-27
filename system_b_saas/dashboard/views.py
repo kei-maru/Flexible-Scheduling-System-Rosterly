@@ -62,11 +62,22 @@ def _demo_admin_access_token() -> str:
 
 def _is_demo_admin_resource(resource) -> bool:
     linked_user = getattr(resource, "linked_user", None)
-    if not linked_user:
+    if linked_user:
+        target_username = _demo_admin_username().lower()
+        current_username = (getattr(linked_user, "username", "") or "").strip().lower()
+        if bool(target_username) and current_username == target_username:
+            return True
+
+    profile = getattr(resource, "profile", None)
+    metadata = getattr(profile, "metadata", None) if profile else None
+    if not isinstance(metadata, dict):
         return False
-    target_username = _demo_admin_username().lower()
-    current_username = (getattr(linked_user, "username", "") or "").strip().lower()
-    return bool(target_username) and current_username == target_username
+    rank = str(metadata.get("rank") or "").strip().upper()
+    return (
+        rank == "DEMO"
+        or metadata.get("demo_non_bookable") is True
+        or metadata.get("publicly_bookable") is False
+    )
 
 
 def _exclude_demo_admin_resources(queryset):

@@ -6,6 +6,7 @@
     <title>{% if tenant %}{{ tenant.name }} 予約{% else %}予約ページ{% endif %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    {% include "dashboard/mobile_optimizations.html" %}
     <style>
         .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 14px 34px -26px rgba(15, 23, 42, .45); }
         .mode-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
@@ -118,7 +119,7 @@
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
 <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+    <div class="rosterly-mobile-header mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         <div class="flex items-center gap-3">
             <h1 class="text-xl font-bold tracking-tight text-indigo-700">Rosterly</h1>
             {% if tenant_logo_url %}
@@ -315,7 +316,7 @@
         </section>
     </div>
 
-          <div id="confirm-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
+          <div id="confirm-modal" class="rosterly-mobile-modal fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
       <div class="confirm-shell w-full max-w-2xl rounded-2xl p-5 shadow-2xl md:p-6">
               <div class="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div>

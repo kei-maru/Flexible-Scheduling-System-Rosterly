@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    {% include "dashboard/mobile_optimizations.html" %}
     <style>
         body {
             font-family: "Noto Sans JP", sans-serif;
@@ -95,7 +96,7 @@
 <body class="min-h-screen bg-slate-50 text-slate-900">
     <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="mx-auto max-w-7xl px-5 py-4">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="rosterly-mobile-header flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-3">
                     <a href="{% url 'tenant_dashboard' %}" class="text-2xl font-bold tracking-tight text-indigo-700 hover:text-indigo-800">Rosterly</a>
                     {% if tenant_logo_url %}
@@ -103,7 +104,7 @@
                     {% endif %}
                     <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">店舗: {{ tenant_name }}</span>
                 </div>
-                <div class="flex items-center gap-3 text-sm text-slate-600">
+                <div class="rosterly-mobile-actions flex items-center gap-3 text-sm text-slate-600">
                     {% if is_super_admin %}
                     <a href="{% url 'dashboard_super_global' %}" class="inline-flex items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-100">
                         <i class="fa-solid fa-globe"></i> 全域コンソール
@@ -120,9 +121,6 @@
                         <span class="rounded-full bg-white px-1.5 py-0.5 text-[11px] text-rose-700">{{ report_unread_count|default:0 }}</span>
                     </a>
                     {% endif %}
-                    <button onclick="switchTab('subscription')" class="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
-                        <i class="fa-solid fa-credit-card"></i> サブスクリプション管理
-                    </button>
                     <span class="rounded-md border border-slate-200 bg-white px-3 py-1.5">ログイン中: {{ request.user.username }}</span>
                     <a href="{% url 'logout' %}" class="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
                         <i class="fa-solid fa-right-from-bracket"></i> ログアウト
@@ -130,7 +128,7 @@
                 </div>
             </div>
 
-            <nav class="mt-4 flex flex-wrap gap-2">
+            <nav class="rosterly-mobile-nav mt-4 flex flex-wrap gap-2">
                 <button id="tab-shop" onclick="switchTab('shop')" class="tab-btn active inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                     <i class="fa-solid fa-store text-slate-500"></i> Store Settings
                 </button>
@@ -153,13 +151,13 @@
         </div>
     </header>
 
-    <main class="mx-auto max-w-7xl p-6 md:p-8">
+    <main class="mx-auto max-w-7xl p-4 md:p-8">
             <header class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
                     <h1 id="page-title" class="text-2xl font-bold text-slate-900">Store Settings</h1>
                     <p id="page-description" class="mt-1 text-sm text-slate-500">店舗基本情報と招待リンクを管理できます。</p>
                 </div>
-                <div class="flex gap-2">
+                <div class="rosterly-mobile-actions flex gap-2">
                     <a href="{% url 'shared_home' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
                         スタッフ画面へ
                     </a>
@@ -521,7 +519,7 @@
             <section id="section-users" class="hidden-section panel p-5">
                     <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <h2 class="text-lg font-semibold text-slate-900">ユーザー管理</h2>
-                        <div class="flex gap-2">
+                        <div class="rosterly-mobile-stack flex gap-2">
                             <select id="roleFilter" onchange="filterUsers()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700">
                                 <option value="all">すべての権限</option>
                                 <option value="staff">STAFF</option>
@@ -536,7 +534,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="save_staff_batch" value="true">
 
-                        <div>
+                        <div class="rosterly-mobile-scroll">
                             <table class="admin-table w-full">
                                 <thead>
                                     <tr>
@@ -592,7 +590,7 @@
                             </table>
                         </div>
 
-                        <div class="mt-4 flex items-center justify-between gap-4">
+                        <div class="rosterly-mobile-stack mt-4 flex items-center justify-between gap-4">
                             <p class="text-xs text-slate-500">有効をオンにすると、該当スタッフは予約対象として公開されます。`STAFF` の予約リソース連携は自動で維持されます。</p>
                             <button type="submit" class="inline-flex h-10 items-center rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">変更内容を確認して保存</button>
                         </div>
@@ -944,8 +942,8 @@
                         <div class="border-b border-slate-200 px-5 py-4">
                             <h2 class="text-lg font-semibold text-slate-900">プリセット一覧</h2>
                         </div>
-                        <div>
-                            <table class="admin-table w-full table-fixed">
+                        <div class="rosterly-mobile-scroll">
+                            <table class="admin-table w-full min-w-[720px] table-fixed">
                                 <thead>
                                     <tr>
                                         <th class="w-[48%]">名称</th>
@@ -1115,7 +1113,7 @@
                 </div>
             </section>
 
-            <div id="admin-order-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/45 px-4">
+            <div id="admin-order-modal" class="rosterly-mobile-modal fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/45 px-4">
                 <div class="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
                     <div class="mb-4 flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-slate-900">注文詳細</h3>
@@ -1172,7 +1170,7 @@
             </div>
     </main>
 
-    <div id="users-confirm-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
+    <div id="users-confirm-modal" class="rosterly-mobile-modal fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
         <div class="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
             <h3 class="text-lg font-semibold text-slate-900">変更内容を適用しますか？</h3>
             <p class="mt-1 text-xs text-slate-500">以下の内容でユーザー情報を更新します。</p>
@@ -1184,7 +1182,7 @@
         </div>
     </div>
 
-    <div id="core-time-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
+    <div id="core-time-modal" class="rosterly-mobile-modal fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/40 px-4">
         <div class="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl max-h-[85vh] overflow-hidden">
             <div class="flex items-center justify-between">
                 <div>
@@ -1443,7 +1441,6 @@
 
         const PAGE_TITLES = {
             shop: "Store Settings",
-            subscription: "Subscription",
             users: "Users & Roles",
             content: "Cast CMS",
             shifts: "Shifts & Orders",
@@ -1452,16 +1449,20 @@
         };
         const MODULE_DESCRIPTIONS = {
             shop: "店舗基本情報と招待リンクを管理できます。",
-            subscription: "サブスクリプション情報と契約期間を管理できます。",
             users: "ユーザー情報とアカウント権限をまとめて管理できます。",
             content: "キャストの公開情報（画像・紹介文・対応サービス）を編集するモジュールです。",
             shifts: "キャスト別にシフトと予約履歴を横断確認するモジュールです。",
             services: "予約で使用するサービスプリセットを作成・管理するモジュールです。",
             email: "予約通知メールの送信設定と文面を管理するモジュールです。",
         };
+        const SUBSCRIPTION_UI_ENABLED = false;
+        const DASHBOARD_TABS = ["shop", "users", "content", "shifts", "services", "email"];
 
         function switchTab(tabName) {
-            ["shop", "subscription", "users", "content", "shifts", "services", "email"].forEach((key) => {
+            if (tabName === "subscription" && !SUBSCRIPTION_UI_ENABLED) {
+                tabName = "shop";
+            }
+            DASHBOARD_TABS.forEach((key) => {
                 const section = document.getElementById("section-" + key);
                 const tab = document.getElementById("tab-" + key);
                 if (section) section.classList.add("hidden-section");
@@ -1477,7 +1478,7 @@
             if (titleEl) titleEl.innerText = PAGE_TITLES[tabName] || "管理者ダッシュボード";
             const descEl = document.getElementById("page-description");
             if (descEl) descEl.innerText = MODULE_DESCRIPTIONS[tabName] || "";
-            if (tabName === "subscription") {
+            if (tabName === "subscription" && SUBSCRIPTION_UI_ENABLED) {
                 autoSyncSubscriptionTab();
             }
         }
@@ -2129,7 +2130,8 @@
 
         document.addEventListener("DOMContentLoaded", function () {
             const params = new URLSearchParams(window.location.search);
-            const initialTab = params.get("tab") || "shop";
+            const requestedTab = params.get("tab") || "shop";
+            const initialTab = DASHBOARD_TABS.includes(requestedTab) ? requestedTab : "shop";
             switchTab(initialTab);
 
             const focusOrderId = (params.get("order_id") || "").trim();

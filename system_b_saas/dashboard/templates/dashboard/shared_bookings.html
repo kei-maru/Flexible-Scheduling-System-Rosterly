@@ -7,10 +7,11 @@
     <title>予約一覧 | System B</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% include "dashboard/mobile_optimizations.html" %}
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
     <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div class="rosterly-mobile-header mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             <div class="flex items-center gap-3">
                 {% if tenant_logo_url %}
                 <img src="{{ tenant_logo_url }}" alt="tenant logo" class="h-8 w-8 rounded-full border border-slate-200 object-cover">
@@ -43,7 +44,7 @@
         </div>
         {% endif %}
 
-        <div class="mb-6 flex flex-wrap gap-2">
+        <div class="rosterly-mobile-nav mb-6 flex flex-wrap gap-2">
             <a href="{% url 'shared_home' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">ホーム</a>
             <a href="{% url 'shared_profile' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">プロフィール管理</a>
             <a href="{% url 'shared_schedule' %}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">シフト管理</a>
@@ -99,7 +100,7 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-3">
+                        <div class="rosterly-mobile-stack flex items-center gap-3">
                             <span class="rounded border px-3 py-1 text-[10px] tracking-widest
                                 {% if booking.status == 'COMPLETED' %}border-emerald-200 bg-emerald-50 text-emerald-700
                                 {% elif booking.status == 'CANCELLED' %}border-rose-200 bg-rose-50 text-rose-700
@@ -120,7 +121,7 @@
         </div>
     </main>
 
-    <div id="detail-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 p-4 backdrop-blur-sm">
+    <div id="detail-modal" class="rosterly-mobile-modal fixed inset-0 z-50 hidden bg-slate-900/60 p-4 backdrop-blur-sm">
         <div class="mx-auto mt-8 w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <h3 class="text-lg font-semibold text-slate-900">予約詳細</h3>

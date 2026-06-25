@@ -11,17 +11,19 @@ from .views import (
     DashboardInviteAcceptView,
     DashboardTermsView,
     DashboardTokushohoView,
-    DashboardPublicBookingView,
-    DashboardPublicBookingAvailabilityApi,
-    DashboardPublicBookingCreateApi,
-    DashboardPublicBookingDetailView,
-    DashboardPublicBookingCancelApi,
-    DashboardPublicBookingReportApi,
     DashboardAdminReportNotificationsApi,
     DashboardAdminDemoLoginView,
     DashboardTrackingApi,
     StripeWebhookView,
     dashboard_logout,
+)
+from bookings.public_views import (
+    DashboardPublicBookingAvailabilityApi,
+    DashboardPublicBookingCancelApi,
+    DashboardPublicBookingCreateApi,
+    DashboardPublicBookingDetailView,
+    DashboardPublicBookingReportApi,
+    DashboardPublicBookingView,
 )
 from .schedule_views import (
     DashboardScheduleAvailabilityApi,

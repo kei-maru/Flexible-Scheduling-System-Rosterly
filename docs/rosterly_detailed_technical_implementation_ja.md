@@ -347,20 +347,20 @@ status = CONFIRMED
 
 該当する予約が存在する場合は `409 Conflict` を返す。
 
-予約作成は `transaction.atomic()` 内で行い、メール送信や Webhook は `transaction.on_commit()` で Celery に渡す。  
+予約作成は `bookings.services.create_confirmed_booking_with_lock()` に集約している。
+公開予約 API と Integration Booking API のどちらも、この service を経由して Booking を作成する。
+
+現在の実装では、`transaction.atomic()` 内で対象 `Resource` を `select_for_update()` し、続いて予約時間をカバーする `Availability` を `select_for_update()` でロックする。
+そのロックを持った状態で、「指定時間が Availability 内に収まるか」「前後 buffer を含めて既存 CONFIRMED Booking と重ならないか」を再確認してから Booking を作成する。
+
+この設計により、同じ Resource / Availability に対して複数ユーザーが同時に予約確定を押した場合でも、後続リクエストは先行トランザクションの完了を待つ。
+先行処理が予約を作成した後、後続処理は lock 解放後の最新 Booking 状態を見て `409 Conflict` 相当で二重予約を拒否できる。
+
+メール送信や Webhook は `transaction.on_commit()` で Celery に渡す。
 これにより、DB commit 前に非同期タスクが予約を読みに行く問題を避けている。
 
-予約の理想設計は、`Availability` と `Booking` を 0 対 0/1 の関係で扱うことである。  
-つまり、1 つの空き枠は未予約なら Booking を持たず、予約確定後は 1 件の Booking だけに紐づく。
-
-同時予約への対策としては、予約確定時に対象の `Availability` 行を `select_for_update()` で悲観ロックする方針を採る。  
-最初に空き枠レコードをロックし、そのロックを持ったトランザクション内で「まだ予約済みではないか」「指定サービスの所要時間が枠内に収まるか」「前後 buffer を含めて既存予約と重ならないか」を確認してから Booking を作成する。
-
-この設計により、同じ空き枠に対して複数ユーザーが同時に予約確定を押した場合でも、後続リクエストは先行トランザクションの完了を待つ。  
-先行処理が予約を作成した後、後続処理は同じ Availability がすでに使用済みであることを検知し、二重予約を拒否できる。
-
-現在のコードでは既存予約との重なりチェックと `transaction.atomic()` を実装している。  
-今後の DB 設計強化として、`Booking.availability` を追加し、`Availability` への 0..1 紐付けと悲観ロックを予約確定処理の中心に置く。
+今後の DB 設計強化として、`Booking.availability` を追加し、予約成立時に Availability を left available slot / booked slot / right available slot に分割する案がある。
+この booked slot と Booking を 0..1 で紐づけると、予約済み枠を DB 構造としてより明確に表現できる。
 
 ---
 

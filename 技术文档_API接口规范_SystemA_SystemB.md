@@ -447,6 +447,14 @@
 #### `POST /api/v1/integration/bookings/`
 
 - 功能：创建预约
+- 实现位置：`system_b_saas/bookings/views.py::IntegrationBookingView`
+- 创建逻辑：实际写入委托给 `system_b_saas/bookings/services.py::create_confirmed_booking_with_lock`
+- 并发控制：
+  - 在 `transaction.atomic()` 内创建预约；
+  - 先对目标 `Resource` 执行 `select_for_update()`；
+  - 再对覆盖本次预约时间段的 `Availability` 执行 `select_for_update()`；
+  - 锁内重新检查 Availability 范围与既有 `CONFIRMED` Booking 冲突；
+  - 冲突时返回 `409`，不创建 Booking。
 - 请求体：
 
 ```json
@@ -779,6 +787,7 @@
 
 - `GET /dashboard/book/<tenant_slug>/`
   - 功能：店铺公开预约页面（System B 原生页面，Rosterly 设计语言）。
+  - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingView`
   - 说明：Store Settings 中“预约链接（自动生成）”已切换为该路由，不再依赖 `localhost:8000` 的 System A 页面。
   - 数据隔离：仅展示当前 `tenant_slug` 对应店铺的 Resource 与 ServicePreset。
   - Demo 资源口径（2026-05-24）：demo 管理员资源可显示为展示对象，允许展示 course、空档与确认页面，但最终确认按钮不可点击，create API 继续拒绝提交。
@@ -789,27 +798,36 @@
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
   - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
+  - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingAvailabilityApi`
   - Demo 管理员资源也可返回真实 slots，用于 demo 预约界面展示。
 
 - `POST /dashboard/book/<tenant_slug>/api/create/`
   - 功能：提交公开预约。
+  - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingCreateApi`
+  - 创建逻辑：实际写入委托给 `system_b_saas/bookings/services.py::create_confirmed_booking_with_lock`
   - 必填：`resource_id`、`start_time`
   - 条件必填：`customer_vrcid` / `customer_discord_id` / `customer_email` 由店铺 `required_customer_fields` 决定。
   - 可选：`service_id`
   - 校验：
     - 预约开始时间需大于当前时间 24 小时
     - 保持前后 30 分钟冲突检测规则
+    - 使用悲观锁防止同一预约对象被并发重复预约：
+      - `Resource.select_for_update()`
+      - `Availability.select_for_update()`
+      - 锁内重查 Availability 与 Booking 冲突
     - 反刷限流：同店铺同 IP 有 10 分钟与 1 小时窗口限制；同指纹短时重复提交会被限制
     - 蜜罐拦截：若 `website` 有值则判定为机器人请求并拒绝
     - demo 管理员资源不可预约，接口返回不可预约错误。
-  - 失败码补充：`429`（访问频率过高）
+  - 失败码补充：`409`（时间冲突）、`429`（访问频率过高）
 
 - `GET /dashboard/book/detail/<access_token>/`
   - 功能：顾客订单详情页（邮件“详细を見る”按钮目标）。
+  - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingDetailView`
   - 展示：预约明细 + 日语取消期限（例：`2026年03月31日 20:00 まで`）。
 
 - `POST /dashboard/book/detail/<access_token>/report/`
   - 功能：顾客在订单详情页提交通报（投诉/问题上报）。
+  - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingReportApi`
   - Content-Type：`multipart/form-data`
   - 入参：
     - `reason`（必填，枚举值见下方“通报理由枚举”）
@@ -817,6 +835,17 @@
     - `media`（可选，附件）
   - 成功响应：`{"ok": true}`
   - 失败：`400`（reason 非法）、`404`（订单不存在）
+
+- `POST /dashboard/book/detail/<access_token>/cancel/`
+  - 功能：顾客在订单详情页取消预约。
+  - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingCancelApi`
+  - 规则：
+    - 仅 `CONFIRMED` 状态可取消；
+    - 取消期限由 `Tenant.cancellation_window_hours` 控制；
+    - 取消成功后将 `Booking.status` 更新为 `CANCELLED`；
+    - 若预约对象配置了通知邮箱，commit 后通过 Celery 发送取消通知。
+  - 成功响应：`{"ok": true}`
+  - 失败：`400`（已取消或超过取消期限）、`404`（订单不存在）
 
 - `POST /dashboard/api/bookings/<uuid:booking_id>/report/`
   - 功能：担当 Cast（或管理员）在共享订单侧提交通报。

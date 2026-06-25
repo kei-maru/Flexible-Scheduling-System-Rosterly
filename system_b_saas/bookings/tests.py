@@ -1,3 +1,85 @@
-from django.test import TestCase
+from datetime import timedelta
 
-# Create your tests here.
+from django.test import TestCase
+from django.utils import timezone
+
+from bookings.models import Booking
+from bookings.services import BookingCreateError, create_confirmed_booking_with_lock
+from resources.models import Availability, Resource
+from tenants.models import Tenant
+
+
+class BookingCreateWithLockTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(
+            name="Test Tenant",
+            slug="test-tenant",
+            api_key="test-key",
+            api_secret="test-secret",
+        )
+        self.resource = Resource.objects.create(
+            tenant=self.tenant,
+            name="Test Resource",
+            is_active=True,
+        )
+        self.slot_start = timezone.now() + timedelta(days=2)
+        self.slot_end = self.slot_start + timedelta(hours=4)
+        Availability.objects.create(
+            resource=self.resource,
+            start_time=self.slot_start,
+            end_time=self.slot_end,
+            is_booked=False,
+        )
+
+    def test_creates_booking_inside_available_slot(self):
+        booking = create_confirmed_booking_with_lock(
+            tenant=self.tenant,
+            resource=self.resource,
+            customer_email="customer@example.com",
+            customer_name="Customer",
+            start_time=self.slot_start + timedelta(hours=1),
+            end_time=self.slot_start + timedelta(hours=2),
+        )
+
+        self.assertEqual(booking.status, "CONFIRMED")
+        self.assertEqual(Booking.objects.count(), 1)
+
+    def test_rejects_booking_without_covering_availability(self):
+        with self.assertRaises(BookingCreateError) as ctx:
+            create_confirmed_booking_with_lock(
+                tenant=self.tenant,
+                resource=self.resource,
+                customer_email="customer@example.com",
+                customer_name="Customer",
+                start_time=self.slot_start - timedelta(hours=2),
+                end_time=self.slot_start - timedelta(hours=1),
+            )
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(Booking.objects.count(), 0)
+
+    def test_rejects_conflicting_booking_after_lock(self):
+        start_time = self.slot_start + timedelta(hours=1)
+        end_time = self.slot_start + timedelta(hours=2)
+        Booking.objects.create(
+            tenant=self.tenant,
+            resource=self.resource,
+            customer_email="existing@example.com",
+            customer_name="Existing",
+            start_time=start_time,
+            end_time=end_time,
+            status="CONFIRMED",
+        )
+
+        with self.assertRaises(BookingCreateError) as ctx:
+            create_confirmed_booking_with_lock(
+                tenant=self.tenant,
+                resource=self.resource,
+                customer_email="customer@example.com",
+                customer_name="Customer",
+                start_time=start_time + timedelta(minutes=10),
+                end_time=end_time + timedelta(minutes=10),
+            )
+
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(Booking.objects.count(), 1)

@@ -27,6 +27,7 @@ from resources.services.service_mapping import (
     resolve_service_by_duration,
 )
 from bookings.models import Booking
+from bookings.services import BookingCreateError, create_confirmed_booking_with_lock
 
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,10 @@ class IntegrationBookingView(APIView):
         end_time = parse_datetime(end_time_str)
         if not start_time or not end_time:
             return Response({'error': 'Invalid datetime format'}, status=400)
+        if timezone.is_naive(start_time):
+            start_time = timezone.make_aware(start_time, timezone.get_current_timezone())
+        if timezone.is_naive(end_time):
+            end_time = timezone.make_aware(end_time, timezone.get_current_timezone())
 
         try:
             resource = Resource.objects.get(tenant=request.tenant, id=resource_uuid)
@@ -147,17 +152,6 @@ class IntegrationBookingView(APIView):
 
         if _is_demo_admin_resource(resource):
             return Response({'error': 'Resource is not bookable.'}, status=403)
-
-        BUFFER = timedelta(minutes=30)
-        conflicting_booking = Booking.objects.filter(
-            resource=resource,
-            start_time__lt=end_time + BUFFER,
-            end_time__gt=start_time - BUFFER,
-            status='CONFIRMED'
-        ).exists()
-
-        if conflicting_booking:
-            return Response({'error': 'Time slot unavailable'}, status=status.HTTP_409_CONFLICT)
 
         selected_service = None
         selected_service_name = None
@@ -204,26 +198,25 @@ class IntegrationBookingView(APIView):
             selected_service_name = default_service_name_for_duration(duration_minutes)
 
         try:
-            with transaction.atomic():
-                booking = Booking.objects.create(
-                    tenant=request.tenant,
-                    resource=resource,
-                    customer_email=customer_email,
-                    customer_name=customer_name,
-                    selected_service=selected_service,
-                    selected_service_name=selected_service_name,
-                    start_time=start_time,
-                    end_time=end_time,
-                    status='CONFIRMED'
-                )
+            def after_create(booking):
                 _ensure_booking_public_access(request, booking)
-
-                # ✅【关键修改】不再使用 threading，而是调用 Celery Task
-                # on_commit 确保事务提交后，Worker 才能从数据库里查到这个 booking
                 transaction.on_commit(
                     lambda: process_new_booking.delay(booking.id)
                 )
 
+            booking = create_confirmed_booking_with_lock(
+                tenant=request.tenant,
+                resource=resource,
+                customer_email=customer_email,
+                customer_name=customer_name,
+                selected_service=selected_service,
+                selected_service_name=selected_service_name,
+                start_time=start_time,
+                end_time=end_time,
+                after_create=after_create,
+            )
+        except BookingCreateError as exc:
+            return Response({'error': exc.message}, status=exc.status_code)
         except Exception:
             logger.exception('integration booking create failed tenant_id=%s', getattr(request.tenant, 'id', None))
             return Response({'error': 'internal_server_error'}, status=500)

@@ -415,32 +415,42 @@ Integration API の責務:
 
 ## 11. 重複予約防止設計
 
-現在の実装では、公開予約作成時に後端で既存 Booking との時間重複を検証しています。  
-つまり、フロントだけのチェックではなく、サーバー側でも衝突確認を行います。
+現在の実装では、予約作成を `bookings.services.create_confirmed_booking_with_lock()` に集約しています。
+公開予約と Integration API 予約のどちらも、DB transaction 内で悲観ロックを取得してから Booking を作成します。
 
 現在の状態:
 
-- 既存 Booking との時間範囲衝突を確認する
+- `transaction.atomic()` 内で処理する
+- 対象 `Resource` を `select_for_update()` でロックする
+- 対象時間をカバーする `Availability` を `select_for_update()` でロックする
+- lock 取得後に、Availability の範囲確認を再実行する
+- lock 取得後に、既存 Booking との時間範囲衝突を再確認する
 - buffer を含めて衝突判定する
-- 衝突時は booking を作成しない
-- ただし、公開予約作成フローにおける Availability 行の悲観ロックと 0..1 slot 制約は完成形ではない
+- 衝突時は Booking を作成せず `409 Conflict` 相当の応答にする
+- DB commit 後に Celery task を enqueue する
 
-将来的な強化設計:
+現在の作成順序:
 
 ```text
 1. transaction を開始する
-2. 対象 Availability を select_for_update() でロックする
-3. ロック内で予約可能範囲と既存 Booking を再確認する
-4. 左側の available slot を作る
-5. 予約時間 + buffer の booked slot を作る
-6. 右側の available slot を作る
-7. Booking を作り、booked slot と 0..1 で紐づける
-8. 元の Availability を replaced / inactive にする
+2. 対象 Resource を select_for_update() でロックする
+3. 対象時間を含む Availability を select_for_update() でロックする
+4. Availability の範囲を確認する
+5. 既存 Booking との重複を buffer 込みで確認する
+6. Booking を作成する
+7. public access token / public detail URL を保存する
+8. transaction.on_commit() で通知 task を予約する
 9. commit により lock を解放する
 ```
 
-この方式にすると、同じ Availability に対する同時予約 request は DB transaction により直列化されます。  
+この方式により、同じ Resource / Availability に対する同時予約 request は DB transaction により直列化されます。
 片方が先に予約を確定した場合、後続 request は lock 解放後の最新状態を見て失敗できます。
+
+未実装の改善候補:
+
+- 予約成立時に Availability を左側 available slot / booked slot / 右側 available slot に切り出す
+- booked slot と Booking を 0..1 で紐づける
+- DB constraint で booked slot の一意性をさらに強制する
 
 ## 12. ログイン不要機能の設計
 
@@ -541,12 +551,12 @@ System B では、以下の層で整合性を守ります。
 - transaction
   - SSO code consumption
   - staff invite consumption
-  - booking creation
+  - booking creation with Resource / Availability pessimistic lock
 - async boundary
   - commit 後に通知を開始する
 
-現在の予約競合防止は application layer の後端検証が中心です。  
-さらに強い同時実行耐性が必要な場合は、Availability lock と 0..1 booked slot 設計を導入する想定です。
+現在の予約競合防止は、後端検証に加えて Resource / Availability の悲観ロックを利用します。
+さらに強い DB レベルの表現が必要な場合は、Availability を booked slot として切り出し、Booking と 0..1 で紐づける設計を導入する想定です。
 
 ## 17. ディレクトリ構成
 

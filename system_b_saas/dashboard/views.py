@@ -35,6 +35,7 @@ from django.db.models import Q
 from django.utils.text import slugify
 
 from bookings.models import Booking, BookingReport, REPORT_REASON_CHOICES
+from bookings.services import BookingCreateError, create_confirmed_booking_with_lock
 from bookings.tasks import process_new_booking, send_cancellation_email_task
 from dashboard.models import GlobalAnnouncement, UserBehaviorEvent
 from dashboard import stripe_service
@@ -1026,28 +1027,34 @@ class DashboardPublicBookingCreateApi(View):
         if start_time < timezone.now() + timedelta(hours=24):
             return JsonResponse({"error": "Must book 24h in advance"}, status=400)
 
-        in_slot = Availability.objects.filter(
-            resource=resource,
-            is_booked=False,
-            start_time__lte=start_time,
-            end_time__gte=end_time,
-        ).exists()
-        if not in_slot:
-            return JsonResponse({"error": "Selected start time is outside available slots"}, status=400)
-
-        conflict = Booking.objects.filter(
-            tenant=tenant,
-            resource=resource,
-            start_time__lt=end_time + timedelta(minutes=30),
-            end_time__gt=start_time - timedelta(minutes=30),
-            status="CONFIRMED",
-        ).exists()
-        if conflict:
-            return JsonResponse({"error": "Time slot unavailable"}, status=409)
-
         selected_service_name = selected_service.name if selected_service else ""
-        with transaction.atomic():
-            booking = Booking.objects.create(
+        try:
+            def after_create(booking):
+                local_now = timezone.localtime(timezone.now())
+                next_hour = (local_now.hour + 1) % 24
+
+                _ensure_booking_public_access(request, booking)
+                UserBehaviorEvent.objects.create(
+                    user=request.user if request.user.is_authenticated else None,
+                    tenant=tenant,
+                    booking=booking,
+                    event_type="BOOKING_SUCCESS",
+                    target=resource.name,
+                    page_url=request.path[:500],
+                    session_key=request.session.session_key or "",
+                    meta_data={
+                        "resource_id": str(resource.id),
+                        "service_id": str(selected_service.id) if selected_service else "",
+                        "service_name": selected_service_name,
+                        "start_time": start_time.isoformat(),
+                        "end_time": end_time.isoformat(),
+                        "visit_time_bucket_jst": f"{local_now.hour:02d}:00-{next_hour:02d}:00",
+                        "ip": _behavior_client_ip(request),
+                    },
+                )
+                transaction.on_commit(lambda: process_new_booking.delay(booking.id))
+
+            booking = create_confirmed_booking_with_lock(
                 tenant=tenant,
                 resource=resource,
                 customer_id=customer_vrcid or None,
@@ -1059,28 +1066,10 @@ class DashboardPublicBookingCreateApi(View):
                 start_time=start_time,
                 end_time=end_time,
                 booking_type="PUBLIC",
-                status="CONFIRMED",
+                after_create=after_create,
             )
-            _ensure_booking_public_access(request, booking)
-            UserBehaviorEvent.objects.create(
-                user=request.user if request.user.is_authenticated else None,
-                tenant=tenant,
-                booking=booking,
-                event_type="BOOKING_SUCCESS",
-                target=resource.name,
-                page_url=request.path[:500],
-                session_key=request.session.session_key or "",
-                meta_data={
-                    "resource_id": str(resource.id),
-                    "service_id": str(selected_service.id) if selected_service else "",
-                    "service_name": selected_service_name,
-                    "start_time": start_time.isoformat(),
-                    "end_time": end_time.isoformat(),
-                    "visit_time_bucket_jst": f"{timezone.localtime(timezone.now()).hour:02d}:00-{(timezone.localtime(timezone.now()).hour + 1) % 24:02d}:00",
-                    "ip": _behavior_client_ip(request),
-                },
-            )
-            transaction.on_commit(lambda: process_new_booking.delay(booking.id))
+        except BookingCreateError as exc:
+            return JsonResponse({"error": exc.message}, status=exc.status_code)
 
         return JsonResponse({"ok": True, "booking_id": str(booking.id), "public_detail_url": booking.public_detail_url})
 

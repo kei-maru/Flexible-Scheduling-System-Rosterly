@@ -3,6 +3,8 @@
 この README は、リポジトリ全体のアーキテクチャと System B / Rosterly の設計意図を説明するための文書です。  
 System A の具体的な業務内容は扱わず、System B との連携境界のみを記載します。
 
+## 展示リンク：https://api.rosterlyreverse.com/dashboard/demo/admin/veludo-demo-admin-20260413/
+
 ## 1. プロジェクト概要
 
 Veludo_Saas は、公開フロントアプリと予約管理 SaaS Core を分離した Django プロジェクトです。

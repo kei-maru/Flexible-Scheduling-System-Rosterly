@@ -143,3 +143,40 @@ class BookingCreateWithLockTests(TestCase):
         self.assertEqual(response.status_code, 200)
         booking.refresh_from_db()
         self.assertEqual(booking.status, "COMPLETED")
+
+    def test_superuser_can_cancel_scoped_tenant_booking(self):
+        other_tenant = Tenant.objects.create(
+            name="Other Tenant",
+            slug="other-tenant",
+            api_key="other-key",
+            api_secret="other-secret",
+        )
+        other_resource = Resource.objects.create(
+            tenant=other_tenant,
+            name="Other Resource",
+            is_active=True,
+        )
+        booking = Booking.objects.create(
+            tenant=other_tenant,
+            resource=other_resource,
+            customer_email="",
+            customer_name="Customer",
+            start_time=self.slot_start + timedelta(hours=1),
+            end_time=self.slot_start + timedelta(hours=2),
+            status="CONFIRMED",
+        )
+        superuser = get_user_model().objects.create_superuser(
+            username="super-admin",
+            password="password",
+        )
+
+        self.client.force_login(superuser)
+        response = self.client.patch(
+            reverse("dashboard_booking_action", kwargs={"booking_id": booking.id}) + f"?tenant_id={other_tenant.id}",
+            data={"status": "CANCELLED_BY_ADMIN"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "CANCELLED_BY_ADMIN")

@@ -400,6 +400,11 @@ class SharedBookingListView(SharedBaseMixin, TemplateView):
 
 class _ScheduleApiBase(LoginRequiredMixin, View):
     def _tenant(self, request):
+        requested_tenant_id = (request.GET.get("tenant_id") or "").strip()
+        if requested_tenant_id and (request.user.is_superuser or getattr(request.user, "role", "") == "ADMIN"):
+            scoped_tenant = Tenant.objects.filter(id=requested_tenant_id).first()
+            if scoped_tenant:
+                return scoped_tenant
         return getattr(request.user, "tenant", None)
 
     def _staff_default_resource(self, request, tenant):

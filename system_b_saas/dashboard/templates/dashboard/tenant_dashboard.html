@@ -2001,6 +2001,13 @@
             return status || "-";
         }
 
+        function dashboardBookingActionUrl(bookingId) {
+            const url = new URL(`/dashboard/api/bookings/${encodeURIComponent(bookingId)}/`, window.location.origin);
+            const tenantId = "{{ selected_tenant_id|default:'' }}";
+            if (tenantId) url.searchParams.set("tenant_id", tenantId);
+            return url.toString();
+        }
+
         function openAdminOrderDetail(card, event) {
             if (!card) return;
             if (event) event.stopPropagation();
@@ -2042,7 +2049,11 @@
 
             const openBtn = document.getElementById("admin-order-open-bookings");
             if (openBtn && ds.id) {
-                openBtn.href = `{% url 'shared_bookings' %}?booking_id=${encodeURIComponent(ds.id)}`;
+                const openUrl = new URL("{% url 'shared_bookings' %}", window.location.origin);
+                openUrl.searchParams.set("booking_id", ds.id);
+                const tenantId = "{{ selected_tenant_id|default:'' }}";
+                if (tenantId) openUrl.searchParams.set("tenant_id", tenantId);
+                openBtn.href = openUrl.toString();
             }
 
             const coreEditBtn = document.getElementById("admin-coretime-edit-btn");
@@ -2101,7 +2112,7 @@
 
             try {
                 const bookingId = currentAdminOrderCard.dataset.id;
-                const res = await fetch(`/dashboard/api/bookings/${encodeURIComponent(bookingId)}/`, {
+                const res = await fetch(dashboardBookingActionUrl(bookingId), {
                     method: "PATCH",
                     headers: {
                         "Content-Type": "application/json",

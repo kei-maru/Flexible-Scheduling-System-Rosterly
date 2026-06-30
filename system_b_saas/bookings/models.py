@@ -22,10 +22,10 @@ class Booking(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, related_name='bookings', on_delete=models.CASCADE)
     
-    customer_id = models.CharField(max_length=100, db_index=True, null=True, blank=True)
-    customer_discord_id = models.CharField(max_length=100, db_index=True, null=True, blank=True)
-    customer_email = models.EmailField()
-    customer_name = models.CharField(max_length=100)
+    customer_id = models.CharField("名前ID", max_length=100, db_index=True, null=True, blank=True)
+    customer_discord_id = models.CharField("DiscordID", max_length=100, db_index=True, null=True, blank=True)
+    customer_email = models.EmailField("メールアドレス")
+    customer_name = models.CharField("名前", max_length=100)
     selected_service = models.ForeignKey(
         'resources.ServicePreset',
         on_delete=models.SET_NULL,

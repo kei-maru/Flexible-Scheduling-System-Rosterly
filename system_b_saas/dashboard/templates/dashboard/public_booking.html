@@ -277,7 +277,7 @@
                 {% if 'VRCID' in required_customer_fields %}
                 <div>
                   <label class="mb-1 block text-xs text-slate-500">お名前 <span class="text-rose-500">*</span></label>
-                  <input id="customer_vrcid" name="customer_vrcid" placeholder="例: username_id" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+                  <input id="customer_vrcid" name="customer_vrcid" placeholder="例: 山田 太郎" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 </div>
                 {% endif %}
                 {% if 'DISCORDID' in required_customer_fields %}
@@ -349,14 +349,6 @@
                 </span>
               </label>
                 {% endfor %}
-              {% else %}
-            <label class="confirm-policy flex items-start gap-2 rounded-md p-3 text-sm">
-                <input class="confirm-check mt-1" type="checkbox">
-                <span>
-                  {{ store_contract_label|default:'店舗利用規約' }} に同意する
-                  <span class="mt-1 block text-xs text-slate-400">未設定</span>
-                </span>
-              </label>
               {% endif %}
             </div>
             <div class="mt-5 flex justify-end gap-2">
@@ -949,7 +941,7 @@
       .replace(/'/g, '&#39;');
 
     const vrcInput = document.getElementById('customer_vrcid');
-    if (vrcInput) rows.push(['VRCID', vrcInput.value || '-']);
+    if (vrcInput) rows.push(['お名前', vrcInput.value || '-']);
 
     const discordInput = document.getElementById('customer_discord_id');
     if (discordInput) rows.push(['DiscordID', discordInput.value || '-']);

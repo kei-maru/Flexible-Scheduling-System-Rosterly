@@ -173,11 +173,12 @@ System B の Integration API は、通常のユーザー session ではなく Te
 
 公開予約で入力する項目は Tenant ごとに変えられる。
 
-- VRCID
+- お名前
 - DiscordID
 - Email
 
-必須項目は `Tenant.required_customer_fields` で管理する。
+必須項目は `Tenant.required_customer_fields` で管理する。内部互換性のため、お名前の項目キーは既存の `VRCID` / `customer_vrcid` を継続利用する。
+店舗独自の規約が未設定の場合、予約確認画面には店舗規約の同意項目を表示しない。
 
 予約作成後は `public_access_token` を発行し、顧客向け詳細ページ URL を作る。
 

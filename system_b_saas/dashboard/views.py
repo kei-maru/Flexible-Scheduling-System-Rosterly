@@ -982,8 +982,6 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             raise ValueError("店舗タイプが不正です")
         if store_type == "CORE_TIME" and not core_time_week_config:
             raise ValueError("Core Time の営業時間を最低1枠設定してください")
-        if not store_contract_label:
-            raise ValueError("店舗契約は必須です")
         try:
             booking_window_days = max(1, int(booking_window_days_raw))
         except ValueError:
@@ -1825,7 +1823,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 "booking_window_days": tenant.booking_window_days if tenant else 14,
                 "cancellation_window_hours": tenant.cancellation_window_hours if tenant else 2,
                 "booking_detail_redirect_url": tenant.booking_detail_redirect_url if tenant else "",
-                "store_contract_label": tenant.store_contract_label if tenant else "店舗利用規約",
+                "store_contract_label": tenant.store_contract_label if tenant else "",
                 "store_contract_url": tenant.store_contract_url if tenant else "",
                 "required_customer_fields": _normalize_required_customer_fields(
                     getattr(tenant, "required_customer_fields", ["VRCID", "DISCORDID", "EMAIL"])

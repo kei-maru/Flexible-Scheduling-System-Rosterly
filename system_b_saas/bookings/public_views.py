@@ -127,7 +127,7 @@ class PublicBookingView(TemplateView):
                 "tenant_logo_url": tenant.logo.url if getattr(tenant, "logo", None) else "",
                 "booking_window_days": max(1, int(getattr(tenant, "booking_window_days", 14) or 14)),
                 "cancellation_window_hours": max(1, int(getattr(tenant, "cancellation_window_hours", 2) or 2)),
-                "store_contract_label": (tenant.store_contract_label or "店舗利用規約").strip() or "店舗利用規約",
+                "store_contract_label": (tenant.store_contract_label or "").strip(),
                 "store_contract_url": (tenant.store_contract_url or "").strip(),
                 "vrc_terms_url": vrc_terms_url,
                 "rosterly_terms_url": rosterly_terms_url,
@@ -232,7 +232,7 @@ class PublicBookingCreateApi(View):
         if not all([resource_id, start_raw]):
             return JsonResponse({"error": "Missing required fields"}, status=400)
         if "VRCID" in required_fields and not customer_vrcid:
-            return JsonResponse({"error": "VRCID is required"}, status=400)
+            return JsonResponse({"error": "お名前は必須です"}, status=400)
         if "DISCORDID" in required_fields and not customer_discord_id:
             return JsonResponse({"error": "DiscordID is required"}, status=400)
         if "EMAIL" in required_fields and not customer_email:

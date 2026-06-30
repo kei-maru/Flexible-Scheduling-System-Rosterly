@@ -795,6 +795,7 @@
   - 预约确认同意项（2026-04-03）：
     - 固定项：VRC 利用規約、Rosterly 利用規約。
     - 店铺项：按店主配置逐项渲染（支持多条）；URL 类型显示为链接，文本类型按多行文本展示。
+    - 店铺规定未设置时，不在预约确认画面显示“未設定”占位同意项。
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
   - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
@@ -807,6 +808,7 @@
   - 创建逻辑：实际写入委托给 `system_b_saas/bookings/services.py::create_confirmed_booking_with_lock`
   - 必填：`resource_id`、`start_time`
   - 条件必填：`customer_vrcid` / `customer_discord_id` / `customer_email` 由店铺 `required_customer_fields` 决定。
+  - 显示口径：`customer_vrcid` 为历史兼容字段，预约画面与确认画面显示为 `お名前`。
   - 可选：`service_id`
   - 校验：
     - 预约开始时间需大于当前时间 24 小时

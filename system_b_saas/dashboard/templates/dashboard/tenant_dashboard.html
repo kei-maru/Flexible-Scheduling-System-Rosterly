@@ -802,7 +802,7 @@
                                             data-id="{{ order.id }}"
                                             data-resource-name="{{ order.resource.name|escapejs }}"
                                             data-status="{{ order.status }}"
-                                            data-status-label="{% if order.status == 'COMPLETED' %}完了{% elif order.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}"
+                                            data-status-label="{% if order.status == 'COMPLETED' %}完了{% elif order.status == 'CANCELLED_BY_ADMIN' %}管理者キャンセル{% elif order.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}"
                                             data-customer-name="{{ order.customer_name|escapejs }}"
                                             data-customer-email="{{ order.customer_email|default:''|escapejs }}"
                                             data-service-name="{{ order.display_service_name|default:'-'|escapejs }}"
@@ -825,10 +825,10 @@
                                                 {% endif %}
                                                 <span class="rounded px-2 py-0.5 text-[10px]
                                                     {% if order.status == 'CONFIRMED' %}bg-emerald-100 text-emerald-700
-                                                    {% elif order.status == 'CANCELLED' %}bg-rose-100 text-rose-700
+                                                    {% elif order.status == 'CANCELLED' or order.status == 'CANCELLED_BY_ADMIN' %}bg-rose-100 text-rose-700
                                                     {% elif order.status == 'COMPLETED' %}bg-sky-100 text-sky-700
                                                     {% else %}bg-slate-100 text-slate-700{% endif %}">
-                                                    {{ order.status }}
+                                                    {% if order.status == 'CANCELLED_BY_ADMIN' %}ADMIN CANCEL{% else %}{{ order.status }}{% endif %}
                                                 </span>
                                                 </div>
                                             </div>
@@ -1164,8 +1164,20 @@
                     </div>
                     <div class="mt-5 flex justify-end gap-2">
                         <button id="admin-coretime-edit-btn" type="button" onclick="openCoreTimeEditorFromModal()" class="hidden rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">Core-Time編集へ</button>
+                        <button id="admin-order-cancel-btn" type="button" onclick="openAdminOrderCancelConfirm()" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50">管理者キャンセル</button>
                         <a id="admin-order-open-bookings" href="{% url 'shared_bookings' %}" class="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">注文画面で開く</a>
                         <button type="button" onclick="closeAdminOrderDetail()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-order-cancel-confirm-modal" class="rosterly-mobile-modal fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 px-4">
+                <div class="w-full max-w-md rounded-xl border border-rose-100 bg-white p-5 shadow-2xl">
+                    <h3 class="text-lg font-semibold text-slate-900">管理者キャンセルしますか？</h3>
+                    <p class="mt-2 text-sm text-slate-600">顧客メールが未設定でも、この注文の状態を「管理者キャンセル」に変更します。通知メールは送信されません。</p>
+                    <div class="mt-5 flex justify-end gap-2">
+                        <button type="button" onclick="closeAdminOrderCancelConfirm()" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">戻る</button>
+                        <button id="admin-order-cancel-confirm-btn" type="button" onclick="confirmAdminOrderCancel()" class="rounded-md border border-rose-600 bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700">キャンセル確定</button>
                     </div>
                 </div>
             </div>
@@ -1981,6 +1993,14 @@
 
         let currentAdminOrderCard = null;
 
+        function adminOrderStatusLabel(status) {
+            if (status === "COMPLETED") return "完了";
+            if (status === "CANCELLED_BY_ADMIN") return "管理者キャンセル";
+            if (status === "CANCELLED") return "キャンセル";
+            if (status === "CONFIRMED") return "確定";
+            return status || "-";
+        }
+
         function openAdminOrderDetail(card, event) {
             if (!card) return;
             if (event) event.stopPropagation();
@@ -2030,6 +2050,13 @@
                 coreEditBtn.classList.toggle("hidden", ds.coreTime !== "1");
             }
 
+            const cancelBtn = document.getElementById("admin-order-cancel-btn");
+            if (cancelBtn) {
+                const canAdminCancel = ds.status === "CONFIRMED";
+                cancelBtn.disabled = !canAdminCancel;
+                cancelBtn.classList.toggle("hidden", !canAdminCancel);
+            }
+
             modal.classList.remove("hidden");
             modal.classList.add("flex");
         }
@@ -2040,12 +2067,67 @@
             modal.classList.add("hidden");
             modal.classList.remove("flex");
             currentAdminOrderCard = null;
+            closeAdminOrderCancelConfirm();
         }
 
         function openCoreTimeEditorFromModal() {
             if (!currentAdminOrderCard) return;
             editCoreTimeOrder(currentAdminOrderCard);
             closeAdminOrderDetail();
+        }
+
+        function openAdminOrderCancelConfirm() {
+            if (!currentAdminOrderCard || currentAdminOrderCard.dataset.status !== "CONFIRMED") return;
+            const modal = document.getElementById("admin-order-cancel-confirm-modal");
+            if (!modal) return;
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+        }
+
+        function closeAdminOrderCancelConfirm() {
+            const modal = document.getElementById("admin-order-cancel-confirm-modal");
+            if (!modal) return;
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+        }
+
+        async function confirmAdminOrderCancel() {
+            if (!currentAdminOrderCard || !currentAdminOrderCard.dataset.id) return;
+            const confirmBtn = document.getElementById("admin-order-cancel-confirm-btn");
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.classList.add("opacity-60");
+            }
+
+            try {
+                const bookingId = currentAdminOrderCard.dataset.id;
+                const res = await fetch(`/dashboard/api/bookings/${encodeURIComponent(bookingId)}/`, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCsrfToken(),
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    body: JSON.stringify({ status: "CANCELLED_BY_ADMIN" }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    alert(data.error || "管理者キャンセルに失敗しました");
+                    return;
+                }
+
+                currentAdminOrderCard.dataset.status = "CANCELLED_BY_ADMIN";
+                currentAdminOrderCard.dataset.statusLabel = data.status_label || adminOrderStatusLabel("CANCELLED_BY_ADMIN");
+                const statusEl = document.getElementById("admin-order-status");
+                if (statusEl) statusEl.innerText = currentAdminOrderCard.dataset.statusLabel;
+                closeAdminOrderCancelConfirm();
+                location.reload();
+            } finally {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.classList.remove("opacity-60");
+                }
+            }
         }
 
         function deleteCoreTimeOrder() {

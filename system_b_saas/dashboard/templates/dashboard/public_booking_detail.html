@@ -49,11 +49,13 @@
                 </div>
                 <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
                     <span class="text-slate-500">状態</span>
-                    <div class="font-semibold {% if booking.status == 'CONFIRMED' %}text-emerald-700{% elif booking.status == 'CANCELLED' %}text-rose-700{% else %}text-slate-700{% endif %}">{{ booking.status }}</div>
+                    <div class="font-semibold {% if booking.status == 'CONFIRMED' %}text-emerald-700{% elif booking.status == 'CANCELLED' or booking.status == 'CANCELLED_BY_ADMIN' %}text-rose-700{% else %}text-slate-700{% endif %}">
+                        {% if booking.status == 'CANCELLED_BY_ADMIN' %}管理者キャンセル{% else %}{{ booking.status }}{% endif %}
+                    </div>
                 </div>
             </div>
 
-            {% if booking.status == 'CANCELLED' %}
+            {% if booking.status == 'CANCELLED' or booking.status == 'CANCELLED_BY_ADMIN' %}
             <div class="mt-5 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">この予約はすでにキャンセル済みです。</div>
             {% elif too_late_to_cancel %}
             <div class="mt-5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">{{ too_late_message }}</div>

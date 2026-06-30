@@ -50,6 +50,7 @@ class SaaSClient:
             signature_header=self.signature_header,
             timestamp_header=self.timestamp_header,
         )
+        self.last_error = None
 
     # ========================================================
     # Identity (A/B user role sync)
@@ -321,6 +322,7 @@ class SaaSClient:
 
     def create_booking(self, resource_id, resource_name, email, name, start, end, course_duration_minutes=None):
         """提交预约"""
+        self.last_error = None
         url = f"{self.api_base_url}/bookings/"
         data = {
             'resource_id': resource_id,
@@ -334,11 +336,32 @@ class SaaSClient:
             data['course_duration_minutes'] = int(course_duration_minutes)
         try:
             response = self.session.post(url, headers=self.headers, json=data, timeout=5)
-            response.raise_for_status()
+            if not response.ok:
+                try:
+                    detail = response.json()
+                except ValueError:
+                    detail = {'error': response.text[:200] or 'SaaS Booking Failed'}
+                self.last_error = {
+                    'status_code': response.status_code,
+                    'detail': detail,
+                }
+                print(f"Booking Error: {response.status_code}")
+                print(f"Detail: {detail}")
+                return None
             return response.json()
         except requests.RequestException as e:
             print(f"Booking Error: {e}")
-            if e.response: print(f"Detail: {e.response.text}")
+            if e.response:
+                print(f"Detail: {e.response.text}")
+                self.last_error = {
+                    'status_code': e.response.status_code,
+                    'detail': {'error': e.response.text[:200]},
+                }
+            else:
+                self.last_error = {
+                    'status_code': 503,
+                    'detail': {'error': 'Failed to connect to SaaS'},
+                }
             return None
 
     def get_my_bookings(self, email=None, resource_id=None, customer_name=None, customer_id=None, admin_sync=False):

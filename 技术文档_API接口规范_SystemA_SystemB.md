@@ -549,6 +549,8 @@
 ```
 
 - 限制：仅 `CONFIRMED` 可变更为 `COMPLETED`
+- 备注：管理员取消不走 Integration API，而由 Dashboard 内部 API 执行，避免依赖顾客邮箱。
+- System A 调用该接口创建预约时，会透传 System B 返回的 `400/403/409` 等错误状态与错误内容，避免把业务拒绝误显示为 A 端 `500`。
 
 ### 3.5 身份同步（A/B Role Sync）
 
@@ -848,6 +850,24 @@
     - 若预约对象配置了通知邮箱，commit 后通过 Celery 发送取消通知。
   - 成功响应：`{"ok": true}`
   - 失败：`400`（已取消或超过取消期限）、`404`（订单不存在）
+
+- `PATCH /dashboard/api/bookings/<uuid:booking_id>/`
+  - 功能：Dashboard 内部预约状态更新。
+  - 实现位置：`system_b_saas/dashboard/schedule_views.py::DashboardBookingActionApi`
+  - 请求体：
+
+```json
+{"status": "CANCELLED_BY_ADMIN"}
+```
+
+  - 支持状态：
+    - `COMPLETED`：将 `CONFIRMED` 预约标记为完了。
+    - `CANCELLED`：旧版管理员取消，仍受开始 2 小时前限制。
+    - `CANCELLED_BY_ADMIN`：管理员从 Shifts & Order 详情执行的后台取消，不依赖顾客邮箱，不发送顾客取消邮件。
+  - 规则：
+    - `CANCELLED_BY_ADMIN` 仅管理员可执行；
+    - 仅 `CONFIRMED` 可变更为 `CANCELLED_BY_ADMIN`；
+    - 成功响应：`{"status": "CANCELLED_BY_ADMIN", "status_label": "管理者キャンセル"}`
 
 - `POST /dashboard/api/bookings/<uuid:booking_id>/report/`
   - 功能：担当 Cast（或管理员）在共享订单侧提交通报。

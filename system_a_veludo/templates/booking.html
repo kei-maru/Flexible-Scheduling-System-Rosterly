@@ -893,7 +893,8 @@
                 const newE = newEnd.getTime();
 
                 // 过滤掉已取消的订单，只检查 CONFIRMED 或 PENDING
-                const activeBookings = bookings.filter(b => b.status !== 'CANCELLED');
+                const cancelledStatuses = ['CANCELLED', 'CANCELLED_BY_ADMIN'];
+                const activeBookings = bookings.filter(b => !cancelledStatuses.includes(b.status));
 
                 for (let b of activeBookings) {
                     const existS = new Date(b.start).getTime();

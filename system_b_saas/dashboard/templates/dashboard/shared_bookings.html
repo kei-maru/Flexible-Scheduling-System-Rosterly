@@ -79,7 +79,7 @@
                      data-start-date="{{ booking.start_time|date:'Y/m/d (D)' }}"
                      data-time-range="{{ booking.start_time|date:'H:i' }} - {{ booking.end_time|date:'H:i' }}"
                      data-status="{{ booking.status }}"
-                     data-status-label="{% if booking.status == 'COMPLETED' %}完了{% elif booking.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}"
+                     data-status-label="{% if booking.status == 'COMPLETED' %}完了{% elif booking.status == 'CANCELLED_BY_ADMIN' %}管理者キャンセル{% elif booking.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}"
                      data-start-iso="{{ booking.start_time|date:'c' }}"
                      >
 
@@ -103,9 +103,9 @@
                         <div class="rosterly-mobile-stack flex items-center gap-3">
                             <span class="rounded border px-3 py-1 text-[10px] tracking-widest
                                 {% if booking.status == 'COMPLETED' %}border-emerald-200 bg-emerald-50 text-emerald-700
-                                {% elif booking.status == 'CANCELLED' %}border-rose-200 bg-rose-50 text-rose-700
+                                {% elif booking.status == 'CANCELLED' or booking.status == 'CANCELLED_BY_ADMIN' %}border-rose-200 bg-rose-50 text-rose-700
                                 {% else %}border-amber-200 bg-amber-50 text-amber-700{% endif %}">
-                                {% if booking.status == 'COMPLETED' %}完了{% elif booking.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}
+                                {% if booking.status == 'COMPLETED' %}完了{% elif booking.status == 'CANCELLED_BY_ADMIN' %}管理者キャンセル{% elif booking.status == 'CANCELLED' %}キャンセル{% else %}確定{% endif %}
                             </span>
                             <div class="text-[11px] text-slate-400">ID: {{ booking.id|slice:":8" }}...</div>
                         </div>
@@ -253,8 +253,13 @@ let currentBookingStatus = null;
 const NOW_ISO = "{{ now_iso }}";
 
 function getCsrfToken() {
-    const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? m[1] : '';
+    const cookie = document.cookie || '';
+    const fromSaas = cookie.match(/(?:^|;\s*)saas_csrftoken=([^;]+)/);
+    if (fromSaas) return fromSaas[1];
+    const fromDefault = cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    if (fromDefault) return fromDefault[1];
+    const hidden = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    return hidden ? (hidden.value || '') : '';
 }
 
 function showDetail(el) {
@@ -275,13 +280,13 @@ function showDetail(el) {
     statusEl.innerText = ds.statusLabel || ds.status;
     statusEl.className = 'rounded border px-3 py-1 text-[10px] tracking-widest';
     if (ds.status === 'COMPLETED') statusEl.classList.add('border-emerald-200','text-emerald-700','bg-emerald-50');
-    else if (ds.status === 'CANCELLED') statusEl.classList.add('border-rose-200','text-rose-700','bg-rose-50');
+    else if (ds.status === 'CANCELLED' || ds.status === 'CANCELLED_BY_ADMIN') statusEl.classList.add('border-rose-200','text-rose-700','bg-rose-50');
     else statusEl.classList.add('border-amber-200','text-amber-700','bg-amber-50');
 
     const noteEl = document.getElementById('modal-note');
     const startTime = new Date(ds.startIso);
     const now = new Date(NOW_ISO);
-    if (ds.status === 'CANCELLED') {
+    if (ds.status === 'CANCELLED' || ds.status === 'CANCELLED_BY_ADMIN') {
         noteEl.innerText = 'この予約はキャンセル済みのため、操作できません。';
     } else if ((startTime - now) < 2 * 60 * 60 * 1000) {
         noteEl.innerText = '開始2時間以内の予約はキャンセルできません。';
@@ -291,7 +296,7 @@ function showDetail(el) {
 
     const reportBtn = document.getElementById('btn-open-report');
     const completeBtn = document.getElementById('btn-complete');
-    if (reportBtn) reportBtn.classList.toggle('hidden', ds.status === 'CANCELLED');
+    if (reportBtn) reportBtn.classList.toggle('hidden', ds.status === 'CANCELLED' || ds.status === 'CANCELLED_BY_ADMIN');
     if (completeBtn) completeBtn.classList.toggle('hidden', ds.status !== 'CONFIRMED');
 
     document.getElementById('detail-modal').classList.remove('hidden');
@@ -317,7 +322,7 @@ function resetReportFields() {
 }
 
 function openReportModal() {
-    if (!currentBookingId || currentBookingStatus === 'CANCELLED') return;
+    if (!currentBookingId || currentBookingStatus === 'CANCELLED' || currentBookingStatus === 'CANCELLED_BY_ADMIN') return;
     const modal = document.getElementById('report-modal');
     if (!modal) return;
     modal.classList.remove('hidden');
@@ -399,7 +404,7 @@ async function updateBookingStatus(status) {
         alert(data.error || '操作に失敗しました');
         return;
     }
-    const statusLabel = status === 'COMPLETED' ? '完了' : (status === 'CANCELLED' ? 'キャンセル' : status);
+    const statusLabel = status === 'COMPLETED' ? '完了' : (status === 'CANCELLED_BY_ADMIN' ? '管理者キャンセル' : (status === 'CANCELLED' ? 'キャンセル' : status));
     alert(`更新しました: ${statusLabel}`);
     location.reload();
 }

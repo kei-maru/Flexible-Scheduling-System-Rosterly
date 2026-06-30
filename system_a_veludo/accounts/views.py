@@ -1056,8 +1056,14 @@ class BookingActionAPI(APIView):
                 end=request.data.get('end'),
                 course_duration_minutes=course_duration_minutes
             )
-            if result: return Response(result, status=201)
-            else: return Response({'error': 'SaaS Booking Failed'}, status=500)
+            if result:
+                return Response(result, status=201)
+            error_info = getattr(client, 'last_error', None) or {}
+            detail = error_info.get('detail') or {'error': 'SaaS Booking Failed'}
+            status_code = error_info.get('status_code') or 500
+            if not isinstance(detail, dict):
+                detail = {'error': str(detail)}
+            return Response(detail, status=status_code)
         except Exception as e: return Response({'error': str(e)}, status=500)
 
 class CastSearchAPI(APIView):

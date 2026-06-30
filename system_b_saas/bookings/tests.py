@@ -1,6 +1,8 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from bookings.models import Booking
@@ -83,3 +85,61 @@ class BookingCreateWithLockTests(TestCase):
 
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(Booking.objects.count(), 1)
+
+    def test_admin_can_cancel_booking_without_customer_email(self):
+        admin = get_user_model().objects.create_user(
+            username="tenant-admin",
+            password="password",
+            tenant=self.tenant,
+            role="ADMIN",
+        )
+        booking = Booking.objects.create(
+            tenant=self.tenant,
+            resource=self.resource,
+            customer_email="",
+            customer_name="Customer",
+            start_time=self.slot_start + timedelta(hours=1),
+            end_time=self.slot_start + timedelta(hours=2),
+            status="CONFIRMED",
+        )
+
+        self.client.force_login(admin)
+        response = self.client.patch(
+            reverse("dashboard_booking_action", kwargs={"booking_id": booking.id}),
+            data={"status": "CANCELLED_BY_ADMIN"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "CANCELLED_BY_ADMIN")
+
+    def test_staff_can_complete_own_booking(self):
+        staff = get_user_model().objects.create_user(
+            username="tenant-staff",
+            password="password",
+            tenant=self.tenant,
+            role="STAFF",
+        )
+        self.resource.linked_user = staff
+        self.resource.save(update_fields=["linked_user"])
+        booking = Booking.objects.create(
+            tenant=self.tenant,
+            resource=self.resource,
+            customer_email="customer@example.com",
+            customer_name="Customer",
+            start_time=self.slot_start + timedelta(hours=1),
+            end_time=self.slot_start + timedelta(hours=2),
+            status="CONFIRMED",
+        )
+
+        self.client.force_login(staff)
+        response = self.client.patch(
+            reverse("dashboard_booking_action", kwargs={"booking_id": booking.id}),
+            data={"status": "COMPLETED"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "COMPLETED")

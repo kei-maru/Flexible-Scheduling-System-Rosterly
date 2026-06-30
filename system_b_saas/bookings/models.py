@@ -16,7 +16,13 @@ REPORT_REASON_CHOICES = [
 
 class Booking(models.Model):
     """订单表"""
-    STATUS_CHOICES = [('PENDING', '待确认'), ('CONFIRMED', '已确认'), ('CANCELLED', '已取消')]
+    STATUS_CHOICES = [
+        ('PENDING', '待确认'),
+        ('CONFIRMED', '已确认'),
+        ('CANCELLED', '已取消'),
+        ('CANCELLED_BY_ADMIN', '管理者キャンセル'),
+        ('COMPLETED', '完了'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)

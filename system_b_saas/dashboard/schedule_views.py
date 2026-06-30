@@ -574,7 +574,7 @@ class DashboardBookingActionApi(_ScheduleApiBase):
     def patch(self, request, booking_id):
         payload = self._payload(request)
         new_status = payload.get("status")
-        if new_status not in ["CANCELLED", "COMPLETED"]:
+        if new_status not in ["CANCELLED", "CANCELLED_BY_ADMIN", "COMPLETED"]:
             return self._json_error("不正なステータスです", status=400)
 
         tenant = self._tenant(request)
@@ -594,6 +594,15 @@ class DashboardBookingActionApi(_ScheduleApiBase):
             booking.status = "CANCELLED"
             booking.save(update_fields=["status"])
             return JsonResponse({"status": "CANCELLED"})
+
+        if new_status == "CANCELLED_BY_ADMIN":
+            if not is_admin:
+                return self._json_error("管理者キャンセルは管理者のみ可能です", status=403)
+            if booking.status != "CONFIRMED":
+                return self._json_error("確定済み予約のみ管理者キャンセルできます", status=400)
+            booking.status = "CANCELLED_BY_ADMIN"
+            booking.save(update_fields=["status"])
+            return JsonResponse({"status": "CANCELLED_BY_ADMIN", "status_label": "管理者キャンセル"})
 
         if new_status == "COMPLETED":
             if booking.status != "CONFIRMED":

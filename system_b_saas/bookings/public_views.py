@@ -149,7 +149,7 @@ class PublicBookingView(TemplateView):
 
 
 class PublicBookingAvailabilityApi(View):
-    """Return raw Availability rows for the selected public booking resource."""
+    """Return bookable availability after confirmed bookings are removed."""
 
     def _booking_resource_queryset(self, tenant):
         return (
@@ -175,22 +175,64 @@ class PublicBookingAvailabilityApi(View):
             return JsonResponse({"error": "Resource not found"}, status=404)
 
         now = timezone.now()
+        booking_deadline = now + timedelta(hours=24)
         booking_window_days = max(1, int(getattr(tenant, "booking_window_days", 14) or 14))
         horizon = now + timedelta(days=booking_window_days)
-        slots = (
+        availabilities = list(
             Availability.objects.filter(
                 resource=resource,
                 is_booked=False,
-                end_time__gt=now + timedelta(hours=24),
+                end_time__gt=booking_deadline,
                 start_time__lt=horizon,
             )
             .order_by("start_time")[:300]
         )
-        data = [
-            {"id": str(slot.id), "start": slot.start_time.isoformat(), "end": slot.end_time.isoformat()}
-            for slot in slots
-        ]
-        return JsonResponse({"slots": data, "booking_window_days": booking_window_days})
+        bookings = list(
+            Booking.objects.filter(
+                tenant=tenant,
+                resource=resource,
+                status="CONFIRMED",
+                start_time__lt=horizon + timedelta(minutes=30),
+                end_time__gt=booking_deadline - timedelta(minutes=30),
+            ).order_by("start_time")
+        )
+
+        buffer_time = timedelta(minutes=30)
+        data = []
+        for availability in availabilities:
+            segments = [
+                (
+                    max(availability.start_time, booking_deadline),
+                    min(availability.end_time, horizon),
+                )
+            ]
+            for booking in bookings:
+                blocked_start = booking.start_time - buffer_time
+                blocked_end = booking.end_time + buffer_time
+                next_segments = []
+                for segment_start, segment_end in segments:
+                    if blocked_end <= segment_start or blocked_start >= segment_end:
+                        next_segments.append((segment_start, segment_end))
+                        continue
+                    if segment_start < blocked_start:
+                        next_segments.append((segment_start, blocked_start))
+                    if blocked_end < segment_end:
+                        next_segments.append((blocked_end, segment_end))
+                segments = next_segments
+
+            data.extend(
+                {
+                    "id": str(availability.id),
+                    "start": segment_start.isoformat(),
+                    "end": segment_end.isoformat(),
+                }
+                for segment_start, segment_end in segments
+                if segment_start < segment_end
+            )
+
+        response = JsonResponse({"slots": data, "booking_window_days": booking_window_days})
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class PublicBookingCreateApi(View):
@@ -330,7 +372,14 @@ class PublicBookingCreateApi(View):
         except BookingCreateError as exc:
             return JsonResponse({"error": exc.message}, status=exc.status_code)
 
-        return JsonResponse({"ok": True, "booking_id": str(booking.id), "public_detail_url": booking.public_detail_url})
+        return JsonResponse(
+            {
+                "ok": True,
+                "booking_id": str(booking.id),
+                "public_detail_url": booking.public_detail_url,
+                "has_customer_email": bool(customer_email),
+            }
+        )
 
 
 class PublicBookingDetailView(TemplateView):

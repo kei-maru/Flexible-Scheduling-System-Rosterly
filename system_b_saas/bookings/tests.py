@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from bookings.models import Booking
 from bookings.services import BookingCreateError, create_confirmed_booking_with_lock
@@ -85,6 +86,39 @@ class BookingCreateWithLockTests(TestCase):
 
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(Booking.objects.count(), 1)
+
+    def test_public_availability_excludes_confirmed_booking_and_buffer(self):
+        booking_start = self.slot_start + timedelta(hours=1)
+        booking_end = booking_start + timedelta(hours=1)
+        Booking.objects.create(
+            tenant=self.tenant,
+            resource=self.resource,
+            customer_email="existing@example.com",
+            customer_name="Existing",
+            start_time=booking_start,
+            end_time=booking_end,
+            status="CONFIRMED",
+        )
+
+        response = self.client.get(
+            reverse(
+                "dashboard_public_booking_availability",
+                kwargs={"tenant_slug": self.tenant.slug},
+            ),
+            {"resource_id": str(self.resource.id)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        slots = response.json()["slots"]
+        self.assertEqual(len(slots), 2)
+        self.assertEqual(
+            parse_datetime(slots[0]["end"]),
+            booking_start - timedelta(minutes=30),
+        )
+        self.assertEqual(
+            parse_datetime(slots[1]["start"]),
+            booking_end + timedelta(minutes=30),
+        )
 
     def test_admin_can_cancel_booking_without_customer_email(self):
         admin = get_user_model().objects.create_user(

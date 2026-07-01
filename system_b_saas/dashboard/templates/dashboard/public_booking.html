@@ -412,6 +412,7 @@
   let selectedSlot = null;
   let activeResourceId = '';
   let preferredStartIso = '';
+  let slotRequestSequence = 0;
 
   function gridColumnCount(grid) {
     if (!grid) return 1;
@@ -706,8 +707,9 @@
     profileSwitchTimer = window.setTimeout(finishSwitch, 430);
   }
 
-  async function loadSlotsForResource(resourceId) {
+  async function loadSlotsForResource(resourceId, preferredStartValue = '') {
     if (!slotsBox || !startSelect) return;
+    const requestSequence = ++slotRequestSequence;
     slotsBox.innerHTML = '';
     startSelect.innerHTML = '';
     slotsEmpty && slotsEmpty.classList.add('hidden');
@@ -715,8 +717,13 @@
     if (slotLockHint) slotLockHint.classList.add('hidden');
 
     const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resourceId);
-    const res = await fetch(url, { credentials: 'same-origin' });
+    const res = await fetch(url, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' },
+    });
     const data = await res.json();
+    if (requestSequence !== slotRequestSequence || resourceInput.value !== resourceId) return;
     currentSlots = data.slots || [];
 
     if (!currentSlots.length) {
@@ -752,6 +759,10 @@
     });
 
     refreshStartOptions();
+    if (preferredStartValue) {
+      const option = Array.from(startSelect.options).find((item) => item.value === preferredStartValue);
+      if (option) startSelect.value = preferredStartValue;
+    }
   }
 
   function refreshStartOptions() {
@@ -882,7 +893,7 @@
     const matched = [];
     for (const resource of resources) {
       const url = "{% url 'dashboard_public_booking_availability' tenant_slug=tenant.slug %}?resource_id=" + encodeURIComponent(resource.id);
-      const res = await fetch(url, { credentials: 'same-origin' });
+      const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
       const data = await res.json();
       const slots = data.slots || [];
       const ok = slots.some((slot) => {
@@ -1030,7 +1041,7 @@
     confirmSubmitBtn.disabled = !allChecked || !selectedResourceIsBookable();
   }
 
-  window.openConfirmModal = function () {
+  window.openConfirmModal = async function () {
     result.classList.add('hidden');
     if (!resourceInput.value) {
       result.textContent = '担当者を選択してください。';
@@ -1040,6 +1051,14 @@
     }
     if (!serviceSelect || !serviceSelect.value) {
       result.textContent = '対応サービスが未設定のため予約できません。';
+      result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
+      result.classList.remove('hidden');
+      return;
+    }
+    const selectedStart = startSelect.value;
+    await loadSlotsForResource(resourceInput.value, selectedStart);
+    if (!selectedStart || startSelect.value !== selectedStart) {
+      result.textContent = '選択した時間は予約済みになりました。別の開始日時を選択してください。';
       result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
       result.classList.remove('hidden');
       return;
@@ -1095,17 +1114,20 @@
 
     closeConfirmModal();
     if (res.ok && data.ok) {
+      const bookedResourceId = resourceInput.value;
       trackEvent('BOOKING_SUCCESS', resourceInput.value || '', {
         resource_id: resourceInput.value || '',
         service_id: serviceSelect ? serviceSelect.value : '',
         booking_id: data.booking_id || '',
         start_time: startSelect ? startSelect.value : '',
       });
-      result.textContent = '予約を受け付けました。確認メールを送信します。';
+      result.textContent = data.has_customer_email
+        ? '予約を受け付けました。確認メールを送信します。'
+        : '予約が完了しました。担当者からの連絡をお待ちください。';
       result.className = 'mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700';
       form.reset();
-      refreshStartOptions();
-      if (resourceInput.value) loadSlotsForResource(resourceInput.value);
+      resourceInput.value = bookedResourceId;
+      loadSlotsForResource(bookedResourceId);
     } else {
       result.textContent = data.error || '予約に失敗しました。';
       result.className = 'mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';

@@ -151,10 +151,6 @@ def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
         if user.email and linked.email != user.email:
             linked.email = user.email
             update_fields.append("email")
-        if linked.is_active != user.is_active:
-            linked.is_active = user.is_active
-            update_fields.append("is_active")
-
         # external_id belongs to System A identity namespace.
         # Do not auto-fill it from Discord identities in System B binding flows.
         if discord_uid and linked.external_id == discord_uid:
@@ -196,10 +192,6 @@ def ensure_staff_resource_binding(user, tenant=None, allow_create=True):
         if user.email and reusable.email != user.email:
             reusable.email = user.email
             update_fields.append("email")
-        if reusable.is_active != user.is_active:
-            reusable.is_active = user.is_active
-            update_fields.append("is_active")
-
         # Keep external_id reserved for System A IDs; clear legacy UID-shaped values.
         if discord_uid and reusable.external_id == discord_uid:
             reusable.external_id = None

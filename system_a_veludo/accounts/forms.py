@@ -213,8 +213,8 @@ class CastCMSForm(forms.ModelForm):
 class CastProfileForm(forms.ModelForm):
     class Meta:
         model = CastProfile
-        # [关键] 显式列出需要在编辑页显示的字段
-        fields = ['name', 'intro', 'tags', 'youtube_url', 'avatar', 'display_order', 'is_active']
+        # Display order is managed only by drag-and-drop in the admin dashboard.
+        fields = ['name', 'intro', 'tags', 'youtube_url', 'avatar', 'is_active']
         
         # 定义样式
         widgets = {
@@ -232,9 +232,6 @@ class CastProfileForm(forms.ModelForm):
                 'class': 'w-full bg-black/30 border border-white/10 text-white px-4 py-2 focus:border-veludo-gold outline-none transition-colors placeholder-gray-600',
                 'placeholder': 'https://youtu.be/...'
             }),
-            'display_order': forms.NumberInput(attrs={
-                'class': 'w-full bg-black/30 border border-white/10 text-white px-4 py-2 focus:border-veludo-gold outline-none transition-colors'
-            }),
             'saas_resource_id': forms.TextInput(attrs={
                 'class': 'w-full bg-black/30 border border-white/10 text-white px-4 py-2 focus:border-veludo-gold outline-none transition-colors'
             }),
@@ -247,19 +244,10 @@ class CastProfileForm(forms.ModelForm):
         
         # [关键修复] 将所有非核心字段设置为 required=False
         # 这样即使前端留空，后端也不会报错 "This field is required"
-        optional_fields = ['display_order', 'intro', 'youtube_url', 'tags', 'saas_resource_id', 'avatar']
+        optional_fields = ['intro', 'youtube_url', 'tags', 'saas_resource_id', 'avatar']
         for field in optional_fields:
             if field in self.fields:
                 self.fields[field].required = False
-
-    def clean_display_order(self):
-        """
-        特殊处理排序字段：如果用户留空，默认保存为 0，防止 IntegerField 报错
-        """
-        data = self.cleaned_data.get('display_order')
-        if data is None or data == "":
-            return 0
-        return data
 
 # ==========================================
 # 5. 图片集 Formset

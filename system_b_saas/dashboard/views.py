@@ -1312,7 +1312,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
 
             profile = getattr(linked, "profile", None) if linked else None
             can_enable_booking = bool(profile and getattr(profile, "platform_terms_agreed", False))
-            is_active = requested_active and can_enable_booking
+            is_booking_active = requested_active and can_enable_booking
             if requested_active and not can_enable_booking:
                 blocked_count += 1
 
@@ -1335,10 +1335,6 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
             if user.role != role:
                 user.role = role
                 update_fields.append("role")
-            if user.is_active != is_active:
-                user.is_active = is_active
-                update_fields.append("is_active")
-
             if update_fields:
                 user.save(update_fields=update_fields)
                 updated_count += 1
@@ -1351,8 +1347,8 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                 linked.email = user.email or ""
                 linked.save(update_fields=["email"])
 
-            if linked and linked.is_active != user.is_active:
-                linked.is_active = user.is_active
+            if linked and linked.is_active != is_booking_active:
+                linked.is_active = is_booking_active
                 linked.save(update_fields=["is_active"])
 
             if user.role in {"STAFF", "ADMIN"}:
@@ -1664,6 +1660,7 @@ class TenantDashboardView(AdminDashboardRequiredMixin, TemplateView):
                         "user": u,
                         "linked_resource_name": linked_resource.name if linked_resource else "未割当",
                         "platform_terms_agreed": platform_terms_agreed,
+                        "is_booking_active": bool(linked_resource and linked_resource.is_active),
                     }
                 )
             upcoming_shifts = Availability.objects.filter(

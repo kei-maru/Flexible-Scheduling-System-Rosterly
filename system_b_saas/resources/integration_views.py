@@ -17,6 +17,7 @@ PROFILE_FIELDS = {
     "avatar_url",
     "youtube_url",
     "display_order",
+    "platform_terms_agreed",
     "allow_30_min",
     "allow_60_min",
     "allow_120_min",
@@ -258,7 +259,12 @@ class IntegrationResourceView(APIView):
 
         for field in PROFILE_FIELDS:
             if field in profile_payload:
-                if field in {"allow_30_min", "allow_60_min", "allow_120_min"}:
+                if field in {
+                    "allow_30_min",
+                    "allow_60_min",
+                    "allow_120_min",
+                    "platform_terms_agreed",
+                }:
                     parsed = _coerce_bool(profile_payload[field])
                     if parsed is not None:
                         setattr(profile, field, parsed)

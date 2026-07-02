@@ -186,6 +186,8 @@ def build_cast_profile_payload(cast_profile):
         "avatar_url": cast_profile.avatar.url if cast_profile.avatar else "",
         "youtube_url": cast_profile.youtube_url or "",
         "display_order": cast_profile.display_order,
+        # Profiles managed by System A have already passed the store's content review.
+        "platform_terms_agreed": True,
         "allow_30_min": bool(cast_profile.allow_30_min),
         "allow_60_min": bool(cast_profile.allow_60_min),
         "allow_120_min": bool(cast_profile.allow_120_min),

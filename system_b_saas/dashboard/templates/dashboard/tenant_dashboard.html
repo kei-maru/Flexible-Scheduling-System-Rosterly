@@ -569,8 +569,8 @@
                                             <label class="hover-note items-center gap-2 whitespace-nowrap text-xs {% if row.platform_terms_agreed %}text-slate-700{% else %}text-slate-400{% endif %}">
                                                 <input type="checkbox"
                                                     name="is_active__{{ row.user.id }}"
-                                                    {% if row.user.is_active and row.platform_terms_agreed %}checked{% endif %}
-                                                    data-original="{% if row.user.is_active and row.platform_terms_agreed %}1{% else %}0{% endif %}"
+                                                    {% if row.is_booking_active and row.platform_terms_agreed %}checked{% endif %}
+                                                    data-original="{% if row.is_booking_active and row.platform_terms_agreed %}1{% else %}0{% endif %}"
                                                     class="h-4 w-4 accent-indigo-600 {% if not row.platform_terms_agreed %}cursor-not-allowed accent-slate-300{% endif %}"
                                                     {% if not row.platform_terms_agreed %}disabled{% endif %}>
                                                 予約対象として有効

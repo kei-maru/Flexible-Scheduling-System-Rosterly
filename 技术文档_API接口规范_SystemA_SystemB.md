@@ -49,6 +49,27 @@
 - Access 页面新增“サイト解説動画はこちら”预留视频播放区。
 - 点击视频或全屏按钮进入全屏播放。
 
+## 0.2 2026-07-01～07-02 追加变更（重要）
+
+1. 公开预约可用时间实时化
+- Availability API 不再直接返回原始排班，而是从排班区间中扣除既有 `CONFIRMED` Booking 及其前后 30 分钟 buffer。
+- 响应增加 `Cache-Control: no-store`；前端请求同时禁用缓存，并通过请求序号避免较旧响应覆盖最新结果。
+- 打开预约确认画面前会重新拉取 availability。若选择时间已被其他顾客预约，则不进入确认画面，并提示重新选择。
+- 预约成功后保留当前 `resource_id` 并重新加载 slots，避免 `form.reset()` 清空担当者后无法刷新。
+- 未填写邮箱时，成功文案为：`予約が完了しました。担当者からの連絡をお待ちください。`
+
+2. System A / B 公开状态同步修复
+- 是否作为预约对象统一以 System B `Resource.is_active` 为准。
+- `SaaSUser.is_active` 仅表示账号是否有效，不再在管理员页面刷新或 Resource 自动绑定时覆盖 `Resource.is_active`。
+- System B Staff 列表中的“予約対象として有効”读取和修改 `Resource.is_active`，不再修改用户账号的 `is_active`。
+- System A 同步 Cast Profile 时自动发送 `profile.platform_terms_agreed=true`，用于表示该资料已由 System A 店铺侧完成内容确认。
+- System A Profile 编辑不再提交 `display_order`；显示顺序只通过管理员拖拽排序功能修改。
+
+3. 管理员账号与 CastProfile 注意事项
+- 当前 System A 权限逻辑仍将 `ADMIN` 视为包含 Cast 权限，并可能为管理员自动创建 `CastProfile`。
+- `sync_casts_to_system_b` 会同步 CastProfile 表中的全部对象，包括管理员对应的 CastProfile。
+- 对于仅用于管理、不应公开的账号，应将其 CastProfile 设为 `is_active=false`；后续权限重构应将 ADMIN 与 CAST 资格拆成独立状态。
+
 ## 1. 认证与约定
 
 ### 1.3 Discord 身份字段术语（重要）
@@ -315,6 +336,7 @@
     "avatar_url": "https://...",
     "youtube_url": "https://youtu.be/...",
     "display_order": 10,
+    "platform_terms_agreed": true,
     "allow_30_min": true,
     "allow_60_min": true,
     "allow_120_min": false
@@ -341,6 +363,11 @@
 - 显示状态同步规则（2026-05-23）：
   - `is_active` 由 System A 的“サイトに公開する”勾选同步到 System B `Resource.is_active`。
   - `is_active=false` 表示不在 System A 前台/主页显示，不表示员工离职或删除。
+- 状态边界补充（2026-07-02）：
+  - `Resource.is_active` 是“是否作为预约对象公开”的权威字段。
+  - `SaaSUser.is_active` 是“账号是否有效/可登录”的字段，Resource 自动绑定不得用它覆盖已有公开状态。
+  - System A 管理的 Profile 固定发送 `platform_terms_agreed=true`；System B 对该字段执行布尔值解析后写入 `ResourceProfile`。
+  - 普通资料保存不得隐式修改 `display_order`。
 
 #### `GET /api/v1/integration/resources/`
 
@@ -800,9 +827,15 @@
     - 店铺规定未设置时，不在预约确认画面显示“未設定”占位同意项。
 
 - `GET /dashboard/book/<tenant_slug>/api/availability/?resource_id=<uuid>`
-  - 功能：拉取该店指定担当者未来 14 天可预约空档（仅返回当前店铺数据）。
+  - 功能：拉取该店指定担当者未来预约窗口内的有效可预约空档（仅返回当前店铺数据）。
   - 实现位置：`system_b_saas/bookings/public_views.py::PublicBookingAvailabilityApi`
   - Demo 管理员资源也可返回真实 slots，用于 demo 预约界面展示。
+  - 有效区间计算（2026-07-01）：
+    - 读取 `Availability(is_booked=false)` 原始排班；
+    - 将每个 `CONFIRMED` Booking 的 `[start-30min, end+30min]` 从排班中切除；
+    - 返回切割后的左侧/右侧可预约区间；
+    - 同时裁剪 24 小时预约提前量和店铺预约窗口；
+    - 响应禁止浏览器缓存。
 
 - `POST /dashboard/book/<tenant_slug>/api/create/`
   - 功能：提交公开预约。
@@ -823,6 +856,7 @@
     - 蜜罐拦截：若 `website` 有值则判定为机器人请求并拒绝
     - demo 管理员资源不可预约，接口返回不可预约错误。
   - 失败码补充：`409`（时间冲突）、`429`（访问频率过高）
+  - 成功响应补充：`has_customer_email` 表示本次是否填写顾客邮箱，前端据此选择邮件提示或“等待担当者联系”提示。
 
 - `GET /dashboard/book/detail/<access_token>/`
   - 功能：顾客订单详情页（邮件“详细を見る”按钮目标）。

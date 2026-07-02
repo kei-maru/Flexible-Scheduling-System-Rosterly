@@ -789,3 +789,37 @@ git log --reverse --pretty=format:'%ad|%h|%s' --date=short --all
 
 阶段结论：
 - 上传 500 从“网关限制 + 文件权限”收敛为稳定可写，A/B 上传链路恢复正常。
+
+---
+
+## 22. Phase 22：公开预约实时可用性与 A/B 状态同步收敛（2026-07-01～2026-07-02）
+
+关键内容：
+- 公开预约 availability 从“返回原始排班”升级为“返回实际可预约区间”：
+  - 从 Availability 中扣除 `CONFIRMED` Booking。
+  - 预约前后各保留 30 分钟 buffer。
+  - 同时裁剪 24 小时提前预约限制与店铺预约窗口。
+- 前端 slot 与开始时间 SelectBox 实时更新：
+  - 禁止 availability 响应缓存。
+  - 使用请求序号防止旧响应覆盖新响应。
+  - 打开确认界面前重新验证选择时间。
+  - 预约成功后保留担当者并立即刷新 slots。
+- 无邮箱预约成功文案修正：
+  - 不再错误提示“已发送确认邮件”。
+  - 改为提示预约成功并等待担当者联系。
+- System A / System B 显示状态统一：
+  - `Resource.is_active` 专门表示是否作为预约对象公开。
+  - `SaaSUser.is_active` 专门表示账号有效状态。
+  - Resource 自动绑定不再在 B 管理页刷新时恢复已隐藏对象。
+  - B Staff 列表改为直接读取和修改 `Resource.is_active`。
+- System A Profile 同步补充：
+  - 自动发送 `platform_terms_agreed=true`。
+  - Profile 编辑不再提交 `display_order`，避免资料修改后员工跳到列表顶部。
+- 明确全量同步边界：
+  - `sync_casts_to_system_b` 以 System A CastProfile 表为同步源。
+  - 当前 ADMIN 会继承 Cast 权限并可能自动生成 CastProfile，因此管理专用账号需设为非公开。
+  - 后续改进方向为将 ADMIN 与 CAST 资格彻底拆分。
+
+阶段结论：
+- 公开预约画面展示的时间与后端最终可接受时间实现一致，减少“页面可选、提交才冲突”的体验问题。
+- 账号状态、预约对象状态、内容确认状态和显示顺序的职责边界被明确，解决刷新后 Hidden 丢失及资料保存导致顺序变化的问题。
